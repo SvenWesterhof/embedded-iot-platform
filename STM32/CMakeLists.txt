@@ -89,7 +89,7 @@ list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
     SEGGER_SystemView
-    # Add user defined libraries
+    common_lib
 )
 
 # Generate binary and hex files for flashing
