@@ -102,7 +102,6 @@ bool app_init(void)
     if (serv_ntp_init() == NTP_SYNC_OK) {
         LOG_I(TAG, "[OK] NTP service initialized");
         serv_ntp_set_server(NTP_SERVER);
-        serv_ntp_set_timezone(NTP_TIMEZONE_OFFSET);
     }
     
     // Initialize MQTT client with credentials

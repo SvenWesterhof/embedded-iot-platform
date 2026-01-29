@@ -163,13 +163,13 @@ Elke laag heeft één goed gedefinieerde verantwoordelijkheid:
 
 De architectuur is ontworpen voor **complete platformonafhankelijkheid** en dit is nu volledig gerealiseerd:
 
-#### ✅ **100% Draagbare Lagen**
+#### **100% Draagbare Lagen**
 - **Application** - Geen hardware-afhankelijkheden
 - **Middleware (Services & Features)** - Gebruikt alleen BSP en HAL abstracties
 - **Event Bus** - Platform-agnostisch eventsysteem
 - **Custom Drivers** - Generieke I2C/SPI device drivers ✅ **Volledig via HAL abstractie**
 
-#### ⚠️ **Platform-Specifieke Lagen** (Zoals Ontworpen)
+#### **Platform-Specifieke Lagen** (Zoals Ontworpen)
 - **BSP** - Board-specifiek (pinout, peripheralconfiguratie)
 - **HAL** - Platform-specifieke abstractie-implementatie
 
@@ -213,23 +213,6 @@ serv_temperature_sensor (elke 1s)
 - Max event payload: 64 bytes
 - Max subscribers per event: 5
 - Processing: Via `event_bus_process()` in main loop (10ms interval)
-
-### 4. **Geen Laagschendingen** *(met één uitzondering)*
-
-Strikte naleving van **alleen neerwaartse afhankelijkheden**:
-
-```
-Application → Middleware
-Middleware → Event Bus / BSP
-BSP → HAL
-HAL → Hardware
-```
-
-✅ **Correct geïmplementeerd**:
-- Application roept alleen Services en Event Bus aan
-- Services gebruiken alleen BSP en HAL abstracties
-- BSP gebruikt alleen HAL functies
-- Custom drivers (ath25.c, ina226.c) gebruiken consequent HAL
 
 ### 5. **Modulair & Testbaar**
 
@@ -385,19 +368,6 @@ stm32_development/
 
 ---
 
-## Design Patterns Used
-
-1. **Layered Architecture** - Clear separation of concerns
-2. **Publisher-Subscriber** - Event-driven communication via Event Bus
-3. **Hardware Abstraction** - Platform independence via HAL
-4. **Service-Oriented** - Modular capabilities (Services)
-5. **Dependency Inversion** - Upper layers depend on abstractions, not concretions
-6. **Command Pattern** - Protocol handler command routing
-7. **State Machine** - Protocol streaming state management
-8. **Ring Buffer** - Efficient circular buffer voor sensor data history
-
----
-
 ## Performance Metrics
 
 ### Timing
@@ -429,11 +399,11 @@ stm32_development/
 5. **Protocol stack separatie** (framing vs. handler) is clean
 
 ### Pitfalls Vermeden
-1. ❌ **Circular dependencies** - Voorkomen door strict layering
-2. ❌ **Global state** - Minimalized, prefer service context structs
-3. ❌ **Blocking operations** - Event-driven + RTOS voorkomt dit
-4. ❌ **Hard-coded pins** - Alles in pinout.h
-5. ❌ **Tight coupling** - Event bus breekt directe dependencies
+1. **Circular dependencies** - Voorkomen door strict layering
+2. **Global state** - Minimalized, prefer service context structs
+3. **Blocking operations** - Event-driven + RTOS voorkomt dit
+4. **Hard-coded pins** - Alles in pinout.h
+5. **Tight coupling** - Event bus breekt directe dependencies
 
 ### Aanbevelingen voor Developers
 - **Volg de lagen**: Nooit omhoog roepen, geen lagen overslaan

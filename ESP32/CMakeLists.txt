@@ -15,7 +15,7 @@ set(EXTRA_COMPONENT_DIRS
 )
 
 # Project definition
-project(esp32_audio_bridge)
+project(iot_gateway)
 
 # Set C standard
 set(CMAKE_C_STANDARD 11)

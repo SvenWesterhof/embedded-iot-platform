@@ -2,7 +2,7 @@
 
 A professional-grade ESP32 firmware implementing a WiFi gateway with STM32 UART communication, WebSocket dashboard, MQTT cloud integration, and NTP time synchronization.
 
-## 📋 Features
+## Features
 
 - **WiFi Connectivity** - Auto-connect with NVS credential storage
 - **WebSocket Dashboard** - Real-time browser-based monitoring
@@ -13,7 +13,7 @@ A professional-grade ESP32 firmware implementing a WiFi gateway with STM32 UART 
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -79,7 +79,7 @@ A professional-grade ESP32 firmware implementing a WiFi gateway with STM32 UART 
 
 ---
 
-## 📁 Component Reference
+## Component Reference
 
 ### Control Layer
 
@@ -160,7 +160,7 @@ Binary protocol for bidirectional MCU communication.
 
 ---
 
-## 🔌 Hardware Wiring
+## Hardware Wiring
 
 ### ESP32 Pinout
 
@@ -183,11 +183,11 @@ Binary protocol for bidirectional MCU communication.
 └─────────┘              └─────────┘
 ```
 
-> ⚠️ **Note:** Ensure both devices use 3.3V logic levels or add level shifters.
+> **Note:** Ensure both devices use 3.3V logic levels or add level shifters.
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 ### 1. Set Credentials
 
@@ -211,7 +211,7 @@ Edit `Application/credentials.h`:
 #define NTP_TIMEZONE_OFFSET 1       // UTC+1 for CET
 ```
 
-> ⚠️ **Never commit credentials.h** - it's in `.gitignore`
+> **Never commit credentials.h** - it's in `.gitignore`
 
 ### 2. Build & Flash
 
@@ -222,7 +222,7 @@ idf.py -p COM6 flash monitor
 
 ---
 
-## 🖥️ Dashboard Access
+## Dashboard Access
 
 1. **Boot the ESP32** and wait for WiFi connection
 2. **Find IP address** in serial monitor:
@@ -246,7 +246,7 @@ The dashboard auto-reconnects and updates every 2 seconds via WebSocket.
 
 ---
 
-## 📡 MQTT Usage
+## MQTT Usage
 
 ### Topic Structure
 
@@ -296,7 +296,7 @@ Published as JSON:
 
 ---
 
-## 📊 Event Bus
+## Event Bus
 
 Components communicate via a publish/subscribe event bus:
 
@@ -322,7 +322,7 @@ event_bus_publish(EVENT_STM32_DATA_READY, &sensor_data);
 
 ---
 
-## 🔧 Build Requirements
+## Build Requirements
 
 - **ESP-IDF:** v5.5.x
 - **Target:** ESP32 / ESP32-S3
@@ -331,7 +331,7 @@ event_bus_publish(EVENT_STM32_DATA_READY, &sensor_data);
 
 ---
 
-## 🧵 FreeRTOS Configuration
+## FreeRTOS Configuration
 
 This project uses FreeRTOS (integrated in ESP-IDF) for multitasking and real-time operation.
 
@@ -354,7 +354,7 @@ xTaskCreatePinnedToCore(my_task, "task", 4096, NULL, 5, NULL, 1);
 xTaskCreatePinnedToCore(my_task, "task", 4096, NULL, 5, NULL, tskNO_AFFINITY);
 ```
 
-> 💡 **Best Practice:** Keep WiFi-critical code on Core 0, computation-heavy tasks on Core 1.
+> **Best Practice:** Keep WiFi-critical code on Core 0, computation-heavy tasks on Core 1.
 
 ### Task Overview
 
@@ -414,24 +414,10 @@ os_task_create(my_task, "my_task",
 - **Stack Overflow Protection:** Enabled via `CONFIG_FREERTOS_CHECK_STACKOVERFLOW`
 - **Idle Task:** Handles WiFi/TCP background work
 
-> ⚠️ WebSocket + MQTT + TLS requires significant stack. Monitor with `uxTaskGetStackHighWaterMark()`.
+> WebSocket + MQTT + TLS requires significant stack. Monitor with `uxTaskGetStackHighWaterMark()`.
 
 ---
 
-## 📜 License
+## License
 
 MIT License - See LICENSE file for details
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Copy `credentials.h.template` → `credentials.h`
-4. Make your changes
-5. Submit a pull request
-
----
-
-*Built with ESP-IDF and ❤️*
