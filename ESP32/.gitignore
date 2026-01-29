@@ -1,0 +1,22 @@
+# Build directories
+build/
+sdkconfig.old
+dependencies.lock
+
+# Credentials - NEVER COMMIT
+Application/credentials.h
+**/credentials.h
+!**/credentials.h.template
+
+# VS Code
+.vscode/ipch/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# ESP-IDF
+managed_components/
+
+# Documentation (optional - remove if you want to track docs)
+docs/

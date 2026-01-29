@@ -1,0 +1,34 @@
+# Build directories
+/build/
+/build-*/
+/build*/
+/build/Debug/
+/Release/
+
+# CMake generated
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+*.ninja
+*.ninja_log
+*.ninja_deps
+
+# STM32CubeMX generated backups
+*.launch
+*.settings/
+
+# Editor/IDE
+.vscode/
+*.code-workspace
+
+# Binaries
+*.elf
+*.bin
+*.hex
+*.map
+*.list
+
+# Documentation (auto-generated or implementation details)
+docs/README_STM32_IMPLEMENTATION.md
+docs/STM32_PORTABILITY.md

@@ -1,0 +1,26 @@
+idf_component_register(
+    SRCS 
+        "Features/feat_stm32_protocol.c"
+        "Features/stm32_packet_framing.c"
+        "Features/feat_dashboard_server.c"
+        "Control/cont_wifi_manager.c"
+        "Services/serv_ntp_sync.c"
+        "Services/serv_mqtt_client.c"
+    INCLUDE_DIRS
+        "."
+        "Features"
+        "Services"
+        "Control"
+    REQUIRES
+        Drivers_BSP
+        HAL_Wrapper
+        OS
+        esp_component
+        esp_wifi
+        esp_netif
+        esp_event
+        nvs_flash
+        esp_http_server
+        lwip
+        mqtt
+)

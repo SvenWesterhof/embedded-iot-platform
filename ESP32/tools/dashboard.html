@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Gateway - Test Dashboard</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            min-height: 100vh;
+        }
+        .header {
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 1.2em; color: #58a6ff; }
+        #conn-status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+        #conn-status.connected { background: #238636; color: #fff; }
+        #conn-status.disconnected { background: #da3633; color: #fff; }
+        #conn-status.connecting { background: #9e6a03; color: #fff; }
+
+        .container { padding: 20px; display: grid; gap: 20px; }
+
+        /* Connection Panel */
+        .conn-panel {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .conn-panel h2 { font-size: 0.9em; color: #8b949e; margin-bottom: 12px; }
+        .conn-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .conn-row input {
+            flex: 1;
+            min-width: 200px;
+            padding: 8px 12px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            color: #c9d1d9;
+            font-size: 0.9em;
+        }
+        .conn-row input:focus { border-color: #58a6ff; outline: none; }
+
+        /* Buttons */
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: #238636; color: #fff; }
+        .btn-primary:hover { background: #2ea043; }
+        .btn-danger { background: #da3633; color: #fff; }
+        .btn-danger:hover { background: #f85149; }
+        .btn-secondary { background: #30363d; color: #c9d1d9; }
+        .btn-secondary:hover { background: #484f58; }
+        .btn-cmd { background: #1f6feb; color: #fff; }
+        .btn-cmd:hover { background: #388bfd; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Grid Layout */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 1200px) {
+            .main-grid { grid-template-columns: 1fr; }
+        }
+
+        /* Panels */
+        .panel {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .panel-header {
+            background: #21262d;
+            padding: 12px 16px;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .panel-header h3 { font-size: 0.95em; color: #c9d1d9; }
+        .panel-body { padding: 16px; }
+
+        /* Status Cards */
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+        }
+        .status-card {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+        }
+        .status-card .label { font-size: 0.75em; color: #8b949e; margin-bottom: 4px; }
+        .status-card .value { font-size: 1.1em; font-weight: 600; }
+        .status-card .value.ok { color: #3fb950; }
+        .status-card .value.error { color: #f85149; }
+        .status-card .value.warn { color: #d29922; }
+
+        /* Command Buttons Grid */
+        .cmd-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+        }
+        .cmd-btn {
+            padding: 12px;
+            text-align: center;
+        }
+        .cmd-btn .icon { font-size: 1.5em; margin-bottom: 6px; }
+        .cmd-btn .text { font-size: 0.8em; }
+
+        /* Input Groups */
+        .input-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .input-group label {
+            font-size: 0.85em;
+            color: #8b949e;
+            min-width: 100px;
+        }
+        .input-group input, .input-group select {
+            padding: 6px 10px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 4px;
+            color: #c9d1d9;
+            font-size: 0.85em;
+            width: 100px;
+        }
+
+        /* Log Area */
+        .log-container {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.8em;
+        }
+        .log-entry {
+            padding: 4px 10px;
+            border-bottom: 1px solid #21262d;
+            display: flex;
+            gap: 10px;
+        }
+        .log-entry:hover { background: #161b22; }
+        .log-time { color: #6e7681; min-width: 80px; }
+        .log-dir { min-width: 30px; }
+        .log-dir.tx { color: #f0883e; }
+        .log-dir.rx { color: #3fb950; }
+        .log-type { min-width: 80px; color: #a371f7; }
+        .log-data { color: #c9d1d9; word-break: break-all; }
+        .log-status { margin-left: auto; }
+        .log-status.ok { color: #3fb950; }
+        .log-status.error { color: #f85149; }
+
+        /* Data Chart Area */
+        .chart-container {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            height: 250px;
+            position: relative;
+            overflow: hidden;
+        }
+        #chart-canvas {
+            width: 100%;
+            height: 100%;
+        }
+        .chart-legend {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(22, 27, 34, 0.9);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 0.75em;
+        }
+        .legend-item { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+        .legend-color { width: 12px; height: 12px; border-radius: 2px; }
+
+        /* Sensor Data Display */
+        .sensor-data {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .sensor-card {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 16px;
+            text-align: center;
+        }
+        .sensor-card .name { font-size: 0.8em; color: #8b949e; }
+        .sensor-card .reading { font-size: 1.8em; font-weight: 600; color: #58a6ff; margin: 8px 0; }
+        .sensor-card .unit { font-size: 0.85em; color: #6e7681; }
+        .sensor-card .timestamp { font-size: 0.7em; color: #484f58; margin-top: 8px; }
+
+        /* Hex Display */
+        .hex-display {
+            font-family: 'Consolas', monospace;
+            font-size: 0.8em;
+            background: #0d1117;
+            padding: 8px;
+            border-radius: 4px;
+            word-break: break-all;
+            margin-top: 8px;
+        }
+        .hex-byte { color: #79c0ff; }
+        .hex-header { color: #f0883e; }
+
+        /* Buffer Fetch Progress */
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #21262d;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #238636, #3fb950);
+            transition: width 0.3s ease;
+        }
+        .progress-text {
+            font-size: 0.8em;
+            color: #8b949e;
+            margin-bottom: 5px;
+        }
+
+        /* History Table */
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8em;
+            margin-top: 10px;
+        }
+        .history-table th {
+            background: #21262d;
+            padding: 8px;
+            text-align: left;
+            color: #8b949e;
+            border-bottom: 1px solid #30363d;
+            position: sticky;
+            top: 0;
+        }
+        .history-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #21262d;
+        }
+        .history-table tr:hover {
+            background: #161b22;
+        }
+        .history-container {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+        }
+
+        /* Fetch button states */
+        .btn-fetch { background: #8957e5; color: #fff; }
+        .btn-fetch:hover { background: #a371f7; }
+        .btn-fetch.fetching { background: #9e6a03; cursor: wait; }
+        .btn-fetch.fetching:hover { background: #9e6a03; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>ESP32 Gateway - Test Dashboard</h1>
+        <span id="conn-status" class="disconnected">Disconnected</span>
+    </div>
+
+    <div class="container">
+        <!-- Connection Panel -->
+        <div class="conn-panel">
+            <h2>CONNECTION</h2>
+            <div class="conn-row">
+                <input type="text" id="ws-url" placeholder="WebSocket URL" value="ws://192.168.1.100/ws">
+                <button id="btn-connect" class="btn-primary">Connect</button>
+                <button id="btn-disconnect" class="btn-danger" disabled>Disconnect</button>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <!-- Left Column -->
+            <div>
+                <!-- ESP32 Status Panel -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>ESP32 Status</h3>
+                        <button class="btn-secondary" onclick="requestStatus()">Refresh</button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="status-grid">
+                            <div class="status-card">
+                                <div class="label">UPTIME</div>
+                                <div class="value" id="st-uptime">--</div>
+                            </div>
+                            <div class="status-card">
+                                <div class="label">WIFI</div>
+                                <div class="value" id="st-wifi">--</div>
+                            </div>
+                            <div class="status-card">
+                                <div class="label">MQTT</div>
+                                <div class="value" id="st-mqtt">--</div>
+                            </div>
+                            <div class="status-card">
+                                <div class="label">NTP</div>
+                                <div class="value" id="st-ntp">--</div>
+                            </div>
+                            <div class="status-card">
+                                <div class="label">CLIENTS</div>
+                                <div class="value" id="st-clients">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STM32 Commands Panel -->
+                <div class="panel" style="margin-top: 20px;">
+                    <div class="panel-header">
+                        <h3>STM32 Commands</h3>
+                    </div>
+                    <div class="panel-body">
+                        <div class="cmd-grid">
+                            <button class="btn-cmd cmd-btn" onclick="sendCmd('GET_STATUS')">
+                                <div class="icon">&#x2139;</div>
+                                <div class="text">Get Status</div>
+                            </button>
+                            <button class="btn-cmd cmd-btn" onclick="sendCmd('START_MEASUREMENT')">
+                                <div class="icon">&#x25B6;</div>
+                                <div class="text">Start Measure</div>
+                            </button>
+                            <button class="btn-cmd cmd-btn" onclick="sendCmd('STOP_MEASUREMENT')">
+                                <div class="icon">&#x25A0;</div>
+                                <div class="text">Stop Measure</div>
+                            </button>
+                            <button class="btn-cmd cmd-btn" onclick="sendCmd('GET_BUFFER')">
+                                <div class="icon">&#x1F4BE;</div>
+                                <div class="text">Get Buffer</div>
+                            </button>
+                            <button class="btn-cmd cmd-btn" onclick="sendCmd('CLEAR_BUFFER')">
+                                <div class="icon">&#x1F5D1;</div>
+                                <div class="text">Clear Buffer</div>
+                            </button>
+                            <button class="btn-cmd cmd-btn" onclick="sendCmd('SYNC_RTC')">
+                                <div class="icon">&#x23F0;</div>
+                                <div class="text">Sync RTC</div>
+                            </button>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Sensor Type:</label>
+                            <select id="sensor-type">
+                                <option value="1">Temperature</option>
+                                <option value="2">Current</option>
+                            </select>
+                            <label>Interval (ms):</label>
+                            <input type="number" id="measure-interval" value="1000" min="100" max="60000">
+                        </div>
+
+                        <div class="input-group">
+                            <label>Buffer Start:</label>
+                            <input type="number" id="buffer-start" value="0" min="0">
+                            <label>Count:</label>
+                            <input type="number" id="buffer-count" value="10" min="1" max="100">
+                        </div>
+
+                        <!-- Buffer Fetch All -->
+                        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #30363d;">
+                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                <button id="btn-fetch-all" class="btn-fetch" onclick="fetchAllBufferData()">
+                                    Fetch All Buffer Data
+                                </button>
+                                <button id="btn-cancel-fetch" class="btn-secondary" onclick="cancelBufferFetch()" style="display: none;">
+                                    Cancel
+                                </button>
+                                <label style="font-size: 0.8em; color: #8b949e;">
+                                    <input type="checkbox" id="auto-clear-buffer" checked> Clear after fetch
+                                </label>
+                            </div>
+                            <div id="fetch-progress" style="display: none;">
+                                <div class="progress-text">
+                                    Fetching: <span id="fetch-progress-text">0 / 0</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="fetch-progress-bar" style="width: 0%;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- STM32 Status Display -->
+                        <div class="status-grid" style="margin-top: 16px;">
+                            <div class="status-card">
+                                <div class="label">STM32 STATE</div>
+                                <div class="value" id="stm32-state">--</div>
+                            </div>
+                            <div class="status-card">
+                                <div class="label">STM32 ERROR</div>
+                                <div class="value" id="stm32-error">--</div>
+                            </div>
+                            <div class="status-card">
+                                <div class="label">BUFFER COUNT</div>
+                                <div class="value" id="stm32-buffer">--</div>
+                            </div>
+                            <div class="status-card">
+                                <div class="label">STM32 UPTIME</div>
+                                <div class="value" id="stm32-uptime">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column -->
+            <div>
+                <!-- Sensor Data Panel -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>Live Sensor Data</h3>
+                        <span id="data-rate">-- samples/s</span>
+                    </div>
+                    <div class="panel-body">
+                        <div class="chart-container">
+                            <canvas id="chart-canvas"></canvas>
+                            <div class="chart-legend">
+                                <div class="legend-item">
+                                    <div class="legend-color" style="background: #58a6ff;"></div>
+                                    <span>Temperature</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div class="legend-color" style="background: #f0883e;"></div>
+                                    <span>Current</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="sensor-data">
+                            <div class="sensor-card">
+                                <div class="name">Temperature</div>
+                                <div class="reading" id="temp-value">--</div>
+                                <div class="unit">°C</div>
+                                <div class="timestamp" id="temp-time">--</div>
+                            </div>
+                            <div class="sensor-card">
+                                <div class="name">Current</div>
+                                <div class="reading" id="current-value">--</div>
+                                <div class="unit">mA</div>
+                                <div class="timestamp" id="current-time">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Protocol Log Panel -->
+                <div class="panel" style="margin-top: 20px;">
+                    <div class="panel-header">
+                        <h3>Protocol Log</h3>
+                        <button class="btn-secondary" onclick="clearLog()">Clear</button>
+                    </div>
+                    <div class="panel-body">
+                        <div class="log-container" id="protocol-log"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Buffer History Panel (full width) -->
+        <div class="panel" id="history-panel" style="display: none;">
+            <div class="panel-header">
+                <h3>Buffer History (<span id="history-count">0</span> samples)</h3>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn-secondary" onclick="exportHistoryCSV()">Export CSV</button>
+                    <button class="btn-secondary" onclick="clearHistory()">Clear</button>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="chart-container" style="height: 200px; margin-bottom: 16px;">
+                    <canvas id="history-chart-canvas"></canvas>
+                </div>
+                <div class="history-container">
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Type</th>
+                                <th>Timestamp</th>
+                                <th>Value</th>
+                                <th>Converted</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Raw Packet Display -->
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Last Packet (Hex)</h3>
+                <label style="font-size: 0.8em;">
+                    <input type="checkbox" id="show-raw" checked> Show raw bytes
+                </label>
+            </div>
+            <div class="panel-body">
+                <div><strong>TX:</strong> <span class="hex-display" id="last-tx">--</span></div>
+                <div style="margin-top: 8px;"><strong>RX:</strong> <span class="hex-display" id="last-rx">--</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================================
+        // Protocol Constants (matching protocol_common.h)
+        // ============================================================================
+        const PACKET_TYPE = {
+            CMD: 0x01,
+            RESP: 0x02,
+            NOTIFY: 0x03
+        };
+
+        const CMD_ID = {
+            GET_BUFFER_DATA: 0x01,
+            START_MEASUREMENT: 0x02,
+            STOP_MEASUREMENT: 0x03,
+            SET_RTC: 0x04,
+            GET_STATUS: 0x05,
+            CLEAR_BUFFER: 0x06,
+            GET_CONFIG: 0x07,
+            SET_CONFIG: 0x08
+        };
+
+        const RESP_STATUS = {
+            OK: 0x00,
+            ERROR: 0x01,
+            INVALID_CMD: 0x02,
+            INVALID_PARAM: 0x03,
+            BUSY: 0x04,
+            TIMEOUT: 0x05,
+            NO_DATA: 0x06
+        };
+
+        const SENSOR_TYPE = {
+            TEMPERATURE: 0x01,
+            CURRENT: 0x02
+        };
+
+        // Dashboard message types (to ESP32)
+        const DASH_MSG = {
+            HEARTBEAT: 0x01,
+            REQUEST_HISTORY: 0x02,
+            START_MEASUREMENT: 0x03,
+            STOP_MEASUREMENT: 0x04,
+            GET_STATUS: 0x05,
+            SET_CONFIG: 0x06,
+            SYNC_TIME: 0x07,
+            // STM32 command forwarding
+            STM32_CMD: 0x10           // Forward raw command (payload: cmd_id + data)
+        };
+
+        // Dashboard response types (from ESP32)
+        const DASH_RESP = {
+            ACK: 0x01,
+            ERROR: 0x02,
+            STATUS: 0x03,
+            DATA: 0x04,
+            MEASUREMENT: 0x05,
+            HISTORY: 0x06,
+            // STM32 response forwarding
+            STM32: 0x10               // Raw STM32 response (full protocol_packet_t)
+        };
+
+        // ============================================================================
+        // State
+        // ============================================================================
+        let ws = null;
+        let seqNumber = 0;
+        let reconnectAttempts = 0;
+        let heartbeatInterval = null;
+        let sampleCount = 0;
+        let lastSampleTime = Date.now();
+
+        // Chart data
+        const chartData = {
+            temperature: [],
+            current: [],
+            maxPoints: 100
+        };
+
+        // ============================================================================
+        // DOM Elements
+        // ============================================================================
+        const $ = id => document.getElementById(id);
+        const connStatus = $('conn-status');
+        const btnConnect = $('btn-connect');
+        const btnDisconnect = $('btn-disconnect');
+        const wsUrlInput = $('ws-url');
+        const protocolLog = $('protocol-log');
+
+        // ============================================================================
+        // WebSocket Connection
+        // ============================================================================
+        function connect() {
+            const url = wsUrlInput.value.trim();
+            if (!url) return;
+
+            setConnStatus('connecting', 'Connecting...');
+
+            try {
+                ws = new WebSocket(url);
+                ws.binaryType = 'arraybuffer';
+
+                ws.onopen = () => {
+                    setConnStatus('connected', 'Connected');
+                    btnConnect.disabled = true;
+                    btnDisconnect.disabled = false;
+                    reconnectAttempts = 0;
+                    logProtocol('--', 'CONNECT', `Connected to ${url}`, 'ok');
+
+                    // Start heartbeat
+                    heartbeatInterval = setInterval(() => {
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            sendDashboardMsg(DASH_MSG.HEARTBEAT);
+                        }
+                    }, 30000);
+                };
+
+                ws.onclose = (e) => {
+                    setConnStatus('disconnected', 'Disconnected');
+                    btnConnect.disabled = false;
+                    btnDisconnect.disabled = true;
+                    logProtocol('--', 'DISCONNECT', `Connection closed: ${e.code}`, 'error');
+
+                    if (heartbeatInterval) {
+                        clearInterval(heartbeatInterval);
+                        heartbeatInterval = null;
+                    }
+
+                    // Auto-reconnect
+                    if (reconnectAttempts < 5) {
+                        reconnectAttempts++;
+                        setTimeout(connect, Math.min(5000, reconnectAttempts * 1000));
+                    }
+                };
+
+                ws.onerror = (e) => {
+                    logProtocol('--', 'ERROR', 'WebSocket error', 'error');
+                };
+
+                ws.onmessage = (e) => {
+                    if (typeof e.data === 'string') {
+                        // JSON status update
+                        handleJsonMessage(e.data);
+                    } else {
+                        // Binary protocol message
+                        handleBinaryMessage(new Uint8Array(e.data));
+                    }
+                };
+            } catch (err) {
+                logProtocol('--', 'ERROR', err.message, 'error');
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function setConnStatus(state, text) {
+            connStatus.className = state;
+            connStatus.textContent = text;
+        }
+
+        // ============================================================================
+        // Message Handling
+        // ============================================================================
+        function handleJsonMessage(data) {
+            try {
+                const json = JSON.parse(data);
+
+                // Update ESP32 status
+                if (json.uptime !== undefined) $('st-uptime').textContent = json.uptime + 's';
+                if (json.wifi) {
+                    const el = $('st-wifi');
+                    el.textContent = json.wifi;
+                    el.className = 'value ' + (json.wifi === 'Connected' ? 'ok' : 'error');
+                }
+                if (json.mqtt) {
+                    const el = $('st-mqtt');
+                    el.textContent = json.mqtt;
+                    el.className = 'value ' + (json.mqtt === 'Connected' ? 'ok' : 'error');
+                }
+                if (json.ntp) {
+                    const el = $('st-ntp');
+                    el.textContent = json.ntp;
+                    el.className = 'value ' + (json.ntp === 'Synced' ? 'ok' : 'warn');
+                }
+                if (json.clients !== undefined) $('st-clients').textContent = json.clients;
+
+                // Log if has specific data
+                if (json.log) {
+                    logProtocol('RX', 'LOG', json.log, 'ok');
+                }
+            } catch (err) {
+                console.error('JSON parse error:', err);
+            }
+        }
+
+        function handleBinaryMessage(data) {
+            updateRawDisplay('rx', data);
+
+            if (data.length < 1) return;
+
+            const respType = data[0];
+            const payload = data.slice(1);
+
+            switch (respType) {
+                case DASH_RESP.ACK:
+                    logProtocol('RX', 'ACK', 'Command acknowledged', 'ok');
+                    break;
+
+                case DASH_RESP.ERROR:
+                    const errCode = payload.length > 0 ? payload[0] : 0;
+                    logProtocol('RX', 'ERROR', `Error code: ${errCode}`, 'error');
+                    break;
+
+                case DASH_RESP.MEASUREMENT:
+                    handleSensorData(payload);
+                    break;
+
+                case DASH_RESP.STM32:
+                    handleStm32Response(payload);
+                    break;
+
+                case DASH_RESP.HISTORY:
+                    handleHistoryData(payload);
+                    break;
+
+                default:
+                    logProtocol('RX', `TYPE:${respType.toString(16)}`,
+                        `Payload: ${toHex(payload)}`, 'ok');
+            }
+        }
+
+        function handleStm32Status(payload) {
+            // Parse resp_get_status_t: state(1) + error(1) + buffer_count(2) + uptime(4)
+            if (payload.length >= 8) {
+                const state = payload[0];
+                const error = payload[1];
+                const bufferCount = payload[2] | (payload[3] << 8);
+                const uptime = payload[4] | (payload[5] << 8) | (payload[6] << 16) | (payload[7] << 24);
+
+                $('stm32-state').textContent = state === 0 ? 'Idle' : state === 1 ? 'Measuring' : `${state}`;
+                $('stm32-state').className = 'value ' + (state === 0 ? 'ok' : 'warn');
+
+                $('stm32-error').textContent = error === 0 ? 'None' : `0x${error.toString(16)}`;
+                $('stm32-error').className = 'value ' + (error === 0 ? 'ok' : 'error');
+
+                $('stm32-buffer').textContent = bufferCount;
+                $('stm32-uptime').textContent = uptime + 's';
+
+                logProtocol('RX', 'STM32_STATUS',
+                    `State:${state} Err:${error} Buf:${bufferCount} Up:${uptime}s`, 'ok');
+            }
+        }
+
+        function handleSensorData(payload) {
+            // Parse sensor_sample_t: sensor_type(1) + timestamp(4) + value(4)
+            if (payload.length >= 9) {
+                const sensorType = payload[0];
+                const timestamp = payload[1] | (payload[2] << 8) | (payload[3] << 16) | (payload[4] << 24);
+                const rawValue = payload[5] | (payload[6] << 8) | (payload[7] << 16) | (payload[8] << 24);
+                // Handle signed int32
+                const value = rawValue > 0x7FFFFFFF ? rawValue - 0x100000000 : rawValue;
+
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString();
+
+                if (sensorType === SENSOR_TYPE.TEMPERATURE) {
+                    const temp = value / 100.0; // Scaled value
+                    $('temp-value').textContent = temp.toFixed(2);
+                    $('temp-time').textContent = timeStr;
+                    addChartPoint('temperature', temp);
+                } else if (sensorType === SENSOR_TYPE.CURRENT) {
+                    $('current-value').textContent = value;
+                    $('current-time').textContent = timeStr;
+                    addChartPoint('current', value);
+                }
+
+                // Update sample rate
+                sampleCount++;
+                const elapsed = (Date.now() - lastSampleTime) / 1000;
+                if (elapsed >= 1) {
+                    $('data-rate').textContent = (sampleCount / elapsed).toFixed(1) + ' samples/s';
+                    sampleCount = 0;
+                    lastSampleTime = Date.now();
+                }
+
+                logProtocol('RX', 'SENSOR',
+                    `Type:${sensorType} Val:${value} TS:${timestamp}`, 'ok');
+            }
+        }
+
+        function handleStm32Response(payload) {
+            // Parse protocol_packet_t header: type(1) + cmd_id(1) + seq(1) + status(1) + length(2)
+            if (payload.length >= 6) {
+                const type = payload[0];
+                const cmdId = payload[1];
+                const seq = payload[2];
+                const status = payload[3];
+                const length = payload[4] | (payload[5] << 8);
+                const data = payload.slice(6);
+
+                const cmdName = Object.keys(CMD_ID).find(k => CMD_ID[k] === cmdId) || `0x${cmdId.toString(16)}`;
+                const statusName = Object.keys(RESP_STATUS).find(k => RESP_STATUS[k] === status) || `0x${status.toString(16)}`;
+
+                // Check if buffer fetch state machine should handle this
+                if (handleBufferFetchResponse(cmdId, status, data)) {
+                    // Already logged by buffer fetch handler
+                    return;
+                }
+
+                logProtocol('RX', `STM32:${cmdName}`,
+                    `Seq:${seq} Status:${statusName} Len:${length}`,
+                    status === RESP_STATUS.OK || status === RESP_STATUS.NO_DATA ? 'ok' : 'error');
+
+                // Handle specific responses
+                if (cmdId === CMD_ID.GET_STATUS && status === RESP_STATUS.OK && data.length >= 8) {
+                    handleStm32Status(data);
+                }
+
+                // Handle buffer data response (manual fetch)
+                if (cmdId === CMD_ID.GET_BUFFER_DATA && status === RESP_STATUS.OK && data.length >= 3) {
+                    handleBufferDataResponse(data);
+                }
+            }
+        }
+
+        /**
+         * Handle buffer data response for manual GET_BUFFER command
+         */
+        function handleBufferDataResponse(data) {
+            const sensorType = data[0];
+            const sampleCount = data[1] | (data[2] << 8);
+
+            logProtocol('RX', 'BUFFER_DATA', `Type:${sensorType} Samples:${sampleCount}`, 'ok');
+
+            // Parse and display samples
+            let offset = 3;
+            for (let i = 0; i < sampleCount && offset + 9 <= data.length; i++) {
+                const sample = {
+                    type: data[offset],
+                    timestamp: data[offset + 1] | (data[offset + 2] << 8) |
+                               (data[offset + 3] << 16) | (data[offset + 4] << 24),
+                    value: data[offset + 5] | (data[offset + 6] << 8) |
+                           (data[offset + 7] << 16) | (data[offset + 8] << 24)
+                };
+                // Handle signed int32
+                if (sample.value > 0x7FFFFFFF) {
+                    sample.value = sample.value - 0x100000000;
+                }
+
+                // Log each sample
+                const typeName = sample.type === SENSOR_TYPE.TEMPERATURE ? 'Temp' : 'Curr';
+                const converted = sample.type === SENSOR_TYPE.TEMPERATURE ?
+                                  (sample.value / 100).toFixed(2) + '°C' : sample.value + 'mA';
+                logProtocol('RX', 'SAMPLE', `${typeName}: ${converted} @ ts=${sample.timestamp}`, 'ok');
+
+                offset += 9;
+            }
+        }
+
+        function handleHistoryData(payload) {
+            // Parse resp_buffer_data_header_t + samples
+            if (payload.length >= 3) {
+                const sensorType = payload[0];
+                const sampleCount = payload[1] | (payload[2] << 8);
+
+                logProtocol('RX', 'HISTORY',
+                    `Type:${sensorType} Samples:${sampleCount}`, 'ok');
+
+                // Parse individual samples
+                let offset = 3;
+                for (let i = 0; i < sampleCount && offset + 9 <= payload.length; i++) {
+                    const sample = payload.slice(offset, offset + 9);
+                    handleSensorData(sample);
+                    offset += 9;
+                }
+            }
+        }
+
+        // ============================================================================
+        // Command Sending
+        // ============================================================================
+        function sendDashboardMsg(type, payload = null) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                logProtocol('--', 'ERROR', 'Not connected', 'error');
+                return;
+            }
+
+            let data;
+            if (payload) {
+                data = new Uint8Array(1 + payload.length);
+                data[0] = type;
+                data.set(payload, 1);
+            } else {
+                data = new Uint8Array([type]);
+            }
+
+            ws.send(data);
+            updateRawDisplay('tx', data);
+
+            const typeName = Object.keys(DASH_MSG).find(k => DASH_MSG[k] === type) || `0x${type.toString(16)}`;
+            logProtocol('TX', typeName, payload ? `Payload: ${toHex(payload)}` : '', 'ok');
+        }
+
+        /**
+         * Send STM32 command via DASH_MSG_STM32_CMD
+         * Payload format: cmd_id (1 byte) + command_payload (variable)
+         */
+        function sendStm32Cmd(cmdId, cmdPayload = null) {
+            let payload;
+            if (cmdPayload) {
+                payload = new Uint8Array(1 + cmdPayload.length);
+                payload[0] = cmdId;
+                payload.set(cmdPayload, 1);
+            } else {
+                payload = new Uint8Array([cmdId]);
+            }
+            sendDashboardMsg(DASH_MSG.STM32_CMD, payload);
+        }
+
+        function sendCmd(cmd) {
+            switch (cmd) {
+                case 'GET_STATUS':
+                    sendStm32Cmd(CMD_ID.GET_STATUS);
+                    break;
+
+                case 'START_MEASUREMENT': {
+                    const sensorType = parseInt($('sensor-type').value);
+                    const interval = parseInt($('measure-interval').value);
+                    // cmd_start_stream_t: sensor_type(1) + interval_ms(4)
+                    const cmdPayload = new Uint8Array(5);
+                    cmdPayload[0] = sensorType;
+                    cmdPayload[1] = interval & 0xFF;
+                    cmdPayload[2] = (interval >> 8) & 0xFF;
+                    cmdPayload[3] = (interval >> 16) & 0xFF;
+                    cmdPayload[4] = (interval >> 24) & 0xFF;
+                    sendStm32Cmd(CMD_ID.START_MEASUREMENT, cmdPayload);
+                    break;
+                }
+
+                case 'STOP_MEASUREMENT':
+                    sendStm32Cmd(CMD_ID.STOP_MEASUREMENT);
+                    break;
+
+                case 'GET_BUFFER': {
+                    const start = parseInt($('buffer-start').value);
+                    const count = parseInt($('buffer-count').value);
+                    // cmd_get_buffer_data_t: start_index(4) + count(4)
+                    const cmdPayload = new Uint8Array(8);
+                    cmdPayload[0] = start & 0xFF;
+                    cmdPayload[1] = (start >> 8) & 0xFF;
+                    cmdPayload[2] = (start >> 16) & 0xFF;
+                    cmdPayload[3] = (start >> 24) & 0xFF;
+                    cmdPayload[4] = count & 0xFF;
+                    cmdPayload[5] = (count >> 8) & 0xFF;
+                    cmdPayload[6] = (count >> 16) & 0xFF;
+                    cmdPayload[7] = (count >> 24) & 0xFF;
+                    sendStm32Cmd(CMD_ID.GET_BUFFER_DATA, cmdPayload);
+                    break;
+                }
+
+                case 'CLEAR_BUFFER':
+                    sendStm32Cmd(CMD_ID.CLEAR_BUFFER);
+                    break;
+
+                case 'SYNC_RTC':
+                    // ESP32 will build the payload with its NTP-synced time
+                    sendStm32Cmd(CMD_ID.SET_RTC);
+                    break;
+            }
+        }
+
+        function requestStatus() {
+            sendDashboardMsg(DASH_MSG.GET_STATUS);
+        }
+
+        // ============================================================================
+        // Buffer Fetch State Machine
+        // ============================================================================
+        const SAMPLES_PER_REQUEST = 27;  // Max samples that fit in 256-byte payload
+
+        const bufferFetch = {
+            state: 'idle',  // idle, get_status, polling, clearing, complete, error
+            totalSamples: 0,
+            fetchedSamples: 0,
+            currentIndex: 0,
+            samples: [],
+            pendingCmd: null,
+            autoClear: true
+        };
+
+        // History data storage
+        const historyData = {
+            samples: []
+        };
+
+        /**
+         * Start fetching all buffer data from STM32
+         */
+        function fetchAllBufferData() {
+            if (bufferFetch.state !== 'idle') {
+                logProtocol('--', 'BUFFER', 'Fetch already in progress', 'warn');
+                return;
+            }
+
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                logProtocol('--', 'ERROR', 'Not connected', 'error');
+                return;
+            }
+
+            // Reset state
+            bufferFetch.state = 'get_status';
+            bufferFetch.totalSamples = 0;
+            bufferFetch.fetchedSamples = 0;
+            bufferFetch.currentIndex = 0;
+            bufferFetch.samples = [];
+            bufferFetch.autoClear = $('auto-clear-buffer').checked;
+
+            // Update UI
+            $('btn-fetch-all').classList.add('fetching');
+            $('btn-fetch-all').textContent = 'Fetching...';
+            $('btn-cancel-fetch').style.display = 'inline-block';
+            $('fetch-progress').style.display = 'block';
+            updateFetchProgress(0, 0);
+
+            logProtocol('TX', 'BUFFER', 'Starting buffer fetch - getting status', 'ok');
+
+            // First, get status to know buffer count
+            sendStm32Cmd(CMD_ID.GET_STATUS);
+        }
+
+        /**
+         * Cancel ongoing buffer fetch
+         */
+        function cancelBufferFetch() {
+            if (bufferFetch.state === 'idle') return;
+
+            logProtocol('--', 'BUFFER', 'Fetch cancelled', 'warn');
+            bufferFetchComplete(true);
+        }
+
+        /**
+         * Update fetch progress UI
+         */
+        function updateFetchProgress(fetched, total) {
+            $('fetch-progress-text').textContent = `${fetched} / ${total}`;
+            const pct = total > 0 ? (fetched / total) * 100 : 0;
+            $('fetch-progress-bar').style.width = `${pct}%`;
+        }
+
+        /**
+         * Handle STM32 response during buffer fetch
+         */
+        function handleBufferFetchResponse(cmdId, status, payload) {
+            if (bufferFetch.state === 'idle') return false;
+
+            if (bufferFetch.state === 'get_status' && cmdId === CMD_ID.GET_STATUS) {
+                if (status !== RESP_STATUS.OK || payload.length < 8) {
+                    logProtocol('RX', 'BUFFER', 'Failed to get status', 'error');
+                    bufferFetchComplete(true);
+                    return true;
+                }
+
+                // Parse resp_get_status_t
+                const bufferCount = payload[2] | (payload[3] << 8);
+                bufferFetch.totalSamples = bufferCount;
+
+                logProtocol('RX', 'BUFFER', `Status: ${bufferCount} samples in buffer`, 'ok');
+
+                if (bufferCount === 0) {
+                    logProtocol('--', 'BUFFER', 'Buffer is empty', 'ok');
+                    bufferFetchComplete(false);
+                    return true;
+                }
+
+                // Start polling
+                bufferFetch.state = 'polling';
+                updateFetchProgress(0, bufferCount);
+                requestNextBufferChunk();
+                return true;
+            }
+
+            if (bufferFetch.state === 'polling' && cmdId === CMD_ID.GET_BUFFER_DATA) {
+                // RESP_NO_DATA means end of buffer
+                if (status === RESP_STATUS.NO_DATA) {
+                    logProtocol('RX', 'BUFFER', 'End of buffer (NO_DATA)', 'ok');
+                    startBufferClear();
+                    return true;
+                }
+
+                if (status !== RESP_STATUS.OK) {
+                    logProtocol('RX', 'BUFFER', `Buffer request failed: ${status}`, 'error');
+                    bufferFetchComplete(true);
+                    return true;
+                }
+
+                // Parse resp_buffer_data_header_t + samples
+                if (payload.length < 3) {
+                    logProtocol('RX', 'BUFFER', 'Invalid response', 'error');
+                    bufferFetchComplete(true);
+                    return true;
+                }
+
+                const sensorType = payload[0];
+                const sampleCount = payload[1] | (payload[2] << 8);
+
+                // Parse samples
+                let offset = 3;
+                for (let i = 0; i < sampleCount && offset + 9 <= payload.length; i++) {
+                    const sample = {
+                        type: payload[offset],
+                        timestamp: payload[offset + 1] | (payload[offset + 2] << 8) |
+                                   (payload[offset + 3] << 16) | (payload[offset + 4] << 24),
+                        value: payload[offset + 5] | (payload[offset + 6] << 8) |
+                               (payload[offset + 7] << 16) | (payload[offset + 8] << 24)
+                    };
+                    // Handle signed int32
+                    if (sample.value > 0x7FFFFFFF) {
+                        sample.value = sample.value - 0x100000000;
+                    }
+                    bufferFetch.samples.push(sample);
+                    offset += 9;
+                }
+
+                bufferFetch.fetchedSamples += sampleCount;
+                bufferFetch.currentIndex += sampleCount;
+                updateFetchProgress(bufferFetch.fetchedSamples, bufferFetch.totalSamples);
+
+                logProtocol('RX', 'BUFFER', `Received ${sampleCount} samples (total: ${bufferFetch.fetchedSamples})`, 'ok');
+
+                // Check if done
+                if (sampleCount === 0 || bufferFetch.currentIndex >= bufferFetch.totalSamples) {
+                    startBufferClear();
+                } else {
+                    // Request next chunk
+                    requestNextBufferChunk();
+                }
+                return true;
+            }
+
+            if (bufferFetch.state === 'clearing' && cmdId === CMD_ID.CLEAR_BUFFER) {
+                if (status === RESP_STATUS.OK) {
+                    logProtocol('RX', 'BUFFER', 'Buffer cleared', 'ok');
+                } else {
+                    logProtocol('RX', 'BUFFER', 'Clear failed (continuing anyway)', 'warn');
+                }
+                bufferFetchComplete(false);
+                return true;
+            }
+
+            return false;
+        }
+
+        /**
+         * Request next chunk of buffer data
+         */
+        function requestNextBufferChunk() {
+            const remaining = bufferFetch.totalSamples - bufferFetch.currentIndex;
+            const count = Math.min(remaining, SAMPLES_PER_REQUEST);
+
+            logProtocol('TX', 'BUFFER', `Requesting index=${bufferFetch.currentIndex} count=${count}`, 'ok');
+
+            // cmd_get_buffer_data_t: start_index(4) + count(4)
+            const cmdPayload = new Uint8Array(8);
+            cmdPayload[0] = bufferFetch.currentIndex & 0xFF;
+            cmdPayload[1] = (bufferFetch.currentIndex >> 8) & 0xFF;
+            cmdPayload[2] = (bufferFetch.currentIndex >> 16) & 0xFF;
+            cmdPayload[3] = (bufferFetch.currentIndex >> 24) & 0xFF;
+            cmdPayload[4] = count & 0xFF;
+            cmdPayload[5] = (count >> 8) & 0xFF;
+            cmdPayload[6] = (count >> 16) & 0xFF;
+            cmdPayload[7] = (count >> 24) & 0xFF;
+            sendStm32Cmd(CMD_ID.GET_BUFFER_DATA, cmdPayload);
+        }
+
+        /**
+         * Start clearing the buffer (if auto-clear enabled)
+         */
+        function startBufferClear() {
+            if (bufferFetch.autoClear) {
+                bufferFetch.state = 'clearing';
+                logProtocol('TX', 'BUFFER', 'Clearing buffer', 'ok');
+                sendStm32Cmd(CMD_ID.CLEAR_BUFFER);
+            } else {
+                bufferFetchComplete(false);
+            }
+        }
+
+        /**
+         * Complete buffer fetch operation
+         */
+        function bufferFetchComplete(isError) {
+            // Update UI
+            $('btn-fetch-all').classList.remove('fetching');
+            $('btn-fetch-all').textContent = 'Fetch All Buffer Data';
+            $('btn-cancel-fetch').style.display = 'none';
+            $('fetch-progress').style.display = 'none';
+
+            if (!isError && bufferFetch.samples.length > 0) {
+                logProtocol('--', 'BUFFER', `Fetch complete: ${bufferFetch.samples.length} samples`, 'ok');
+
+                // Store in history
+                historyData.samples = bufferFetch.samples.slice();
+                displayHistoryData();
+            } else if (isError) {
+                logProtocol('--', 'BUFFER', 'Fetch failed or cancelled', 'error');
+            }
+
+            bufferFetch.state = 'idle';
+            bufferFetch.samples = [];
+        }
+
+        /**
+         * Display history data in table and chart
+         */
+        function displayHistoryData() {
+            const panel = $('history-panel');
+            const tbody = $('history-table-body');
+            const countSpan = $('history-count');
+
+            if (historyData.samples.length === 0) {
+                panel.style.display = 'none';
+                return;
+            }
+
+            panel.style.display = 'block';
+            countSpan.textContent = historyData.samples.length;
+
+            // Build table rows
+            tbody.innerHTML = '';
+            historyData.samples.forEach((sample, index) => {
+                const row = document.createElement('tr');
+                const typeName = sample.type === SENSOR_TYPE.TEMPERATURE ? 'Temperature' :
+                                 sample.type === SENSOR_TYPE.CURRENT ? 'Current' : `Type ${sample.type}`;
+                const converted = sample.type === SENSOR_TYPE.TEMPERATURE ?
+                                  (sample.value / 100).toFixed(2) + ' °C' :
+                                  sample.value + ' mA';
+
+                // Format timestamp as time if it looks like Unix timestamp
+                let timeStr;
+                if (sample.timestamp > 1600000000) {
+                    // Unix timestamp
+                    const date = new Date(sample.timestamp * 1000);
+                    timeStr = date.toLocaleString();
+                } else {
+                    // ms since boot
+                    const secs = Math.floor(sample.timestamp / 1000);
+                    const ms = sample.timestamp % 1000;
+                    timeStr = `${secs}.${ms.toString().padStart(3, '0')}s`;
+                }
+
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${typeName}</td>
+                    <td>${timeStr}</td>
+                    <td>${sample.value}</td>
+                    <td>${converted}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            // Draw history chart
+            drawHistoryChart();
+        }
+
+        /**
+         * Draw history chart
+         */
+        function drawHistoryChart() {
+            const canvas = $('history-chart-canvas');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+
+            const w = canvas.width;
+            const h = canvas.height;
+            const padding = 40;
+
+            // Clear
+            ctx.fillStyle = '#0d1117';
+            ctx.fillRect(0, 0, w, h);
+
+            if (historyData.samples.length < 2) return;
+
+            // Get temperature samples only for now
+            const tempSamples = historyData.samples.filter(s => s.type === SENSOR_TYPE.TEMPERATURE);
+            if (tempSamples.length < 2) return;
+
+            // Get min/max
+            const values = tempSamples.map(s => s.value / 100);
+            const minVal = Math.min(...values) - 1;
+            const maxVal = Math.max(...values) + 1;
+            const range = maxVal - minVal || 1;
+
+            // Draw grid
+            ctx.strokeStyle = '#21262d';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = padding + (h - 2 * padding) * i / 4;
+                ctx.beginPath();
+                ctx.moveTo(padding, y);
+                ctx.lineTo(w - padding, y);
+                ctx.stroke();
+            }
+
+            // Draw line
+            ctx.strokeStyle = '#58a6ff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            const xStep = (w - 2 * padding) / (tempSamples.length - 1);
+            for (let i = 0; i < tempSamples.length; i++) {
+                const x = padding + i * xStep;
+                const val = tempSamples[i].value / 100;
+                const y = h - padding - ((val - minVal) / range) * (h - 2 * padding);
+
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+
+            // Draw Y-axis labels
+            ctx.fillStyle = '#8b949e';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'right';
+            for (let i = 0; i <= 4; i++) {
+                const val = maxVal - (range * i / 4);
+                const y = padding + (h - 2 * padding) * i / 4;
+                ctx.fillText(val.toFixed(1) + '°C', padding - 5, y + 3);
+            }
+        }
+
+        /**
+         * Export history data as CSV
+         */
+        function exportHistoryCSV() {
+            if (historyData.samples.length === 0) return;
+
+            let csv = 'Index,Type,Timestamp,RawValue,Converted\n';
+            historyData.samples.forEach((sample, index) => {
+                const typeName = sample.type === SENSOR_TYPE.TEMPERATURE ? 'Temperature' :
+                                 sample.type === SENSOR_TYPE.CURRENT ? 'Current' : `Type_${sample.type}`;
+                const converted = sample.type === SENSOR_TYPE.TEMPERATURE ?
+                                  (sample.value / 100).toFixed(2) : sample.value;
+                csv += `${index + 1},${typeName},${sample.timestamp},${sample.value},${converted}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `buffer_history_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        /**
+         * Clear history display
+         */
+        function clearHistory() {
+            historyData.samples = [];
+            $('history-panel').style.display = 'none';
+            $('history-table-body').innerHTML = '';
+        }
+
+        // ============================================================================
+        // Logging & Display
+        // ============================================================================
+        function logProtocol(dir, type, data, status) {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+
+            const time = new Date().toLocaleTimeString();
+            const dirClass = dir === 'TX' ? 'tx' : dir === 'RX' ? 'rx' : '';
+
+            entry.innerHTML = `
+                <span class="log-time">${time}</span>
+                <span class="log-dir ${dirClass}">${dir}</span>
+                <span class="log-type">${type}</span>
+                <span class="log-data">${data}</span>
+                <span class="log-status ${status}">${status.toUpperCase()}</span>
+            `;
+
+            protocolLog.insertBefore(entry, protocolLog.firstChild);
+
+            // Keep only last 200 entries
+            while (protocolLog.children.length > 200) {
+                protocolLog.removeChild(protocolLog.lastChild);
+            }
+        }
+
+        function clearLog() {
+            protocolLog.innerHTML = '';
+        }
+
+        function toHex(data) {
+            if (!data || data.length === 0) return '--';
+            return Array.from(data).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+        }
+
+        function updateRawDisplay(dir, data) {
+            if (!$('show-raw').checked) return;
+
+            const el = dir === 'tx' ? $('last-tx') : $('last-rx');
+            el.innerHTML = formatHexDisplay(data);
+        }
+
+        function formatHexDisplay(data) {
+            if (!data || data.length === 0) return '--';
+
+            let html = '';
+            for (let i = 0; i < data.length; i++) {
+                const byte = data[i].toString(16).padStart(2, '0').toUpperCase();
+                // Highlight header bytes (first 6 for protocol packet)
+                if (i < 6) {
+                    html += `<span class="hex-header">${byte}</span> `;
+                } else {
+                    html += `<span class="hex-byte">${byte}</span> `;
+                }
+            }
+            return html;
+        }
+
+        // ============================================================================
+        // Chart Drawing
+        // ============================================================================
+        function addChartPoint(series, value) {
+            chartData[series].push({
+                value: value,
+                time: Date.now()
+            });
+
+            // Keep only last N points
+            while (chartData[series].length > chartData.maxPoints) {
+                chartData[series].shift();
+            }
+
+            drawChart();
+        }
+
+        function drawChart() {
+            const canvas = $('chart-canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Set actual size
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+
+            const w = canvas.width;
+            const h = canvas.height;
+            const padding = 40;
+
+            // Clear
+            ctx.fillStyle = '#0d1117';
+            ctx.fillRect(0, 0, w, h);
+
+            // Draw grid
+            ctx.strokeStyle = '#21262d';
+            ctx.lineWidth = 1;
+
+            for (let i = 0; i <= 4; i++) {
+                const y = padding + (h - 2 * padding) * i / 4;
+                ctx.beginPath();
+                ctx.moveTo(padding, y);
+                ctx.lineTo(w - padding, y);
+                ctx.stroke();
+            }
+
+            // Get min/max for scaling
+            const allValues = [...chartData.temperature.map(p => p.value),
+                              ...chartData.current.map(p => p.value / 10)]; // Scale current
+            if (allValues.length === 0) return;
+
+            const minVal = Math.min(...allValues) - 5;
+            const maxVal = Math.max(...allValues) + 5;
+            const range = maxVal - minVal || 1;
+
+            // Draw temperature line
+            drawLine(ctx, chartData.temperature, '#58a6ff', w, h, padding, minVal, range, 1);
+
+            // Draw current line (scaled down for visibility)
+            drawLine(ctx, chartData.current, '#f0883e', w, h, padding, minVal * 10, range * 10, 1);
+
+            // Draw Y-axis labels
+            ctx.fillStyle = '#8b949e';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'right';
+
+            for (let i = 0; i <= 4; i++) {
+                const val = maxVal - (range * i / 4);
+                const y = padding + (h - 2 * padding) * i / 4;
+                ctx.fillText(val.toFixed(1), padding - 5, y + 3);
+            }
+        }
+
+        function drawLine(ctx, data, color, w, h, padding, minVal, range, scale) {
+            if (data.length < 2) return;
+
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            const xStep = (w - 2 * padding) / (chartData.maxPoints - 1);
+
+            for (let i = 0; i < data.length; i++) {
+                const x = padding + (chartData.maxPoints - data.length + i) * xStep;
+                const y = h - padding - ((data[i].value * scale - minVal) / range) * (h - 2 * padding);
+
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+
+            ctx.stroke();
+        }
+
+        // ============================================================================
+        // Event Listeners
+        // ============================================================================
+        btnConnect.addEventListener('click', connect);
+        btnDisconnect.addEventListener('click', disconnect);
+
+        wsUrlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') connect();
+        });
+
+        // Initial chart draw
+        drawChart();
+
+        // Redraw chart on resize
+        window.addEventListener('resize', drawChart);
+
+        // Auto-connect if URL has parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('host')) {
+            wsUrlInput.value = `ws://${urlParams.get('host')}/ws`;
+            connect();
+        }
+    </script>
+</body>
+</html>

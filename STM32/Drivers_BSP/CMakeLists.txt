@@ -1,0 +1,17 @@
+# Drivers_BSP Layer CMakeLists.txt
+
+file(GLOB_RECURSE DRIVERS_BSP_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/Custom/*.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/External/*.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/BSP/*.c"
+)
+
+target_sources(${PROJECT_NAME} PRIVATE ${DRIVERS_BSP_SOURCES})
+
+target_include_directories(${PROJECT_NAME} PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Custom"
+    "${CMAKE_CURRENT_SOURCE_DIR}/External"
+    "${CMAKE_CURRENT_SOURCE_DIR}/External/ST7735"
+    "${CMAKE_CURRENT_SOURCE_DIR}/BSP"
+)

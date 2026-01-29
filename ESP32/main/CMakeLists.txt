@@ -1,0 +1,14 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "uart_test.c"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        Application
+        Middleware
+        OS
+        Drivers_BSP
+        HAL_Wrapper
+        nvs_flash
+)

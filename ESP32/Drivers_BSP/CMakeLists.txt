@@ -1,0 +1,11 @@
+idf_component_register(
+    SRCS 
+        "BSP/bsp.c"
+    INCLUDE_DIRS 
+        "."
+        "BSP"
+        "Custom"
+    REQUIRES 
+        HAL_Wrapper
+        driver
+)
