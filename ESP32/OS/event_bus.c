@@ -1,5 +1,4 @@
 #include "event_bus.h"
-#include "os_config.h"
 #include "os_wrapper.h"
 #include <string.h>
 #include "portable_log.h"
@@ -8,6 +7,8 @@ static const char *TAG = "EVENT_BUS";
 
 #define MAX_SUBSCRIBERS 10
 #define EVENT_QUEUE_SIZE 20
+#define EVENT_BUS_TASK_PRIORITY 6
+#define EVENT_BUS_TASK_STACK 3072
 
 // Event message structure
 typedef struct {

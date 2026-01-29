@@ -2,7 +2,6 @@
 #include "config.h"
 #include "credentials.h"
 #include "../OS/event_bus.h"
-#include "../OS/os_tasks.h"
 #include "os_wrapper.h"
 #include "../Middleware/Control/cont_wifi_manager.h"
 #include "../Middleware/Services/serv_ntp_sync.h"
@@ -82,11 +81,7 @@ bool app_init(void)
     // Subscribe to WiFi events
     event_bus_subscribe(EVENT_WIFI_CONNECTED, on_wifi_connected);
     event_bus_subscribe(EVENT_WIFI_DISCONNECTED, on_wifi_disconnected);
-    
-    // Initialize OS tasks
-    os_tasks_init();
-    LOG_I(TAG, "[OK] OS tasks initialized");
-    
+
     // Initialize WiFi manager
     if (cont_wifi_manager_init() == WIFI_MGR_OK) {
         LOG_I(TAG, "[OK] WiFi manager initialized");
