@@ -2,7 +2,7 @@
 #include "os_config.h"
 #include "os_wrapper.h"
 #include "event_bus.h"
-#include "../Drivers_BSP/Custom/portable_log.h"
+#include "portable_log.h"
 
 static const char *TAG = "OS_TASKS";
 

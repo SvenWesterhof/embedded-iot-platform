@@ -1,5 +1,5 @@
 #include "hal_delay.h"
-#include "../OS/os_wrapper.h"
+#include "os_wrapper.h"
 #include <esp_timer.h>
 #include <esp_rom_sys.h>
 

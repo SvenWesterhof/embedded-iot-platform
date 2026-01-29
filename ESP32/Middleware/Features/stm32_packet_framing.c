@@ -14,7 +14,7 @@
 #include "portable_log.h"
 #include "../../Drivers_BSP/BSP/pinout.h"
 #include "../../HAL_Wrapper/hal_uart.h"
-#include "../../OS/os_wrapper.h"
+#include "os_wrapper.h"
 #include <string.h>
 
 static const char *TAG = "STM32_UART";

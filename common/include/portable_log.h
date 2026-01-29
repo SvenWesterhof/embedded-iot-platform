@@ -1,7 +1,7 @@
 /**
  * @file portable_log.h
  * @brief Portable logging abstraction for ESP32 and STM32
- * 
+ *
  * Provides unified logging API that works on both platforms:
  * - ESP32: Uses esp_log (colored output, log levels, timestamps)
  * - STM32: Uses printf, SEGGER RTT, or ITM (configurable)
@@ -9,9 +9,6 @@
 
 #ifndef PORTABLE_LOG_H
 #define PORTABLE_LOG_H
-
-#define STM32F7
-#define USE_SEGGER_RTT
 
 // ============================================================================
 // Platform Detection
@@ -25,7 +22,17 @@
       defined(STM32L4) || defined(STM32L5) || defined(STM32G0) || \
       defined(STM32G4) || defined(STM32WB) || defined(STM32MP1)
     #define PLATFORM_STM32
-    #include "stm32f7xx_hal.h"
+    // Include HAL for HAL_GetTick()
+    #if defined(STM32F7)
+        #include "stm32f7xx_hal.h"
+    #elif defined(STM32F4)
+        #include "stm32f4xx_hal.h"
+    #elif defined(STM32H7)
+        #include "stm32h7xx_hal.h"
+    #elif defined(STM32L4)
+        #include "stm32l4xx_hal.h"
+    // Add other STM32 families as needed
+    #endif
 #else
     #warning "Unknown platform - defaulting to generic logging"
     #define PLATFORM_GENERIC
@@ -37,7 +44,7 @@
 
 #ifdef PLATFORM_ESP32
     #include <esp_log.h>
-    
+
     #define LOG_I(tag, format, ...)  ESP_LOGI(tag, format, ##__VA_ARGS__)
     #define LOG_W(tag, format, ...)  ESP_LOGW(tag, format, ##__VA_ARGS__)
     #define LOG_E(tag, format, ...)  ESP_LOGE(tag, format, ##__VA_ARGS__)
@@ -50,26 +57,36 @@
 
 #elif defined(PLATFORM_STM32)
     #include <stdio.h>
-    #include "core_cm7.h"  // For ITM peripheral access
-    
+
     // Choose STM32 logging backend:
     // 1. PRINTF - Standard printf (requires retarget or semihosting)
     // 2. SEGGER_RTT - SEGGER Real-Time Transfer (J-Link)
     // 3. ITM - ARM Instrumentation Trace Macrocell (SWO)
-    
+
     #if defined(USE_SEGGER_RTT)
         #include "SEGGER_RTT.h"
         #define LOG_OUTPUT(str) SEGGER_RTT_WriteString(0, str)
-    #else
-        // Default: Use ITM/SWO for STM32 (use CMSIS ITM_SendChar)
+    #elif defined(USE_ITM)
+        // Include core-specific header for ITM support
+        #if defined(STM32F7)
+            #include "core_cm7.h"
+        #elif defined(STM32F4)
+            #include "core_cm4.h"
+        #elif defined(STM32H7)
+            #include "core_cm7.h"
+        #endif
+
         static inline void LOG_ITM_SendString(const char *str) {
             while (*str) {
                 ITM_SendChar((uint32_t)(*str++));
             }
         }
         #define LOG_OUTPUT(str) LOG_ITM_SendString(str)
+    #else
+        // Default: printf (make sure you have retargeted printf to UART/USB)
+        #define LOG_OUTPUT(str) printf("%s", str)
     #endif
-    
+
     // Log level colors (ANSI - works with most terminals)
     #ifdef LOG_USE_COLOR
         #define LOG_COLOR_RED     "\033[0;31m"
@@ -80,15 +97,14 @@
         #define LOG_COLOR_YELLOW  ""
         #define LOG_COLOR_RESET   ""
     #endif
-    
-    // Internal helper - Direct SEGGER_RTT_printf (zero stack allocation)
-    // SEGGER_RTT_printf is thread-safe and uses internal buffers
+
+    // Internal helper - Use SEGGER_RTT_printf for zero stack allocation when available
     #if defined(USE_SEGGER_RTT)
         #define _LOG_PRINTF(level_char, color, tag, format, ...) \
             SEGGER_RTT_printf(0, color "%c (%lu) %s: " format LOG_COLOR_RESET "\n", \
                              level_char, (unsigned long)(HAL_GetTick()), tag, ##__VA_ARGS__)
     #else
-        // Fallback: Use stack buffer for ITM (no printf support)
+        // Fallback: Use stack buffer for ITM or printf
         #define _LOG_PRINTF(level_char, color, tag, format, ...) \
             do { \
                 char _buf[128]; \
@@ -102,10 +118,11 @@
     #define LOG_I(tag, format, ...)  _LOG_PRINTF('I', "", tag, format, ##__VA_ARGS__)
     #define LOG_W(tag, format, ...)  _LOG_PRINTF('W', LOG_COLOR_YELLOW, tag, format, ##__VA_ARGS__)
     #define LOG_E(tag, format, ...)  _LOG_PRINTF('E', LOG_COLOR_RED, tag, format, ##__VA_ARGS__)
-    
+
     // Debug logs (can be compiled out for size optimization)
     #ifdef LOG_LEVEL_DEBUG
         #if defined(USE_SEGGER_RTT)
+            // Direct SEGGER_RTT_printf for debug/verbose (optimal performance)
             #define LOG_D(tag, format, ...)  SEGGER_RTT_printf(0, "D (%lu) %s: " format "\n", \
                                                               (unsigned long)(HAL_GetTick()), tag, ##__VA_ARGS__)
             #define LOG_V(tag, format, ...)  SEGGER_RTT_printf(0, "V (%lu) %s: " format "\n", \
@@ -125,7 +142,7 @@
 
 #else
     #include <stdio.h>
-    
+
     #define LOG_I(tag, format, ...)  printf("I [%s] " format "\n", tag, ##__VA_ARGS__)
     #define LOG_W(tag, format, ...)  printf("W [%s] " format "\n", tag, ##__VA_ARGS__)
     #define LOG_E(tag, format, ...)  printf("E [%s] " format "\n", tag, ##__VA_ARGS__)

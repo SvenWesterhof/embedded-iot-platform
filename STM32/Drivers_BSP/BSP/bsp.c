@@ -39,7 +39,7 @@ void BSP_LED_Init(void)
  */
 void BSP_LED_On(void)
 {
-    hal_gpio_write_pin((hal_gpio_port_t)EXT_LED_GPIO_PORT, EXT_LED_PIN, HAL_GPIO_PIN_SET);
+    hal_gpio->set(STM32_PIN(EXT_LED_GPIO_PORT, EXT_LED_PIN), HAL_GPIO_LEVEL_HIGH);
 }
 
 /**
@@ -47,7 +47,7 @@ void BSP_LED_On(void)
  */
 void BSP_LED_Off(void)
 {
-    hal_gpio_write_pin((hal_gpio_port_t)EXT_LED_GPIO_PORT, EXT_LED_PIN, HAL_GPIO_PIN_RESET);
+    hal_gpio->set(STM32_PIN(EXT_LED_GPIO_PORT, EXT_LED_PIN), HAL_GPIO_LEVEL_LOW);
 }
 
 /**
@@ -55,7 +55,7 @@ void BSP_LED_Off(void)
  */
 void BSP_LED_Toggle(void)
 {
-    hal_gpio_toggle_pin((hal_gpio_port_t)EXT_LED_GPIO_PORT, EXT_LED_PIN);
+    hal_gpio->toggle(STM32_PIN(EXT_LED_GPIO_PORT, EXT_LED_PIN));
 }
 
 /**

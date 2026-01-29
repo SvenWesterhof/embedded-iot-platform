@@ -3,6 +3,21 @@
 
 #include "stm32f7xx_hal.h"
 #include "../../HAL/hal_uart.h"
+#include "hal_gpio_interface.h"
+
+// ============================================================================
+// Pin Definition Helper (for HAL Interface Pattern)
+// ============================================================================
+
+/**
+ * @brief Combine STM32 port and pin into hal_gpio_pin_t for interface use
+ * Usage: hal_gpio->set(STM32_PIN(EXT_LED_GPIO_PORT, EXT_LED_PIN), level);
+ */
+#define STM32_PIN(port, pin)  ((uint32_t)(port) | ((pin) & 0xFFFF))
+
+// ============================================================================
+// STM32 Board Pinout (Original Definitions)
+// ============================================================================
 
 #define EXT_LED_PIN         GPIO_PIN_15 //D2 on board
 #define EXT_LED_GPIO_PORT   GPIOF

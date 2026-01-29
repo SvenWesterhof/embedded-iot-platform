@@ -3,13 +3,13 @@
 #include "credentials.h"
 #include "../OS/event_bus.h"
 #include "../OS/os_tasks.h"
-#include "../OS/os_wrapper.h"
+#include "os_wrapper.h"
 #include "../Middleware/Control/cont_wifi_manager.h"
 #include "../Middleware/Services/serv_ntp_sync.h"
 #include "../Middleware/Services/serv_mqtt_client.h"
 #include "../Middleware/Features/feat_dashboard_server.h"
 #include "../Middleware/Features/feat_stm32_protocol.h"
-#include "../Drivers_BSP/Custom/portable_log.h"
+#include "portable_log.h"
 #include <nvs_flash.h>
 
 static const char *TAG = "APP_MAIN";

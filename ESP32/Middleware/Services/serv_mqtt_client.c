@@ -5,8 +5,8 @@
 
 #include "serv_mqtt_client.h"
 #include "mqtt_client.h"
-#include "../../Drivers_BSP/Custom/portable_log.h"
-#include "../../OS/os_wrapper.h"
+#include "portable_log.h"
+#include "os_wrapper.h"
 #include "event_bus.h"
 #include <string.h>
 #include <stdio.h>

@@ -8,8 +8,8 @@
 
 #include "hal_uart.h"
 #include "stm32f7xx_hal.h"
-#include "../Drivers_BSP/Custom/portable_log.h"
-#include "../OS/os_wrapper.h"
+#include "portable_log.h"
+#include "os_wrapper.h"
 #include <string.h>
 
 static const char *TAG = "HAL_UART";

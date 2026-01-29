@@ -8,8 +8,8 @@
 
 #include "hal_uart.h"
 #include <driver/uart.h>
-#include "../Drivers_BSP/Custom/portable_log.h"
-#include "../OS/os_wrapper.h"
+#include "portable_log.h"
+#include "os_wrapper.h"
 #include <freertos/queue.h>  // Needed for uart_driver_install compatibility
 #include <string.h>
 

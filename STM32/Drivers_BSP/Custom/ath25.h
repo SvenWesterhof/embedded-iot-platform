@@ -13,8 +13,7 @@ typedef struct {
     bool initialized;
     hal_i2c_handle_t hi2c;        // I2C handle
     uint8_t i2c_address;              // I2C address of the temperature sensor
-    hal_gpio_port_t power_port;       // power control pin port
-    hal_gpio_pin_t power_pin;         // power control pin number
+    hal_gpio_pin_t power_pin;         // power control pin (encoded port+pin)
     uint8_t resolution;               // sensor resolution (bits)
 } ath25_sensor_t;
 

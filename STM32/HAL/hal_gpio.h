@@ -3,28 +3,35 @@
 
 /**
  * @file hal_gpio.h
- * @brief Platform-independent GPIO abstraction layer
- * 
- * This HAL provides a consistent GPIO API that can be ported to different platforms.
- * Implementation wraps STM32 HAL but can be replaced for other MCUs.
+ * @brief STM32 GPIO HAL - now uses interface pattern
+ *
+ * This file provides backward compatibility with the old STM32 GPIO API
+ * while also exposing the new hal_gpio interface.
+ *
+ * New code should use: hal_gpio->set(pin, level)
+ * Old code can still use: hal_gpio_write_pin(port, pin, state)
  */
 
+#include "hal_gpio_interface.h"
 #include <stdint.h>
 #include <stdbool.h>
 
-// GPIO Port/Pin Types (platform-independent)
-typedef void* hal_gpio_port_t;
-typedef uint16_t hal_gpio_pin_t;
+// ============================================================================
+// Legacy STM32 API (Backward Compatibility)
+// ============================================================================
 
-// GPIO Pin States
+// Legacy types (for backward compatibility with existing code)
+typedef void* hal_gpio_port_t;
+
+// Legacy GPIO Pin States
 typedef enum {
     HAL_GPIO_PIN_RESET = 0,
     HAL_GPIO_PIN_SET = 1
 } hal_gpio_pin_state_t;
 
-// GPIO Functions
-void hal_gpio_write_pin(hal_gpio_port_t port, hal_gpio_pin_t pin, hal_gpio_pin_state_t state);
-hal_gpio_pin_state_t hal_gpio_read_pin(hal_gpio_port_t port, hal_gpio_pin_t pin);
-void hal_gpio_toggle_pin(hal_gpio_port_t port, hal_gpio_pin_t pin);
+// Legacy GPIO Functions (still supported for old code)
+void hal_gpio_write_pin(hal_gpio_port_t port, uint16_t pin, hal_gpio_pin_state_t state);
+hal_gpio_pin_state_t hal_gpio_read_pin(hal_gpio_port_t port, uint16_t pin);
+void hal_gpio_toggle_pin(hal_gpio_port_t port, uint16_t pin);
 
 #endif // HAL_GPIO_H

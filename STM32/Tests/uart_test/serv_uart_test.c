@@ -21,8 +21,8 @@
 
 #include "serv_uart_test.h"
 #include "../../HAL/hal_uart.h"
-#include "../../OS/os_wrapper.h"
-#include "../../Drivers_BSP/Custom/portable_log.h"
+#include "os_wrapper.h"
+#include "portable_log.h"
 #include <string.h>
 
 static const char *TAG = "UART_TEST";

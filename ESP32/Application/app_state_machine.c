@@ -8,7 +8,7 @@
 
 #include "app_state_machine.h"
 #include "../OS/event_bus.h"
-#include "../Drivers_BSP/Custom/portable_log.h"
+#include "portable_log.h"
 
 static const char *TAG = "APP_SM";
 

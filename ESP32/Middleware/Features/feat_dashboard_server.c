@@ -7,8 +7,8 @@
 #include "feat_stm32_protocol.h"
 #include "protocol_common.h"
 #include "../../OS/event_bus.h"
-#include "../../OS/os_wrapper.h"
-#include "../Drivers_BSP/Custom/portable_log.h"
+#include "os_wrapper.h"
+#include "portable_log.h"
 #include "../Services/serv_ntp_sync.h"
 #include <esp_http_server.h>
 #include <string.h>
