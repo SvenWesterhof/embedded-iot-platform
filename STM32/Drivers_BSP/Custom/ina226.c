@@ -22,7 +22,7 @@ static hal_i2c_status_t ina226_write_register(ina226_sensor_t *sensor, uint8_t r
     data[0] = (value >> 8) & 0xFF;  // MSB first
     data[1] = value & 0xFF;         // LSB second
     
-    return hal_i2c_mem_write(sensor->hi2c, sensor->i2c_address, reg, data, 2, INA226_I2C_TIMEOUT_MS);
+    return hal_i2c->mem_write(sensor->hi2c, sensor->i2c_address, reg, data, 2, INA226_I2C_TIMEOUT_MS);
 }
 
 // Helper function to read 16-bit register
@@ -30,7 +30,7 @@ static hal_i2c_status_t ina226_read_register(ina226_sensor_t *sensor, uint8_t re
     uint8_t data[2];
     hal_i2c_status_t status;
     
-    status = hal_i2c_mem_read(sensor->hi2c, sensor->i2c_address, reg, data, 2, INA226_I2C_TIMEOUT_MS);
+    status = hal_i2c->mem_read(sensor->hi2c, sensor->i2c_address, reg, data, 2, INA226_I2C_TIMEOUT_MS);
     if (status == HAL_I2C_OK) {
         *value = ((uint16_t)data[0] << 8) | data[1];
     }
@@ -114,7 +114,7 @@ hal_i2c_status_t ina226_open(ina226_sensor_t *sensor, hal_i2c_handle_t hi2c,
     }
     
     // Wait for reset to complete
-    hal_delay_ms(10);
+    hal_delay->delay_ms(10);
     
     // Calculate calibration value
     // Current_LSB = Maximum Expected Current / 32768

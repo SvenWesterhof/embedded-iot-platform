@@ -185,7 +185,7 @@ void event_bus_process(void)
  */
 uint32_t event_bus_get_tick(void)
 {
-    return hal_get_tick();
+    return hal_delay->get_tick_ms();
 }
 
 /**

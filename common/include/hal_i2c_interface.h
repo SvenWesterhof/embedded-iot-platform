@@ -3,6 +3,7 @@
  * @brief Hardware Abstraction Layer interface for I2C
  *
  * Defines platform-independent I2C interface using Strategy pattern.
+ * Aligns with existing hal_i2c API for minimal migration impact.
  */
 
 #ifndef HAL_I2C_INTERFACE_H
@@ -21,32 +22,19 @@ extern "C" {
 // ============================================================================
 
 /**
- * @brief I2C bus identifier
+ * @brief I2C handle type (platform-independent)
  */
-typedef enum {
-    HAL_I2C_BUS_0 = 0,      /**< I2C bus 0 */
-    HAL_I2C_BUS_1 = 1,      /**< I2C bus 1 */
-    HAL_I2C_BUS_2 = 2,      /**< I2C bus 2 */
-    HAL_I2C_BUS_MAX
-} hal_i2c_bus_t;
+typedef void* hal_i2c_handle_t;
 
 /**
- * @brief I2C clock speed
+ * @brief I2C status codes
  */
 typedef enum {
-    HAL_I2C_SPEED_STANDARD = 100000,    /**< 100 kHz */
-    HAL_I2C_SPEED_FAST = 400000,        /**< 400 kHz */
-    HAL_I2C_SPEED_FAST_PLUS = 1000000,  /**< 1 MHz */
-} hal_i2c_speed_t;
-
-/**
- * @brief I2C configuration structure
- */
-typedef struct {
-    uint32_t clock_speed;   /**< Clock speed in Hz */
-    uint8_t address_bits;   /**< 7 or 10 bit addressing */
-    bool pullup_enable;     /**< Enable internal pull-ups (if available) */
-} hal_i2c_config_t;
+    HAL_I2C_OK = 0,      /**< Operation successful */
+    HAL_I2C_ERROR,       /**< Generic error */
+    HAL_I2C_BUSY,        /**< Bus is busy */
+    HAL_I2C_TIMEOUT      /**< Operation timed out */
+} hal_i2c_status_t;
 
 // ============================================================================
 // I2C HAL Interface
@@ -54,6 +42,9 @@ typedef struct {
 
 /**
  * @brief I2C Hardware Abstraction Layer interface
+ *
+ * This interface matches the existing hal_i2c API for easy migration.
+ * Usage: hal_i2c->master_transmit(handle, addr, data, size, timeout)
  */
 typedef struct {
     /**
@@ -63,56 +54,54 @@ typedef struct {
     bool (*init)(void);
 
     /**
-     * @brief Configure I2C bus
-     * @param bus I2C bus to configure
-     * @param config Configuration parameters
-     * @return true if successful
-     */
-    bool (*config)(hal_i2c_bus_t bus, const hal_i2c_config_t* config);
-
-    /**
-     * @brief Write data to I2C device
-     * @param bus I2C bus
-     * @param device_addr 7-bit device address
-     * @param data Data to write
-     * @param length Number of bytes to write
+     * @brief Transmit data to I2C device (master mode)
+     * @param handle I2C handle
+     * @param dev_address Device address (7-bit, shifted left by 1)
+     * @param data Pointer to data buffer
+     * @param size Number of bytes to transmit
      * @param timeout_ms Timeout in milliseconds
-     * @return true if successful
+     * @return HAL_I2C_OK if successful
      */
-    bool (*write)(hal_i2c_bus_t bus, uint8_t device_addr, const uint8_t* data, size_t length, uint32_t timeout_ms);
+    hal_i2c_status_t (*master_transmit)(hal_i2c_handle_t handle, uint16_t dev_address,
+                                        uint8_t* data, uint16_t size, uint32_t timeout_ms);
 
     /**
-     * @brief Read data from I2C device
-     * @param bus I2C bus
-     * @param device_addr 7-bit device address
-     * @param buffer Buffer to store read data
-     * @param length Number of bytes to read
+     * @brief Receive data from I2C device (master mode)
+     * @param handle I2C handle
+     * @param dev_address Device address (7-bit, shifted left by 1)
+     * @param data Pointer to data buffer
+     * @param size Number of bytes to receive
      * @param timeout_ms Timeout in milliseconds
-     * @return true if successful
+     * @return HAL_I2C_OK if successful
      */
-    bool (*read)(hal_i2c_bus_t bus, uint8_t device_addr, uint8_t* buffer, size_t length, uint32_t timeout_ms);
+    hal_i2c_status_t (*master_receive)(hal_i2c_handle_t handle, uint16_t dev_address,
+                                       uint8_t* data, uint16_t size, uint32_t timeout_ms);
 
     /**
-     * @brief Write to register then read (common pattern for I2C sensors)
-     * @param bus I2C bus
-     * @param device_addr 7-bit device address
-     * @param reg_addr Register address to read from
-     * @param buffer Buffer to store read data
-     * @param length Number of bytes to read
+     * @brief Write to I2C device memory/register
+     * @param handle I2C handle
+     * @param dev_address Device address (7-bit, shifted left by 1)
+     * @param mem_address Memory/register address
+     * @param data Pointer to data buffer
+     * @param size Number of bytes to write
      * @param timeout_ms Timeout in milliseconds
-     * @return true if successful
+     * @return HAL_I2C_OK if successful
      */
-    bool (*write_read)(hal_i2c_bus_t bus, uint8_t device_addr, uint8_t reg_addr,
-                       uint8_t* buffer, size_t length, uint32_t timeout_ms);
+    hal_i2c_status_t (*mem_write)(hal_i2c_handle_t handle, uint16_t dev_address,
+                                  uint16_t mem_address, uint8_t* data, uint16_t size, uint32_t timeout_ms);
 
     /**
-     * @brief Scan I2C bus for devices
-     * @param bus I2C bus to scan
-     * @param found_devices Array to store found device addresses
-     * @param max_devices Maximum number of devices to find
-     * @return Number of devices found
+     * @brief Read from I2C device memory/register
+     * @param handle I2C handle
+     * @param dev_address Device address (7-bit, shifted left by 1)
+     * @param mem_address Memory/register address
+     * @param data Pointer to data buffer
+     * @param size Number of bytes to read
+     * @param timeout_ms Timeout in milliseconds
+     * @return HAL_I2C_OK if successful
      */
-    uint8_t (*scan)(hal_i2c_bus_t bus, uint8_t* found_devices, uint8_t max_devices);
+    hal_i2c_status_t (*mem_read)(hal_i2c_handle_t handle, uint16_t dev_address,
+                                 uint16_t mem_address, uint8_t* data, uint16_t size, uint32_t timeout_ms);
 
 } hal_i2c_interface_t;
 
@@ -122,19 +111,10 @@ typedef struct {
 
 /**
  * @brief Global I2C HAL interface pointer
+ *
+ * Usage: hal_i2c->master_transmit(handle, addr, data, size, timeout)
  */
 extern const hal_i2c_interface_t* hal_i2c;
-
-// ============================================================================
-// Helper Macros
-// ============================================================================
-
-#define hal_i2c_init()                          hal_i2c->init()
-#define hal_i2c_configure(bus, cfg)            hal_i2c->config(bus, cfg)
-#define hal_i2c_write_bytes(bus, addr, data, len, timeout) \
-                                                hal_i2c->write(bus, addr, data, len, timeout)
-#define hal_i2c_read_bytes(bus, addr, buf, len, timeout) \
-                                                hal_i2c->read(bus, addr, buf, len, timeout)
 
 #ifdef __cplusplus
 }

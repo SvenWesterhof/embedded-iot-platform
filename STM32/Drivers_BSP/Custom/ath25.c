@@ -37,13 +37,13 @@ hal_i2c_status_t ath25_open(ath25_sensor_t *sensor, hal_i2c_handle_t hi2c) {
     
     // Power on the sensor
     hal_gpio->set(sensor->power_pin, HAL_GPIO_LEVEL_HIGH);
-    hal_delay_ms(100); // wait for sensor to power up
+    hal_delay->delay_ms(100); // wait for sensor to power up
 
     // Check sensor status
-    if (hal_i2c_master_transmit(sensor->hi2c, sensor->i2c_address, &cmd, 1, MAX_ATH25_I2C_TRANSFER_TIME) != HAL_I2C_OK) {
+    if (hal_i2c->master_transmit(sensor->hi2c, sensor->i2c_address, &cmd, 1, MAX_ATH25_I2C_TRANSFER_TIME) != HAL_I2C_OK) {
         return HAL_I2C_ERROR;
     }
-    if (hal_i2c_master_receive(sensor->hi2c, sensor->i2c_address, &status, 1, MAX_ATH25_I2C_TRANSFER_TIME) != HAL_I2C_OK) {
+    if (hal_i2c->master_receive(sensor->hi2c, sensor->i2c_address, &status, 1, MAX_ATH25_I2C_TRANSFER_TIME) != HAL_I2C_OK) {
         return HAL_I2C_ERROR;
     }
 
@@ -65,13 +65,13 @@ hal_i2c_status_t ath25_read(ath25_sensor_t *sensor, ath_data_t *data) {
         return HAL_I2C_ERROR;
     }
 
-    if (hal_i2c_master_transmit(sensor->hi2c, sensor->i2c_address, cmd, 3, MAX_ATH25_I2C_TRANSFER_TIME) != HAL_I2C_OK) {
+    if (hal_i2c->master_transmit(sensor->hi2c, sensor->i2c_address, cmd, 3, MAX_ATH25_I2C_TRANSFER_TIME) != HAL_I2C_OK) {
         return HAL_I2C_ERROR;
     }
 
-    hal_delay_ms(80); // wait for measurement to complete
+    hal_delay->delay_ms(80); // wait for measurement to complete
 
-    if (hal_i2c_master_receive(sensor->hi2c, sensor->i2c_address, recv, 7, MAX_ATH25_I2C_TRANSFER_TIME) != HAL_I2C_OK) {
+    if (hal_i2c->master_receive(sensor->hi2c, sensor->i2c_address, recv, 7, MAX_ATH25_I2C_TRANSFER_TIME) != HAL_I2C_OK) {
         return HAL_I2C_ERROR;
     }
 
