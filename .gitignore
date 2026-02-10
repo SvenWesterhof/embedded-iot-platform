@@ -83,3 +83,4 @@ desktop.ini
 *.temp
 *.swp
 *~
+STM32/stm32_project.jdebug.user
