@@ -380,11 +380,27 @@ void cont_ota_validate_after_boot(void)
         return;
     }
 
+    // Get running partition to determine if we're on OTA or factory
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    if (!running) {
+        LOG_E(TAG, "Failed to get running partition");
+        return;
+    }
+
+    // Check if running from OTA partition
+    bool is_ota = (running->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_0 ||
+                   running->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1);
+
     // Mark app as valid (prevents rollback)
     ota_status_t status = serv_ota_mark_app_valid();
     if (status == OTA_OK) {
-        LOG_I(TAG, "App validated after boot");
-        report_ota_status("validated", "New firmware running successfully");
+        if (is_ota) {
+            LOG_I(TAG, "OTA firmware validated after boot");
+            report_ota_status("validated", "New firmware running successfully");
+        } else {
+            LOG_I(TAG, "Factory firmware validated (no OTA performed)");
+            report_ota_status("ready", "Factory firmware active, OTA ready");
+        }
     }
 }
 
