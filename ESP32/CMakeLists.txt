@@ -14,6 +14,20 @@ set(EXTRA_COMPONENT_DIRS
     ${CMAKE_CURRENT_SOURCE_DIR}/../common/esp_component
 )
 
+# Firmware version tracking
+set(PROJECT_VER "1.0.0")
+set(FIRMWARE_VERSION_MAJOR 1)
+set(FIRMWARE_VERSION_MINOR 0)
+set(FIRMWARE_VERSION_PATCH 0)
+
+# Pass version information to application code
+add_compile_definitions(
+    FIRMWARE_VERSION="${PROJECT_VER}"
+    FIRMWARE_VERSION_MAJOR=${FIRMWARE_VERSION_MAJOR}
+    FIRMWARE_VERSION_MINOR=${FIRMWARE_VERSION_MINOR}
+    FIRMWARE_VERSION_PATCH=${FIRMWARE_VERSION_PATCH}
+)
+
 # Project definition
 project(iot_gateway)
 
