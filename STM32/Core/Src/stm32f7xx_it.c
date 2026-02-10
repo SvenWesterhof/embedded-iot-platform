@@ -93,7 +93,21 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
-  LOG_E(TAG, "\n*** HARD FAULT DETECTED ***\n");
+  // Capture fault status registers for debugging
+    LOG_E(TAG, "\n*** HARD FAULT DETECTED ***\n");
+  volatile uint32_t* CFSR = (volatile uint32_t*)0xE000ED28;  // Configurable Fault Status Register
+  volatile uint32_t* HFSR = (volatile uint32_t*)0xE000ED2C;  // HardFault Status Register
+  volatile uint32_t* MMFAR = (volatile uint32_t*)0xE000ED34; // MemManage Fault Address Register
+  volatile uint32_t* BFAR = (volatile uint32_t*)0xE000ED38;  // BusFault Address Register
+
+  volatile uint32_t cfsr_val = *CFSR;
+  volatile uint32_t hfsr_val = *HFSR;
+  volatile uint32_t mmfar_val = *MMFAR;
+  volatile uint32_t bfar_val = *BFAR;
+
+  // Set breakpoint on next line to inspect these values
+  __asm("BKPT #0");
+
   /* USER CODE END HardFault_IRQn 0 */
   while (1)
   {
