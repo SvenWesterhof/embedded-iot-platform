@@ -29,7 +29,7 @@ typedef struct {
     size_t bytes_written;
     uint32_t start_time_ms;
     char version[32];
-    SemaphoreHandle_t mutex;
+    os_mutex_handle_t mutex;
     ota_stats_t stats;
 } ota_context_t;
 
@@ -44,7 +44,7 @@ static ota_context_t s_ota = {0};
  */
 static inline bool ota_lock(void)
 {
-    return s_ota.mutex && xSemaphoreTake(s_ota.mutex, pdMS_TO_TICKS(1000)) == pdTRUE;
+    return s_ota.mutex && os_mutex_take(s_ota.mutex, 1000) == OS_SUCCESS;
 }
 
 /**
@@ -53,7 +53,7 @@ static inline bool ota_lock(void)
 static inline void ota_unlock(void)
 {
     if (s_ota.mutex) {
-        xSemaphoreGive(s_ota.mutex);
+        os_mutex_give(s_ota.mutex);
     }
 }
 
@@ -79,7 +79,7 @@ ota_status_t serv_ota_init(void)
     memset(&s_ota, 0, sizeof(ota_context_t));
 
     // Create mutex
-    s_ota.mutex = xSemaphoreCreateMutex();
+    s_ota.mutex = os_mutex_create();
     if (!s_ota.mutex) {
         LOG_E(TAG, "Failed to create OTA mutex");
         return OTA_ERR_INTERNAL;
@@ -89,7 +89,7 @@ ota_status_t serv_ota_init(void)
     s_ota.running_partition = esp_ota_get_running_partition();
     if (!s_ota.running_partition) {
         LOG_E(TAG, "Failed to get running partition");
-        vSemaphoreDelete(s_ota.mutex);
+        os_mutex_delete(s_ota.mutex);
         return OTA_ERR_NO_PARTITION;
     }
 
@@ -153,7 +153,7 @@ ota_status_t serv_ota_begin(size_t expected_size, const char *version)
     s_ota.state = OTA_STATE_IN_PROGRESS;
     s_ota.expected_size = expected_size;
     s_ota.bytes_written = 0;
-    s_ota.start_time_ms = os_get_uptime_ms();
+    s_ota.start_time_ms = os_get_time_ms();
 
     if (version) {
         strncpy(s_ota.version, version, sizeof(s_ota.version) - 1);
@@ -248,7 +248,7 @@ ota_status_t serv_ota_end(void)
     }
 
     // Calculate duration
-    uint32_t duration_ms = os_get_uptime_ms() - s_ota.start_time_ms;
+    uint32_t duration_ms = os_get_time_ms() - s_ota.start_time_ms;
     s_ota.stats.last_update_duration_ms = duration_ms;
 
     LOG_I(TAG, "OTA update verified successfully");

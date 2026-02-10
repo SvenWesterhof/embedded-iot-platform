@@ -29,11 +29,11 @@ static const char *TAG = "OTA_MANAGER";
 typedef struct {
     bool initialized;
     bool update_in_progress;
-    TaskHandle_t ota_task_handle;
+    os_task_handle_t ota_task_handle;
     char https_url[256];
     char version[32];
     bool auto_reboot;
-    SemaphoreHandle_t mutex;
+    os_mutex_handle_t mutex;
 } ota_mgr_context_t;
 
 static ota_mgr_context_t s_mgr = {0};
@@ -47,7 +47,7 @@ static ota_mgr_context_t s_mgr = {0};
  */
 static inline bool mgr_lock(void)
 {
-    return s_mgr.mutex && xSemaphoreTake(s_mgr.mutex, pdMS_TO_TICKS(1000)) == pdTRUE;
+    return s_mgr.mutex && os_mutex_take(s_mgr.mutex, 1000) == OS_SUCCESS;
 }
 
 /**
@@ -56,7 +56,7 @@ static inline bool mgr_lock(void)
 static inline void mgr_unlock(void)
 {
     if (s_mgr.mutex) {
-        xSemaphoreGive(s_mgr.mutex);
+        os_mutex_give(s_mgr.mutex);
     }
 }
 
@@ -212,7 +212,7 @@ ota_task_exit:
         s_mgr.ota_task_handle = NULL;
         mgr_unlock();
     }
-    vTaskDelete(NULL);
+    os_task_delete(NULL);
 }
 
 /**
@@ -248,7 +248,7 @@ ota_mgr_status_t cont_ota_manager_init(void)
     memset(&s_mgr, 0, sizeof(ota_mgr_context_t));
 
     // Create mutex
-    s_mgr.mutex = xSemaphoreCreateMutex();
+    s_mgr.mutex = os_mutex_create();
     if (!s_mgr.mutex) {
         LOG_E(TAG, "Failed to create mutex");
         return OTA_MGR_ERR_INTERNAL;
@@ -258,7 +258,7 @@ ota_mgr_status_t cont_ota_manager_init(void)
     ota_status_t ota_status = serv_ota_init();
     if (ota_status != OTA_OK) {
         LOG_E(TAG, "Failed to initialize OTA service");
-        vSemaphoreDelete(s_mgr.mutex);
+        os_mutex_delete(s_mgr.mutex);
         return OTA_MGR_ERR_INTERNAL;
     }
 
@@ -323,16 +323,16 @@ ota_mgr_status_t cont_ota_trigger_update(const ota_notification_t *notification)
     LOG_I(TAG, "  Auto-reboot: %s", s_mgr.auto_reboot ? "yes" : "no");
 
     // Create OTA task (large stack for HTTPS + TLS)
-    BaseType_t result = xTaskCreate(
+    os_result_t result = os_task_create(
         ota_task,
         "ota_task",
         8192,  // 8KB stack for HTTPS + TLS
         NULL,
-        5,     // Normal priority
+        OS_PRIORITY_NORMAL,
         &s_mgr.ota_task_handle
     );
 
-    if (result != pdPASS) {
+    if (result != OS_SUCCESS) {
         LOG_E(TAG, "Failed to create OTA task");
         if (mgr_lock()) {
             s_mgr.update_in_progress = false;
@@ -361,7 +361,7 @@ ota_mgr_status_t cont_ota_cancel_update(void)
 
     // Delete OTA task if running
     if (s_mgr.ota_task_handle) {
-        vTaskDelete(s_mgr.ota_task_handle);
+        os_task_delete(s_mgr.ota_task_handle);
         s_mgr.ota_task_handle = NULL;
     }
 
