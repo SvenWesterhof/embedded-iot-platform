@@ -21,16 +21,16 @@ void services_init(void)
     blinky_init();
     LOG_I(TAG, "Blinky initialized\n");
 
-    //temperature_sensor_init();
+    temperature_sensor_init();
     LOG_I(TAG, "Temperature sensor initialized\n");
     
     //display_init();
-    LOG_I(TAG, "Display initialized\n");
+    //LOG_I(TAG, "Display initialized\n");
 
-    //current_monitor_init();
+    current_monitor_init();
     LOG_I(TAG, "Current monitor initialized\n");
 
-    //protocol_handler_init();
+    protocol_handler_init();
     LOG_I(TAG, "Protocol handler initialized\n");
 
 #ifdef ENABLE_UART_TEST
@@ -43,9 +43,9 @@ void services_init(void)
 void services_run(void)
 {
     blinky_run();
-    //temperature_sensor_run();  // DISABLED - not initialized
+    temperature_sensor_run();  // DISABLED - not initialized
     //display_run();              // DISABLED - not initialized
-    //current_monitor_process();  // DISABLED - not initialized
+    current_monitor_process();  // DISABLED - not initialized
 
 #ifdef ENABLE_UART_TEST
     serv_uart_test_loop();
