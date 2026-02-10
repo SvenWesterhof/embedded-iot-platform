@@ -1,9 +1,10 @@
 idf_component_register(
-    SRCS 
+    SRCS
         "app_main.c"
-    INCLUDE_DIRS 
+    INCLUDE_DIRS
         "."
-    REQUIRES 
+    REQUIRES
         OS
         Middleware
+        esp_component
 )

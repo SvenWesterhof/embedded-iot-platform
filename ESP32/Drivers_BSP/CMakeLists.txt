@@ -1,11 +1,12 @@
 idf_component_register(
-    SRCS 
+    SRCS
         "BSP/bsp.c"
-    INCLUDE_DIRS 
+    INCLUDE_DIRS
         "."
         "BSP"
         "Custom"
-    REQUIRES 
+    REQUIRES
         HAL_Wrapper
         driver
+        esp_component
 )

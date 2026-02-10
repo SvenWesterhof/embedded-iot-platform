@@ -3,18 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-
-typedef enum {
-    HAL_GPIO_MODE_INPUT,
-    HAL_GPIO_MODE_OUTPUT,
-    HAL_GPIO_MODE_INPUT_PULLUP,
-    HAL_GPIO_MODE_INPUT_PULLDOWN
-} hal_gpio_mode_t;
-
-typedef enum {
-    HAL_GPIO_LEVEL_LOW = 0,
-    HAL_GPIO_LEVEL_HIGH = 1
-} hal_gpio_level_t;
+#include "hal_gpio_interface.h"
 
 /**
  * @brief Initialize GPIO HAL
