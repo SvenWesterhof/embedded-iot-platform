@@ -1,0 +1,46 @@
+# Embedded IoT Platform - Git Line Ending Configuration
+
+# Auto-detect text files and normalize line endings to LF in repository
+* text=auto
+
+# Source code - always use LF (industry standard for embedded/Unix-like systems)
+*.c text eol=lf
+*.h text eol=lf
+*.cpp text eol=lf
+*.hpp text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+
+# CMake files
+CMakeLists.txt text eol=lf
+*.cmake text eol=lf
+
+# Documentation
+*.md text eol=lf
+*.txt text eol=lf
+
+# Configuration files
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Windows-specific files (if any)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files
+*.bin binary
+*.elf binary
+*.hex binary
+*.o binary
+*.a binary
+*.so binary
+*.dll binary
+*.exe binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary

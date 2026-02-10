@@ -43,7 +43,7 @@ void OnProjectLoad (void) {
   // Load your application ELF file
   // Update this path after building your project
   //
-  File.Open ("build/Debug/stm32_development.elf");
+  File.Open ("build/sensor_node.elf");
 }
 
 /*********************************************************************

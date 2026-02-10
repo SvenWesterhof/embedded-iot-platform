@@ -24,8 +24,8 @@ void services_init(void)
     temperature_sensor_init();
     LOG_I(TAG, "Temperature sensor initialized\n");
     
-    display_init();
-    LOG_I(TAG, "Display initialized\n");
+    //display_init();
+    //LOG_I(TAG, "Display initialized\n");
 
     current_monitor_init();
     LOG_I(TAG, "Current monitor initialized\n");
@@ -43,9 +43,9 @@ void services_init(void)
 void services_run(void)
 {
     blinky_run();
-    temperature_sensor_run();
-    display_run();
-    current_monitor_process();
+    temperature_sensor_run();  // DISABLED - not initialized
+    //display_run();              // DISABLED - not initialized
+    current_monitor_process();  // DISABLED - not initialized
 
 #ifdef ENABLE_UART_TEST
     serv_uart_test_loop();

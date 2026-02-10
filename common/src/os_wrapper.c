@@ -1,25 +1,46 @@
 #include "os_wrapper.h"
-#include "../Drivers_BSP/Custom/portable_log.h"
+#include "portable_log.h"
 
-// FreeRTOS includes
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#include <freertos/queue.h>
-#include <freertos/semphr.h>
+// Platform-specific FreeRTOS includes
+#if defined(ESP_PLATFORM) || defined(IDF_VER)
+    // ESP32/ESP-IDF
+    #include <freertos/FreeRTOS.h>
+    #include <freertos/task.h>
+    #include <freertos/queue.h>
+    #include <freertos/semphr.h>
+#else
+    // STM32 or other platforms
+    #include "FreeRTOS.h"
+    #include "task.h"
+    #include "queue.h"
+    #include "semphr.h"
+#endif
 
 static const char *TAG = "OS_WRAPPER";
 
-// Platform detection
-#if defined(CONFIG_FREERTOS_UNICORE) || !defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S3)
-    #define OS_SINGLE_CORE 1
-#else
+// Platform detection for core affinity
+#if defined(ESP_PLATFORM)
+    // ESP32 platform detection
+    #if defined(CONFIG_FREERTOS_UNICORE) || \
+        (!defined(CONFIG_IDF_TARGET_ESP32) && !defined(CONFIG_IDF_TARGET_ESP32S3))
+        #define OS_SINGLE_CORE 1
+    #else
+        #define OS_SINGLE_CORE 0
+    #endif
+    
+    // ESP32 dual-core variants support core pinning
+    #if !defined(OS_SINGLE_CORE) || (OS_SINGLE_CORE == 0)
+        #define OS_HAS_CORE_AFFINITY 1
+    #else
+        #define OS_HAS_CORE_AFFINITY 0
+    #endif
+#elif defined(STM32H747xx) || defined(STM32H757xx) || defined(STM32H745xx) || defined(STM32H755xx)
+    // STM32H7 dual-core variants (Cortex-M7 + Cortex-M4)
     #define OS_SINGLE_CORE 0
-#endif
-
-// Platform-specific task creation
-#if defined(ESP_PLATFORM) && !defined(OS_SINGLE_CORE)
-    #define OS_HAS_CORE_AFFINITY 1
+    #define OS_HAS_CORE_AFFINITY 0  // FreeRTOS AMP not directly supported via standard API
 #else
+    // All other platforms (most STM32s are single-core)
+    #define OS_SINGLE_CORE 1
     #define OS_HAS_CORE_AFFINITY 0
 #endif
 
@@ -29,7 +50,7 @@ static const char *TAG = "OS_WRAPPER";
 
 os_result_t os_init(void)
 {
-    LOG_I(TAG, "OS wrapper initialized (FreeRTOS backend)");
+    //LOG_I(TAG, "OS wrapper initialized (FreeRTOS backend)");
     return OS_SUCCESS;
 }
 
@@ -430,6 +451,16 @@ os_result_t os_semaphore_take_from_isr(os_semaphore_handle_t semaphore, bool* hi
     
     return (result == pdPASS) ? OS_SUCCESS : OS_TIMEOUT;
 }
+
+// =============================================================================
+// ISR UTILITIES
+// =============================================================================
+
+void os_yield_from_isr(bool higher_priority_task_woken)
+{
+    portYIELD_FROM_ISR(higher_priority_task_woken ? pdTRUE : pdFALSE);
+}
+
 // =============================================================================
 // TIME OPERATIONS
 // =============================================================================

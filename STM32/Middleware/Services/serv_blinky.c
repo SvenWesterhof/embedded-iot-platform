@@ -8,12 +8,12 @@ static uint32_t interval_ms = 2000;
 void blinky_init(void)
 {
     // Nothing to init for now, GPIO already initialized in MX_GPIO_Init
-    last_toggle = hal_get_tick();
+    last_toggle = hal_delay->get_tick_ms();
 }
 
 void blinky_run(void)
 {
-    uint32_t now = hal_get_tick();
+    uint32_t now = hal_delay->get_tick_ms();
     if ((now - last_toggle) >= interval_ms)
     {
         BSP_LED_Toggle();

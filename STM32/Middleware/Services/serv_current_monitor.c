@@ -117,14 +117,14 @@ bool current_monitor_start_measurement(const measurement_config_t *config) {
         session_start_sec = start_time.seconds;
         session_start_ms = start_time.milliseconds;
     }
-    session_start_tick = hal_get_tick();
-    
+    session_start_tick = hal_delay->get_tick_ms();
+
     // Initialize sample rate throttling
     sample_period_ms = config->sample_period;
-    last_sample_tick = hal_get_tick();
+    last_sample_tick = hal_delay->get_tick_ms();
     
     // Start measurement timing
-    measurement_start_tick = hal_get_tick();
+    measurement_start_tick = hal_delay->get_tick_ms();
     measurement_duration_ms = config->duration_sec * 1000;
     measurement_status = MEASUREMENT_RUNNING;
     
@@ -230,7 +230,7 @@ static void current_data_ready_callback(ina226_sensor_t* sensor, INA226_Data* da
     }
     
     // Throttle to desired sample rate
-    uint32_t now = hal_get_tick();
+    uint32_t now = hal_delay->get_tick_ms();
     if ((now - last_sample_tick) < sample_period_ms) {
         return;  // Too soon, skip this sample
     }
@@ -243,7 +243,7 @@ static void current_data_ready_callback(ina226_sensor_t* sensor, INA226_Data* da
     }
     
     // Calculate timestamp based on session start + elapsed ticks
-    uint32_t elapsed_ms = hal_get_tick() - session_start_tick;
+    uint32_t elapsed_ms = hal_delay->get_tick_ms() - session_start_tick;
     uint32_t timestamp_sec = session_start_sec + (elapsed_ms / 1000);
     uint16_t timestamp_ms = session_start_ms + (elapsed_ms % 1000);
     
@@ -279,8 +279,8 @@ static void check_measurement_completion(void) {
     if (measurement_status != MEASUREMENT_RUNNING) {
         return;
     }
-    
-    uint32_t elapsed_ms = hal_get_tick() - measurement_start_tick;
+
+    uint32_t elapsed_ms = hal_delay->get_tick_ms() - measurement_start_tick;
     
     // Check if measurement duration reached OR buffer full
     if (elapsed_ms >= measurement_duration_ms || sample_count >= active_config.max_samples) {

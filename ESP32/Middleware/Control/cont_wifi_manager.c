@@ -5,8 +5,8 @@
 
 #include "cont_wifi_manager.h"
 #include "../../OS/event_bus.h"
-#include "../../OS/os_wrapper.h"
-#include "../../Drivers_BSP/Custom/portable_log.h"
+#include "os_wrapper.h"
+#include "portable_log.h"
 #include <esp_wifi.h>
 #include <esp_netif.h>
 #include <esp_event.h>

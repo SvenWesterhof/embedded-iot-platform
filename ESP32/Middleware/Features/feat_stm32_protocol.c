@@ -6,8 +6,8 @@
 #include "feat_stm32_protocol.h"
 #include "stm32_packet_framing.h"
 #include "../../OS/event_bus.h"
-#include "../../OS/os_wrapper.h"
-#include "../Drivers_BSP/Custom/portable_log.h"
+#include "os_wrapper.h"
+#include "portable_log.h"
 #include <string.h>
 
 static const char *TAG = "STM32_PROTO";

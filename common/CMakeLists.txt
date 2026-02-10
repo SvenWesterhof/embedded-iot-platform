@@ -16,5 +16,10 @@ if(NOT ESP_PLATFORM)
         target_include_directories(common_lib PUBLIC
             ${CMAKE_CURRENT_SOURCE_DIR}/include
         )
+        # Link against FreeRTOS if building for STM32
+        # Note: FreeRTOS target is defined in cmake/stm32cubemx/CMakeLists.txt
+        if(TARGET FreeRTOS)
+            target_link_libraries(common_lib PRIVATE FreeRTOS)
+        endif()
     endif()
 endif()

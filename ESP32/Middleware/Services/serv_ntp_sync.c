@@ -5,8 +5,8 @@
 
 #include "serv_ntp_sync.h"
 #include "event_bus.h"
-#include "../../OS/os_wrapper.h"
-#include "../Drivers_BSP/Custom/portable_log.h"
+#include "os_wrapper.h"
+#include "portable_log.h"
 #include <esp_sntp.h>
 #include <string.h>
 #include <sys/time.h>

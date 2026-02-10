@@ -29,7 +29,7 @@ ips_display_status_t ips_display_open() {
     ST7735_WriteString(10, 40, "Hum:  ", Font_11x18, ST7735_WHITE, ST7735_BLACK);
     
     // Enable backlight
-    hal_gpio_write_pin((hal_gpio_port_t)DISPLAY_BACKLIGHT_PORT, DISPLAY_BACKLIGHT_PIN, HAL_GPIO_PIN_SET);
+    hal_gpio->set(STM32_PIN(DISPLAY_BACKLIGHT_PORT, DISPLAY_BACKLIGHT_PIN), HAL_GPIO_LEVEL_HIGH);
     
     display_initialized = true;
     return IPS_DISPLAY_OK;
@@ -41,7 +41,7 @@ ips_display_status_t ips_display_close() {
     }
     
     // Disable backlight
-    hal_gpio_write_pin((hal_gpio_port_t)DISPLAY_BACKLIGHT_PORT, DISPLAY_BACKLIGHT_PIN, HAL_GPIO_PIN_RESET);
+    hal_gpio->set(STM32_PIN(DISPLAY_BACKLIGHT_PORT, DISPLAY_BACKLIGHT_PIN), HAL_GPIO_LEVEL_LOW);
     
     // Put display in sleep mode and turn off
     ST7735_Sleep();

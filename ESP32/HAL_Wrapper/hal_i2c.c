@@ -1,8 +1,8 @@
 #include "hal_i2c.h"
 #include "../Drivers_BSP/BSP/pinout.h"
 #include <driver/i2c_master.h>
-#include "../Drivers_BSP/Custom/portable_log.h"
-#include "../OS/os_wrapper.h"
+#include "portable_log.h"
+#include "os_wrapper.h"
 
 static const char *TAG = "HAL_I2C";
 

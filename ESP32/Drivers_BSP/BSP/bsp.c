@@ -11,7 +11,7 @@
 #include "pinout.h"
 #include "../../HAL_Wrapper/hal_gpio.h"
 #include "../../HAL_Wrapper/hal_uart.h"
-#include "../Drivers_BSP/Custom/portable_log.h"
+#include "portable_log.h"
 
 static const char *TAG = "BSP";
 

@@ -114,10 +114,12 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-  SEGGER_RTT_WriteString(0, "=== Clock configured to 216MHz (8MHz HSE) ===\n");
+  // CRITICAL: Update SystemCoreClock variable after clock reconfiguration
+  SystemCoreClockUpdate();
+  SEGGER_RTT_WriteString(0, "=== Clock configured to 120MHz (8MHz HSE, PLLN=240) ===\n");
+  SEGGER_RTT_printf(0, "SystemCoreClock variable: %lu Hz\n", SystemCoreClock);
 
   // CRITICAL: Reinitialize HAL tick timer after clock config
-  // HAL_Init() configured TIM6 at 16MHz, but now we're at 216MHz
   HAL_InitTick(TICK_INT_PRIORITY);
 
   SEGGER_RTT_printf(0, "HAL tick reinitialized successfully\n");
@@ -158,6 +160,7 @@ int main(void)
     SEGGER_RTT_WriteString(0, "RESET: External Pin\n");
   }
   __HAL_RCC_CLEAR_RESET_FLAGS();
+  SEGGER_RTT_WriteString(0, "DEBUG: Reset flags cleared\n");
 
   // Initialize SEGGER SystemView configuration (recording starts after scheduler)
 #if USE_SEGGER_SYSTEMVIEW
@@ -655,6 +658,8 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
+  SEGGER_RTT_WriteString(0, "\n*** ERROR_HANDLER CALLED ***\n");
+  __asm("BKPT #1");  // Breakpoint to catch in debugger
   __disable_irq();
   while (1)
   {

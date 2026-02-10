@@ -3,13 +3,12 @@
 
 /**
  * @file hal_delay.h
- * @brief Platform-independent delay and timing functions
+ * @brief STM32 Delay HAL - uses interface pattern
+ *
+ * Usage: hal_delay->delay_ms(100)
  */
 
+#include "hal_delay_interface.h"
 #include <stdint.h>
-
-// Timing Functions
-void hal_delay_ms(uint32_t milliseconds);
-uint32_t hal_get_tick(void);
 
 #endif // HAL_DELAY_H

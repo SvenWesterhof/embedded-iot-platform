@@ -226,15 +226,7 @@ void stm32_uart_reset_stats(void);
  */
 uart_driver_status_t stm32_uart_flush_rx(void);
 
-/**
- * @brief Calculate CRC16-CCITT
- * 
- * Utility function to calculate CRC16 checksum.
- * 
- * @param data Data buffer
- * @param length Data length
- * @return CRC16 value
- */
-uint16_t stm32_uart_crc16(const uint8_t *data, size_t length);
+// Note: CRC16 function is now provided by common/include/crc16.h
+// Use crc16_ccitt() instead of the old stm32_uart_crc16()
 
 #endif // STM32_PACKET_FRAMING_H

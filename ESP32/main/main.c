@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "../Drivers_BSP/Custom/portable_log.h"
+#include "portable_log.h"
 #include "app_main.h"
 #include "uart_test.h"
 

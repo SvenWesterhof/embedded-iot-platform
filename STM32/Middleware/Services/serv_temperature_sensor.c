@@ -78,7 +78,7 @@ void temperature_sensor_init(void)
 
 void temperature_sensor_run(void)
 {
-    uint32_t now = hal_get_tick();
+    uint32_t now = hal_delay->get_tick_ms();
 
     // Read temperature sensor every second
     if ((now - last_read_time) >= read_interval_ms)

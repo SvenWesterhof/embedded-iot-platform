@@ -4,7 +4,8 @@
       "Bash(cmake:*)",
       "Bash(where:*)",
       "Bash(export PATH=\"/c/Program Files \\(x86\\)/Arm GNU Toolchain arm-none-eabi/14.3 rel1/bin:$PATH\")",
-      "Bash(ARM_GCC_PATH=\"/c/Program Files \\(x86\\)/Arm GNU Toolchain arm-none-eabi/14.3 rel1/bin\")"
+      "Bash(ARM_GCC_PATH=\"/c/Program Files \\(x86\\)/Arm GNU Toolchain arm-none-eabi/14.3 rel1/bin\")",
+      "Bash(ninja:*)"
     ]
   }
 }
