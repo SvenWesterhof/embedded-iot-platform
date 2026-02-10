@@ -16,9 +16,9 @@ static const char *TAG = "HAL_GPIO";
 
 /**
  * @brief Decode hal_gpio_pin_t to STM32 port
- * Upper 16 bits contain the port address
+ * Upper 16 bits contain the port offset from GPIOA_BASE
  */
-#define STM32_GPIO_GET_PORT(encoded)  ((GPIO_TypeDef*)((encoded) & 0xFFFF0000))
+#define STM32_GPIO_GET_PORT(encoded)  ((GPIO_TypeDef*)(GPIOA_BASE + ((encoded) >> 16)))
 
 /**
  * @brief Decode hal_gpio_pin_t to STM32 pin mask

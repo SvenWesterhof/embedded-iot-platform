@@ -120,7 +120,6 @@ int main(void)
   SEGGER_RTT_printf(0, "SystemCoreClock variable: %lu Hz\n", SystemCoreClock);
 
   // CRITICAL: Reinitialize HAL tick timer after clock config
-  HAL_Init();
   HAL_InitTick(TICK_INT_PRIORITY);
 
   SEGGER_RTT_printf(0, "HAL tick reinitialized successfully\n");
