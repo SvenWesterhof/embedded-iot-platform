@@ -2,7 +2,6 @@ idf_component_register(
     SRCS 
         "event_bus.c"
         "os_tasks.c"
-        "os_wrapper.c"
     INCLUDE_DIRS 
         "."
     REQUIRES 
