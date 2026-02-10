@@ -4,6 +4,7 @@
 #include "../OS/event_bus.h"
 #include "os_wrapper.h"
 #include "../Middleware/Control/cont_wifi_manager.h"
+#include "../Middleware/Control/cont_ota_manager.h"
 #include "../Middleware/Services/serv_ntp_sync.h"
 #include "../Middleware/Services/serv_mqtt_client.h"
 #include "../Middleware/Features/feat_dashboard_server.h"
@@ -123,11 +124,17 @@ bool app_init(void)
     if (feat_stm32_protocol_init() == PROTO_OK) {
         LOG_I(TAG, "[OK] STM32 protocol initialized");
     }
-    
+
+    // Initialize OTA manager
+    if (cont_ota_manager_init() == OTA_MGR_OK) {
+        LOG_I(TAG, "[OK] OTA manager initialized");
+        cont_ota_validate_after_boot();  // Validate app after boot
+    }
+
     LOG_I(TAG, "========================================");
     LOG_I(TAG, "   Application initialized");
     LOG_I(TAG, "========================================");
-    
+
     return true;
 }
 
