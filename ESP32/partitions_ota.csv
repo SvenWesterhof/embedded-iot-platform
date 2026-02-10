@@ -1,0 +1,40 @@
+# ESP32 OTA Partition Table (8MB Flash)
+# Factory partition provides disaster recovery fallback
+#
+# Name,     Type, SubType, Offset,  Size,     Flags
+# Bootloader (implicit, 0x0-0x8000, 32KB)
+# Partition table at 0x8000
+
+# NVS - Non-volatile storage for WiFi credentials, OTA state, settings (24KB)
+nvs,        data, nvs,     0x9000,  0x6000,
+
+# OTA data - Tracks which OTA partition is active (ota_0 or ota_1) (8KB)
+otadata,    data, ota,     0xF000,  0x2000,
+
+# PHY init - RF calibration data (4KB)
+phy_init,   data, phy,     0x11000, 0x1000,
+
+# Reserved space (56KB) - ESP-IDF convention
+# 0x12000 - 0x20000
+
+# Provides disaster recovery if OTA updates fail
+factory,    app,  factory, 0x20000, 0x200000,
+
+# OTA_0 - Primary OTA application slot (2MB = 0x200000)
+ota_0,      app,  ota_0,   0x220000,0x200000,
+
+# OTA_1 - Secondary OTA application slot (2MB = 0x200000)
+# Symmetric with ota_0 for ping-pong OTA updates
+ota_1,      app,  ota_1,   0x420000,0x200000,
+
+# Remaining space: 0x620000 - 0x800000 = ~1.875MB available for:
+# - Data partitions
+# - Coredump partition
+# - Future expansion
+
+# Total used so far: 0x620000 (~6.125MB of 8MB)
+# Memory layout verification:
+#   Factory: 0x20000 - 0x220000 (2MB)
+#   OTA_0:   0x220000 - 0x420000 (2MB)
+#   OTA_1:   0x420000 - 0x620000 (2MB)
+#   Free:    0x620000 - 0x800000 (1.875MB)
