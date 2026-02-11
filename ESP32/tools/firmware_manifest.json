@@ -1,0 +1,65 @@
+{
+  "manifest_version": "1.0",
+  "firmware_releases": [
+    {
+      "version": "1.1.0",
+      "release_date": "2026-02-11T13:52:00Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/esp32-gateway-v1.1.0.bin",
+      "file_size": 976432,
+      "checksum": {
+        "sha256": "e165238a098506ccf3e91a01c62d8549dc6ccbbb2175098ef45d55b9c233af6b"
+      },
+      "changelog": [
+        "Firmware update"
+      ]
+    },
+    {
+      "version": "1.1.0",
+      "release_date": "2026-02-11T13:43:39Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/esp32-gateway-v1.1.0.bin",
+      "file_size": 976432,
+      "checksum": {
+        "sha256": "e165238a098506ccf3e91a01c62d8549dc6ccbbb2175098ef45d55b9c233af6b"
+      },
+      "changelog": [
+        "Firmware update"
+      ]
+    },
+    {
+      "version": "1.1.0",
+      "release_date": "2026-02-11T13:38:25Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/esp32-gateway-v1.1.0.bin",
+      "file_size": 976432,
+      "checksum": {
+        "sha256": "a8d6f0b58538e7a3cdd8c536006df6f3518db8cd07b5f012f94f98cf51a59d59"
+      },
+      "changelog": [
+        "Firmware update"
+      ]
+    },
+    {
+      "version": "1.0.1",
+      "release_date": "2026-02-11T13:30:01Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/esp32-gateway-v1.0.1.bin",
+      "file_size": 976432,
+      "checksum": {
+        "sha256": "a8d6f0b58538e7a3cdd8c536006df6f3518db8cd07b5f012f94f98cf51a59d59"
+      },
+      "changelog": [
+        "Firmware update"
+      ]
+    },
+    {
+      "version": "1.0.0-test",
+      "release_date": "2026-02-11T13:14:10Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/esp32-gateway-v1.0.0-test.bin",
+      "file_size": 976528,
+      "checksum": {
+        "sha256": "b484b100cd0e45f68643812f633a6c6aaba79f39c394ef0cf5e5946d1052b981"
+      },
+      "changelog": [
+        "Initial OTA test"
+      ]
+    }
+  ]
+}

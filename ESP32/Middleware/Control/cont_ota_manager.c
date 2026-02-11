@@ -392,10 +392,7 @@ ota_mgr_status_t cont_ota_manager_start(void)
     }
 
     // Subscribe to MQTT data events via event bus
-    if (event_bus_subscribe(EVENT_MQTT_DATA_RECEIVED, on_mqtt_ota_notify) != EVENT_BUS_OK) {
-        LOG_E(TAG, "Failed to subscribe to MQTT data events");
-        return OTA_MGR_ERR_INTERNAL;
-    }
+    event_bus_subscribe(EVENT_MQTT_DATA_RECEIVED, on_mqtt_ota_notify);
 
     LOG_I(TAG, "OTA manager started - listening for firmware update notifications");
     return OTA_MGR_OK;

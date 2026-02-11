@@ -29,4 +29,5 @@ idf_component_register(
         mqtt
         app_update
         bootloader_support
+        json
 )
