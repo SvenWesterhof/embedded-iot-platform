@@ -4,7 +4,7 @@
  */
 
 #include "feat_stm32_protocol.h"
-#include "stm32_packet_framing.h"
+#include "../Services/serv_stm32_packet_framing.h"
 #include "../../OS/event_bus.h"
 #include "os_wrapper.h"
 #include "portable_log.h"
@@ -160,11 +160,11 @@ static proto_err_t send_command_packet(stm32_command_id_t cmd_id,
     // Calculate total size (header + payload)
     size_t packet_size = PROTOCOL_HEADER_SIZE + length;
 
-    // Send via UART driver (convert uart_driver_status_t to proto_err_t)
-    uart_driver_status_t uart_result = stm32_uart_send_packet((uint8_t*)&packet, packet_size,
+    // Send via UART driver (convert stm32_framing_status_t to proto_err_t)
+    stm32_framing_status_t uart_result = stm32_framing_send_packet((uint8_t*)&packet, packet_size,
                                                                 STM32_PROTOCOL_TIMEOUT_MS);
 
-    if (uart_result == UART_DRV_OK) {
+    if (uart_result == STM32_FRAMING_OK) {
         state.commands_sent++;
         LOG_D(TAG, "Sent CMD 0x%02X (seq=%u, len=%u)", cmd_id, seq, length);
         return PROTO_OK;
@@ -277,28 +277,28 @@ static void handle_received_packet(const uint8_t *data, size_t length)
 /**
  * @brief UART event callback
  */
-static void uart_event_callback(stm32_uart_event_t *event, void *user_data)
+static void uart_event_callback(stm32_framing_event_t *event, void *user_data)
 {
     switch (event->type) {
-        case STM32_UART_EVENT_PACKET_RECEIVED:
+        case STM32_FRAMING_EVENT_PACKET_RECEIVED:
             handle_received_packet(event->data, event->length);
             break;
-            
-        case STM32_UART_EVENT_CRC_ERROR:
+
+        case STM32_FRAMING_EVENT_CRC_ERROR:
             LOG_W(TAG, "UART CRC error");
             event_bus_publish(EVENT_STM32_ERROR, (void*)1);
             break;
-            
-        case STM32_UART_EVENT_RX_ERROR:
+
+        case STM32_FRAMING_EVENT_RX_ERROR:
             LOG_W(TAG, "UART RX error");
             event_bus_publish(EVENT_STM32_ERROR, (void*)2);
             break;
-            
-        case STM32_UART_EVENT_TIMEOUT:
+
+        case STM32_FRAMING_EVENT_TIMEOUT:
             LOG_W(TAG, "UART timeout");
             event_bus_publish(EVENT_STM32_TIMEOUT, NULL);
             break;
-            
+
         default:
             break;
     }
@@ -398,11 +398,11 @@ proto_err_t feat_stm32_protocol_init(void)
     }
 
     // Initialize UART driver
-    stm32_uart_config_t uart_config = stm32_uart_get_default_config();
-    
+    stm32_framing_config_t uart_config = stm32_framing_get_default_config();
+
     uart_config.callback = uart_event_callback;
-    uart_driver_status_t uart_result = stm32_uart_init(&uart_config);
-    if (uart_result != UART_DRV_OK) {
+    stm32_framing_status_t uart_result = stm32_framing_init(&uart_config);
+    if (uart_result != STM32_FRAMING_OK) {
         LOG_E(TAG, "Failed to initialize UART driver (error: %d)", uart_result);
         os_mutex_delete(state.pending_mutex);
         return PROTO_ERR_FAIL;
