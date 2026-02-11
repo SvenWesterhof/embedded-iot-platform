@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
         "app_main.c"
         "tests/ota_test.c"
+        "tests/test_ota_trigger.c"
     INCLUDE_DIRS
         "."
         "tests"
