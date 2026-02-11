@@ -12,6 +12,9 @@
 #include "esp_https_ota.h"
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
+#include "esp_ota_ops.h"
+#include "esp_partition.h"
+#include "esp_system.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -401,6 +404,8 @@ void cont_ota_validate_after_boot(void)
             LOG_I(TAG, "Factory firmware validated (no OTA performed)");
             report_ota_status("ready", "Factory firmware active, OTA ready");
         }
+    } else {
+        LOG_E(TAG, "Failed to mark app as valid (status=%d)", status);
     }
 }
 
@@ -412,4 +417,30 @@ bool cont_ota_is_update_in_progress(void)
 uint8_t cont_ota_get_progress(void)
 {
     return serv_ota_get_progress();
+}
+
+ota_mgr_status_t cont_ota_get_partition_info(char *buffer, size_t buffer_size)
+{
+    if (!buffer || buffer_size == 0) {
+        return OTA_MGR_ERR_INVALID_ARG;
+    }
+
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    if (!running) {
+        snprintf(buffer, buffer_size, "Unknown partition");
+        return OTA_MGR_ERR_INTERNAL;
+    }
+
+    // Determine partition type
+    const char *type_str = "Unknown";
+    if (running->subtype == ESP_PARTITION_SUBTYPE_APP_FACTORY) {
+        type_str = "factory";
+    } else if (running->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_0) {
+        type_str = "ota_0";
+    } else if (running->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1) {
+        type_str = "ota_1";
+    }
+
+    snprintf(buffer, buffer_size, "%s @ 0x%08lx", type_str, running->address);
+    return OTA_MGR_OK;
 }

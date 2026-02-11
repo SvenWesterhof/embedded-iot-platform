@@ -91,4 +91,12 @@ bool cont_ota_is_update_in_progress(void);
  */
 uint8_t cont_ota_get_progress(void);
 
+/**
+ * @brief Get current partition information
+ * @param buffer Buffer to write partition info string
+ * @param buffer_size Size of buffer
+ * @return OTA_MGR_OK on success
+ */
+ota_mgr_status_t cont_ota_get_partition_info(char *buffer, size_t buffer_size);
+
 #endif // CONT_OTA_MANAGER_H
