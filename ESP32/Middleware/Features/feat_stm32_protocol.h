@@ -3,7 +3,7 @@
  * @brief STM32 Binary Protocol Feature (ESP32 Client Side)
  *
  * Implements high-level command/response protocol on top of the
- * stm32_uart_driver. Provides:
+ * STM32 packet framing service. Provides:
  * - Command packet building and sending
  * - Response parsing and handling
  * - Sequence number management

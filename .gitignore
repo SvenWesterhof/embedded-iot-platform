@@ -86,3 +86,4 @@ desktop.ini
 
 # JLink debugger user settings
 *.jdebug.user
+.claude/settings.local.json

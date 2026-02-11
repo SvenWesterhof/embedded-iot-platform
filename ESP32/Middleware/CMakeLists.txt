@@ -1,13 +1,13 @@
 idf_component_register(
     SRCS
         "Features/feat_stm32_protocol.c"
-        "Features/stm32_packet_framing.c"
         "Features/feat_dashboard_server.c"
         "Control/cont_wifi_manager.c"
         "Control/cont_ota_manager.c"
         "Services/serv_ntp_sync.c"
         "Services/serv_mqtt_client.c"
         "Services/serv_ota_update.c"
+        "Services/serv_stm32_packet_framing.c"
     INCLUDE_DIRS
         "."
         "Features"

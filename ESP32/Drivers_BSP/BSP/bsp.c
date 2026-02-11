@@ -68,8 +68,8 @@ bool bsp_init(void)
         return false;
     }
     
-    // Note: UART initialization is handled by stm32_uart_driver
-    // to keep the driver self-contained and configurable
+    // Note: UART initialization is handled by stm32_framing service
+    // to keep the service self-contained and configurable
     
     LOG_I(TAG, "BSP initialized successfully");
     return true;
