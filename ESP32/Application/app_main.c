@@ -4,6 +4,7 @@
 #include "../OS/event_bus.h"
 #include "os_wrapper.h"
 #include "../Middleware/Control/cont_wifi_manager.h"
+#include "../Middleware/Control/cont_ota_manager.h"
 #include "../Middleware/Services/serv_ntp_sync.h"
 #include "../Middleware/Services/serv_mqtt_client.h"
 #include "../Middleware/Features/feat_dashboard_server.h"
@@ -62,8 +63,8 @@ bool app_init(void)
 {
     LOG_I(TAG, "========================================");
     LOG_I(TAG, "   ESP32 Gateway - Initializing");
+    LOG_I(TAG, "   Firmware Version 🚀: %s", FIRMWARE_VERSION);
     LOG_I(TAG, "========================================");
-    
     // Initialize NVS (required for WiFi)
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -123,11 +124,19 @@ bool app_init(void)
     if (feat_stm32_protocol_init() == PROTO_OK) {
         LOG_I(TAG, "[OK] STM32 protocol initialized");
     }
-    
+
+    // Initialize OTA manager
+    if (cont_ota_manager_init() == OTA_MGR_OK) {
+        char partition_info[64];
+        cont_ota_get_partition_info(partition_info, sizeof(partition_info));
+        LOG_I(TAG, "[OK] OTA manager initialized - Running from: %s", partition_info);
+        cont_ota_validate_after_boot();  // Validate app after boot
+    }
+
     LOG_I(TAG, "========================================");
     LOG_I(TAG, "   Application initialized");
     LOG_I(TAG, "========================================");
-    
+
     return true;
 }
 
@@ -148,11 +157,9 @@ void app_run(void)
     // Main application loop - broadcast status to dashboard
     uint32_t uptime = 0;
     char status_json[256];
-    
     while (1) {
         os_delay_ms(2000);  // 2 second update
         uptime += 2;
-        
         // Build status JSON for dashboard
         snprintf(status_json, sizeof(status_json),
             "{\"uptime\":%lu,\"wifi\":\"%s\",\"mqtt\":\"%s\",\"ntp\":\"%s\",\"clients\":%d}",
@@ -168,10 +175,13 @@ void app_run(void)
         
         // Log every 30 seconds
         if (uptime % 30 == 0) {
-            LOG_I(TAG, "Uptime: %lu seconds | WiFi: %s | MQTT: %s", 
+            char partition_info[64];
+            cont_ota_get_partition_info(partition_info, sizeof(partition_info));
+            LOG_I(TAG, "Uptime: %lu seconds | WiFi: %s | MQTT: %s | Partition: %s",
                      uptime,
                      wifi_manager_is_connected() ? "Connected" : "Disconnected",
-                     serv_mqtt_is_connected() ? "Connected" : "Disconnected");
+                     serv_mqtt_is_connected() ? "Connected" : "Disconnected",
+                     partition_info);
         }
     }
 }

@@ -1,9 +1,9 @@
 idf_component_register(
-    SRCS 
+    SRCS
         "event_bus.c"
-        "os_tasks.c"
-    INCLUDE_DIRS 
+    INCLUDE_DIRS
         "."
-    REQUIRES 
+    REQUIRES
         freertos
+        esp_component
 )

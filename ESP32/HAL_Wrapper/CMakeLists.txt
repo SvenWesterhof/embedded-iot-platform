@@ -1,11 +1,12 @@
 idf_component_register(
-    SRCS 
+    SRCS
         "hal_gpio.c"
         "hal_delay.c"
         "hal_uart.c"
-    INCLUDE_DIRS 
+    INCLUDE_DIRS
         "."
-    REQUIRES 
+    REQUIRES
         driver
         esp_timer
+        esp_component
 )

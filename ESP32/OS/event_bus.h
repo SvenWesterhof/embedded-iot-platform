@@ -43,7 +43,16 @@ typedef enum {
     
     // System Events
     EVENT_SYSTEM_ERROR,
-    
+
+    // OTA Events
+    EVENT_OTA_STARTED,
+    EVENT_OTA_PROGRESS,
+    EVENT_OTA_COMPLETED,
+    EVENT_OTA_FAILED,
+    EVENT_OTA_PENDING_VALIDATION,
+    EVENT_OTA_VALIDATED,
+    EVENT_OTA_ROLLBACK,
+
     EVENT_MAX
 } event_type_t;
 

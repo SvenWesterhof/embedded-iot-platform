@@ -1,9 +1,15 @@
 idf_component_register(
-    SRCS 
+    SRCS
         "app_main.c"
-    INCLUDE_DIRS 
+        "tests/ota_test.c"
+        "tests/test_ota_trigger.c"
+    INCLUDE_DIRS
         "."
-    REQUIRES 
+        "tests"
+    REQUIRES
         OS
         Middleware
+        esp_component
+        app_update
+        bootloader_support
 )

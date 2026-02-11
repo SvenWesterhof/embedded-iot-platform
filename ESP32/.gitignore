@@ -8,6 +8,14 @@ Application/credentials.h
 **/credentials.h
 !**/credentials.h.template
 
+# Security Keys - NEVER COMMIT
+keys/
+*.pem
+*.key
+secure_boot_*
+ota_signing_*
+build/*_signed.bin
+
 # VS Code
 .vscode/ipch/
 
@@ -20,3 +28,6 @@ managed_components/
 
 # Documentation (optional - remove if you want to track docs)
 docs/
+
+# Claude context folder
+.claude/
