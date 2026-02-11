@@ -58,7 +58,6 @@ jobs:
           BUGFIXES=""
           DOCS=""
           REFACTOR=""
-          CHORE=""
           OTHER=""
 
           while IFS= read -r commit; do
@@ -70,8 +69,6 @@ jobs:
               DOCS="${DOCS}- ${BASH_REMATCH[2]}\n"
             elif [[ $commit =~ ^refactor(\(.*\))?:\ (.*) ]]; then
               REFACTOR="${REFACTOR}- ${BASH_REMATCH[2]}\n"
-            elif [[ $commit =~ ^chore(\(.*\))?:\ (.*) ]]; then
-              CHORE="${CHORE}- ${BASH_REMATCH[2]}\n"
             else
               OTHER="${OTHER}- ${commit}\n"
             fi
@@ -81,27 +78,23 @@ jobs:
           CHANGELOG=""
 
           if [ -n "$FEATURES" ]; then
-            CHANGELOG="${CHANGELOG}### ✨ Features\n${FEATURES}\n"
+            CHANGELOG="${CHANGELOG}### Features\n${FEATURES}\n"
           fi
 
           if [ -n "$BUGFIXES" ]; then
-            CHANGELOG="${CHANGELOG}### 🐛 Bug Fixes\n${BUGFIXES}\n"
+            CHANGELOG="${CHANGELOG}### Bug Fixes\n${BUGFIXES}\n"
           fi
 
           if [ -n "$REFACTOR" ]; then
-            CHANGELOG="${CHANGELOG}### ♻️ Refactoring\n${REFACTOR}\n"
+            CHANGELOG="${CHANGELOG}### Refactoring\n${REFACTOR}\n"
           fi
 
           if [ -n "$DOCS" ]; then
-            CHANGELOG="${CHANGELOG}### 📚 Documentation\n${DOCS}\n"
-          fi
-
-          if [ -n "$CHORE" ]; then
-            CHANGELOG="${CHANGELOG}### 🔧 Maintenance\n${CHORE}\n"
+            CHANGELOG="${CHANGELOG}### Documentation\n${DOCS}\n"
           fi
 
           if [ -n "$OTHER" ]; then
-            CHANGELOG="${CHANGELOG}### 📝 Other Changes\n${OTHER}\n"
+            CHANGELOG="${CHANGELOG}### Other Changes\n${OTHER}\n"
           fi
 
           # Save to file for GitHub release
