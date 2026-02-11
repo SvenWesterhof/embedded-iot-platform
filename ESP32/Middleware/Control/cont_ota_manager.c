@@ -15,15 +15,16 @@
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "esp_system.h"
+#include "cJSON.h"
 #include <string.h>
 #include <stdio.h>
 
 static const char *TAG = "OTA_MANAGER";
 
-// MQTT topics
-#define MQTT_TOPIC_OTA_NOTIFY   "ota/notify"       // Server → Device: OTA notification
-#define MQTT_TOPIC_OTA_STATUS   "ota/status"       // Device → Server: OTA status reports
-#define MQTT_TOPIC_OTA_PROGRESS "ota/progress"     // Device → Server: Download progress
+// Note: MQTT topic macros are defined in serv_mqtt_client.h
+// - MQTT_TOPIC_GLOBAL_OTA_NOTIFY
+// - MQTT_TOPIC_DEVICE_OTA_STATUS_FMT
+// - MQTT_TOPIC_DEVICE_OTA_PROGRESS_FMT
 
 // ============================================================================
 // Private State
@@ -68,12 +69,24 @@ static inline void mgr_unlock(void)
  */
 static void report_ota_status(const char *status, const char *message)
 {
+    // Get device ID from MQTT client
+    const char *device_id = serv_mqtt_get_device_id();
+    if (!device_id) {
+        LOG_W(TAG, "Cannot report status: device ID not available");
+        return;
+    }
+
+    // Build device-specific topic using macro
+    char topic[128];
+    snprintf(topic, sizeof(topic), MQTT_TOPIC_DEVICE_OTA_STATUS_FMT, device_id);
+
+    // Build JSON payload
     char payload[256];
     snprintf(payload, sizeof(payload),
              "{\"status\":\"%s\",\"message\":\"%s\",\"version\":\"%s\"}",
              status, message, s_mgr.version);
 
-    serv_mqtt_publish(MQTT_TOPIC_OTA_STATUS, payload, strlen(payload), 1, false);
+    serv_mqtt_publish(topic, payload, strlen(payload), 1, false);
     LOG_I(TAG, "OTA Status: %s - %s", status, message);
 }
 
@@ -82,9 +95,21 @@ static void report_ota_status(const char *status, const char *message)
  */
 static void report_ota_progress(uint8_t progress)
 {
+    // Get device ID from MQTT client
+    const char *device_id = serv_mqtt_get_device_id();
+    if (!device_id) {
+        return;  // Silently fail for progress updates
+    }
+
+    // Build device-specific topic using macro
+    char topic[128];
+    snprintf(topic, sizeof(topic), MQTT_TOPIC_DEVICE_OTA_PROGRESS_FMT, device_id);
+
+    // Build JSON payload
     char payload[64];
     snprintf(payload, sizeof(payload), "{\"progress\":%u}", progress);
-    serv_mqtt_publish(MQTT_TOPIC_OTA_PROGRESS, payload, strlen(payload), 0, false);
+
+    serv_mqtt_publish(topic, payload, strlen(payload), 0, false);
 }
 
 /**
@@ -219,6 +244,61 @@ ota_task_exit:
 }
 
 /**
+ * @brief Parse MQTT OTA notification JSON payload
+ *
+ * Expected minimal format:
+ * {
+ *   "version": "1.1.0",
+ *   "url": "https://server.s3.amazonaws.com/firmware/esp32-v1.1.0.bin",
+ *   "size": 1998432,
+ *   "sha256": "e3b0c44...",
+ *   "auto_reboot": false
+ * }
+ */
+static ota_notification_t* parse_ota_notification(const char *json_str)
+{
+    if (!json_str) {
+        return NULL;
+    }
+
+    cJSON *root = cJSON_Parse(json_str);
+    if (!root) {
+        LOG_E(TAG, "JSON parse error: %s", cJSON_GetErrorPtr());
+        return NULL;
+    }
+
+    // Extract required fields
+    cJSON *version_obj = cJSON_GetObjectItem(root, "version");
+    cJSON *url_obj = cJSON_GetObjectItem(root, "url");
+
+    // Validate required fields
+    if (!cJSON_IsString(version_obj) || !cJSON_IsString(url_obj)) {
+        LOG_E(TAG, "Missing required fields: version or url");
+        cJSON_Delete(root);
+        return NULL;
+    }
+
+    // Extract optional fields
+    cJSON *size_obj = cJSON_GetObjectItem(root, "size");
+    cJSON *sha256_obj = cJSON_GetObjectItem(root, "sha256");
+    cJSON *auto_reboot_obj = cJSON_GetObjectItem(root, "auto_reboot");
+
+    // Allocate and populate notification structure
+    static ota_notification_t notification;  // Static to avoid stack issues
+    notification.version = strdup(version_obj->valuestring);
+    notification.https_url = strdup(url_obj->valuestring);
+    notification.expected_size = cJSON_IsNumber(size_obj) ? size_obj->valueint : 0;
+    notification.signature = cJSON_IsString(sha256_obj) ? strdup(sha256_obj->valuestring) : NULL;
+    notification.auto_reboot = cJSON_IsBool(auto_reboot_obj) ? cJSON_IsTrue(auto_reboot_obj) : false;
+
+    LOG_I(TAG, "Parsed OTA notification - Version: %s, URL: %s, Size: %u",
+          notification.version, notification.https_url, notification.expected_size);
+
+    cJSON_Delete(root);
+    return &notification;
+}
+
+/**
  * @brief Handle MQTT OTA notification
  */
 static void on_mqtt_ota_notify(event_type_t type, void *data)
@@ -226,15 +306,37 @@ static void on_mqtt_ota_notify(event_type_t type, void *data)
     (void)type;
 
     if (!data) {
+        LOG_W(TAG, "Received null MQTT data for OTA notification");
         return;
     }
 
-    // Parse MQTT payload (JSON expected)
-    // Format: {"version":"1.1.0","url":"https://server.com/fw.bin","size":900000,"auto_reboot":true}
-    // TODO: Implement JSON parsing here when JSON library available
-    // For now, expect manual trigger via cont_ota_trigger_update()
-
+    // Expect JSON string payload
+    const char *json_payload = (const char *)data;
     LOG_I(TAG, "OTA notification received via MQTT");
+    LOG_D(TAG, "Payload: %s", json_payload);
+
+    // Parse JSON notification
+    ota_notification_t *notification = parse_ota_notification(json_payload);
+    if (!notification) {
+        LOG_E(TAG, "Failed to parse OTA notification JSON");
+        return;
+    }
+
+    // Trigger OTA update
+    LOG_I(TAG, "Triggering OTA update to version %s", notification->version);
+    ota_mgr_status_t status = cont_ota_trigger_update(notification);
+
+    if (status != OTA_MGR_OK) {
+        LOG_E(TAG, "Failed to trigger OTA update: error code %d", status);
+        // Optionally send error status via MQTT
+    }
+
+    // Free dynamically allocated strings
+    free((void*)notification->version);
+    free((void*)notification->https_url);
+    if (notification->signature) {
+        free((void*)notification->signature);
+    }
 }
 
 // ============================================================================
@@ -274,17 +376,25 @@ ota_mgr_status_t cont_ota_manager_init(void)
 ota_mgr_status_t cont_ota_manager_start(void)
 {
     if (!s_mgr.initialized) {
+        LOG_E(TAG, "Cannot start: OTA manager not initialized");
         return OTA_MGR_ERR_NOT_INITIALIZED;
     }
 
-    // Subscribe to MQTT OTA notification topic
-    // Note: serv_mqtt_client must be initialized and connected first
-    // TODO: Subscribe to MQTT_TOPIC_OTA_NOTIFY when MQTT client supports subscriptions
+    LOG_I(TAG, "Starting OTA manager...");
 
-    // Subscribe to OTA events via event bus
+    // Subscribe to global MQTT OTA notification topic
+    int msg_id = serv_mqtt_subscribe(MQTT_TOPIC_GLOBAL_OTA_NOTIFY, 1);
+    if (msg_id >= 0) {
+        LOG_I(TAG, "Subscribed to MQTT topic: %s (msg_id=%d)", MQTT_TOPIC_GLOBAL_OTA_NOTIFY, msg_id);
+    } else {
+        LOG_W(TAG, "Failed to subscribe to MQTT OTA topic (broker may not be connected yet)");
+        // This is non-fatal - subscription will retry on reconnect
+    }
+
+    // Subscribe to MQTT data events via event bus
     event_bus_subscribe(EVENT_MQTT_DATA_RECEIVED, on_mqtt_ota_notify);
 
-    LOG_I(TAG, "OTA manager started, listening for notifications");
+    LOG_I(TAG, "OTA manager started - listening for firmware update notifications");
     return OTA_MGR_OK;
 }
 

@@ -31,14 +31,14 @@ static struct {
     mqtt_event_callback_t user_callback;
     os_mutex_handle_t mutex;
     bool initialized;
-    
+
     // Statistics
     uint32_t messages_sent;
     uint32_t messages_received;
     uint32_t reconnect_count;
-    
-    // Topic prefix buffer
-    char topic_prefix[64];
+
+    // Device ID buffer
+    char device_id[64];
 } ctx = {0};
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -51,7 +51,6 @@ static void handle_connected(void);
 static void handle_disconnected(void);
 static void handle_data(esp_mqtt_event_handle_t event);
 static void handle_error(esp_mqtt_event_handle_t event);
-static void build_full_topic(char *buffer, size_t size, const char *subtopic);
 static void event_bus_handler(event_type_t type, void *data);
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -72,12 +71,13 @@ mqtt_status_t serv_mqtt_init(const mqtt_client_config_t *config)
         mqtt_client_config_t default_config = MQTT_CLIENT_CONFIG_DEFAULT();
         memcpy(&ctx.config, &default_config, sizeof(mqtt_client_config_t));
     }
-    
-    // Store topic prefix
-    if (ctx.config.topic_prefix != NULL) {
-        strncpy(ctx.topic_prefix, ctx.config.topic_prefix, sizeof(ctx.topic_prefix) - 1);
+
+    // Store device ID
+    if (ctx.config.device_id != NULL) {
+        strncpy(ctx.device_id, ctx.config.device_id, sizeof(ctx.device_id) - 1);
+        ctx.device_id[sizeof(ctx.device_id) - 1] = '\0';
     } else {
-        strcpy(ctx.topic_prefix, "esp32_gateway");
+        strcpy(ctx.device_id, "esp32_gateway");
     }
     
     // Create mutex
@@ -193,120 +193,84 @@ mqtt_status_t serv_mqtt_deinit(void)
  * Publishing Functions
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-int serv_mqtt_publish(const char *subtopic, const void *data, size_t len,
+int serv_mqtt_publish(const char *topic, const void *data, size_t len,
                       int qos, bool retain)
 {
     if (!ctx.initialized || ctx.state != MQTT_STATE_CONNECTED) {
         return -1;
     }
-    
-    if (subtopic == NULL || data == NULL) {
+
+    if (topic == NULL || data == NULL) {
         return -1;
     }
-    
-    // Build full topic
-    char full_topic[TOPIC_BUFFER_SIZE];
-    build_full_topic(full_topic, sizeof(full_topic), subtopic);
-    
+
     // Use default QoS if not specified
     if (qos < 0) {
         qos = ctx.config.qos;
     }
-    
-    int msg_id = esp_mqtt_client_publish(ctx.client, full_topic, 
-                                          (const char *)data, len, 
+
+    int msg_id = esp_mqtt_client_publish(ctx.client, topic,
+                                          (const char *)data, len,
                                           qos, retain ? 1 : 0);
-    
+
     if (msg_id >= 0) {
         xSemaphoreTake(ctx.mutex, portMAX_DELAY);
         ctx.messages_sent++;
         xSemaphoreGive(ctx.mutex);
-        
-        LOG_D(TAG, "Published to %s (msg_id=%d)", full_topic, msg_id);
+
+        LOG_D(TAG, "Published to %s (msg_id=%d)", topic, msg_id);
     }
-    
+
     return msg_id;
 }
 
-int serv_mqtt_publish_string(const char *subtopic, const char *message,
+int serv_mqtt_publish_string(const char *topic, const char *message,
                              int qos, bool retain)
 {
     if (message == NULL) {
         return -1;
     }
-    return serv_mqtt_publish(subtopic, message, strlen(message), qos, retain);
-}
-
-int serv_mqtt_publish_sensor(const char *sensor_type, float value, const char *unit)
-{
-    if (!ctx.initialized || ctx.state != MQTT_STATE_CONNECTED) {
-        return -1;
-    }
-    
-    // Build JSON payload
-    char json[JSON_BUFFER_SIZE];
-    time_t now;
-    time(&now);
-    
-    int len = snprintf(json, sizeof(json),
-        "{\"sensor\":\"%s\",\"value\":%.2f,\"unit\":\"%s\",\"timestamp\":%lld}",
-        sensor_type ? sensor_type : "unknown",
-        value,
-        unit ? unit : "",
-        (long long)now);
-    
-    if (len < 0 || len >= (int)sizeof(json)) {
-        LOG_W(TAG, "JSON buffer overflow");
-        return -1;
-    }
-    
-    // Build topic: prefix/sensors/type
-    char subtopic[64];
-    snprintf(subtopic, sizeof(subtopic), "sensors/%s", 
-             sensor_type ? sensor_type : "generic");
-    
-    return serv_mqtt_publish(subtopic, json, len, -1, false);
+    return serv_mqtt_publish(topic, message, strlen(message), qos, retain);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Subscription Functions
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-int serv_mqtt_subscribe(const char *subtopic, int qos)
+int serv_mqtt_subscribe(const char *topic, int qos)
 {
     if (!ctx.initialized || ctx.state != MQTT_STATE_CONNECTED) {
         return -1;
     }
-    
-    // Build full topic with /cmd/ prefix for commands
-    char full_topic[TOPIC_BUFFER_SIZE];
-    snprintf(full_topic, sizeof(full_topic), "%s/cmd/%s", 
-             ctx.topic_prefix, subtopic ? subtopic : "#");
-    
+
+    if (topic == NULL) {
+        return -1;
+    }
+
     if (qos < 0) {
         qos = ctx.config.qos;
     }
-    
-    int msg_id = esp_mqtt_client_subscribe(ctx.client, full_topic, qos);
-    
+
+    int msg_id = esp_mqtt_client_subscribe(ctx.client, topic, qos);
+
     if (msg_id >= 0) {
-        LOG_I(TAG, "Subscribed to %s (msg_id=%d)", full_topic, msg_id);
+        LOG_I(TAG, "Subscribed to %s (msg_id=%d)", topic, msg_id);
     }
-    
+
     return msg_id;
 }
 
-int serv_mqtt_unsubscribe(const char *subtopic)
+int serv_mqtt_unsubscribe(const char *topic)
 {
     if (!ctx.initialized || ctx.state != MQTT_STATE_CONNECTED) {
         return -1;
     }
-    
-    char full_topic[TOPIC_BUFFER_SIZE];
-    snprintf(full_topic, sizeof(full_topic), "%s/cmd/%s",
-             ctx.topic_prefix, subtopic ? subtopic : "#");
-    
-    return esp_mqtt_client_unsubscribe(ctx.client, full_topic);
+
+    if (topic == NULL) {
+        return -1;
+    }
+
+    return esp_mqtt_client_unsubscribe(ctx.client, topic);
 }
 
 void serv_mqtt_set_callback(mqtt_event_callback_t callback)
@@ -332,12 +296,17 @@ void serv_mqtt_get_stats(uint32_t *messages_sent, uint32_t *messages_received,
                          uint32_t *reconnect_count)
 {
     xSemaphoreTake(ctx.mutex, portMAX_DELAY);
-    
+
     if (messages_sent) *messages_sent = ctx.messages_sent;
     if (messages_received) *messages_received = ctx.messages_received;
     if (reconnect_count) *reconnect_count = ctx.reconnect_count;
-    
+
     xSemaphoreGive(ctx.mutex);
+}
+
+const char* serv_mqtt_get_device_id(void)
+{
+    return ctx.initialized ? ctx.device_id : NULL;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -389,27 +358,26 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
 
 static void handle_connected(void)
 {
-    LOG_I(TAG, "Connected to broker");
-    
+    LOG_I(TAG, "Connected to broker (device_id: %s)", ctx.device_id);
+
     mqtt_client_state_t prev_state = ctx.state;
     ctx.state = MQTT_STATE_CONNECTED;
-    
+
     // Count reconnections
     if (prev_state != MQTT_STATE_CONNECTING) {
         xSemaphoreTake(ctx.mutex, portMAX_DELAY);
         ctx.reconnect_count++;
         xSemaphoreGive(ctx.mutex);
     }
-    
-    // Subscribe to command topics
-    serv_mqtt_subscribe("#", -1);  // Subscribe to all commands
-    
-    // Publish online status (retained)
-    serv_mqtt_publish_string("status", "online", 1, true);
-    
-    // Publish to event bus
+
+    // Publish online status (retained) - using device-specific topic
+    char topic[TOPIC_BUFFER_SIZE];
+    snprintf(topic, sizeof(topic), "devices/%s/status", ctx.device_id);
+    serv_mqtt_publish_string(topic, "online", 1, true);
+
+    // Publish to event bus (other components will subscribe to their topics)
     event_bus_publish(EVENT_MQTT_CONNECTED, NULL);
-    
+
     // User callback
     if (ctx.user_callback) {
         ctx.user_callback(FEAT_MQTT_EVT_CONNECTED, NULL);
@@ -479,27 +447,24 @@ static void handle_error(esp_mqtt_event_handle_t event)
  * Private Functions - Utilities
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-static void build_full_topic(char *buffer, size_t size, const char *subtopic)
-{
-    snprintf(buffer, size, "%s/%s", ctx.topic_prefix, subtopic);
-}
-
 /**
  * @brief Event bus handler for STM32 data
- * 
- * Automatically forwards STM32 data to MQTT broker
+ *
+ * Automatically forwards STM32 data to MQTT broker using device-specific topic
  */
 static void event_bus_handler(event_type_t type, void *data)
 {
     if (!ctx.initialized || ctx.state != MQTT_STATE_CONNECTED) {
         return;
     }
-    
+
     if (type == EVENT_STM32_DATA_READY && data != NULL) {
-        // Forward raw data to MQTT (assume data is a null-terminated string or structure)
+        // Forward raw data to MQTT using device-specific telemetry topic
         // In real implementation, you'd parse the STM32 data structure here
-        serv_mqtt_publish_string("data/stm32", (const char *)data, 0, false);
-        
+        char topic[TOPIC_BUFFER_SIZE];
+        snprintf(topic, sizeof(topic), "devices/%s/telemetry/stm32", ctx.device_id);
+        serv_mqtt_publish_string(topic, (const char *)data, 0, false);
+
         LOG_D(TAG, "Forwarded STM32 data to MQTT");
     }
 }

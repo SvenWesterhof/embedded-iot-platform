@@ -50,10 +50,10 @@ typedef enum {
  */
 typedef struct {
     const char *broker_uri;         /**< Broker URI (e.g., "mqtt://broker.hivemq.com") */
-    const char *client_id;          /**< Client identifier (NULL for auto-generate) */
+    const char *device_id;          /**< Device identifier (e.g., "esp32_001") */
+    const char *client_id;          /**< MQTT client ID (NULL for auto-generate) */
     const char *username;           /**< Username (NULL if not required) */
     const char *password;           /**< Password (NULL if not required) */
-    const char *topic_prefix;       /**< Topic prefix (e.g., "gateway/device1") */
     uint16_t keepalive_sec;         /**< Keepalive interval in seconds */
     uint8_t qos;                    /**< Default QoS level (0, 1, or 2) */
     bool clean_session;             /**< Clean session flag */
@@ -64,10 +64,10 @@ typedef struct {
  */
 #define MQTT_CLIENT_CONFIG_DEFAULT() {                      \
     .broker_uri = "mqtt://broker.hivemq.com:1883",          \
+    .device_id = "esp32_gateway",                           \
     .client_id = NULL,                                      \
     .username = NULL,                                       \
     .password = NULL,                                       \
-    .topic_prefix = "esp32_gateway",                        \
     .keepalive_sec = 120,                                   \
     .qos = 1,                                               \
     .clean_session = true                                   \
@@ -147,55 +147,51 @@ mqtt_status_t serv_mqtt_deinit(void);
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
- * @brief Publish data to a topic
- * @param subtopic Topic suffix (appended to prefix, e.g., "sensors/temp")
+ * @brief Publish data to exact topic
+ * @param topic Full topic path (e.g., "devices/esp32_001/telemetry/temp")
  * @param data Payload data
  * @param len Payload length
  * @param qos QoS level (0-2), -1 for default
  * @param retain Retain flag
  * @return Message ID on success, -1 on failure
  */
-int serv_mqtt_publish(const char *subtopic, const void *data, size_t len, 
+int serv_mqtt_publish(const char *topic, const void *data, size_t len,
                       int qos, bool retain);
 
 /**
- * @brief Publish string message
- * @param subtopic Topic suffix
+ * @brief Publish string message to exact topic
+ * @param topic Full topic path
  * @param message Null-terminated string
  * @param qos QoS level, -1 for default
  * @param retain Retain flag
  * @return Message ID on success, -1 on failure
  */
-int serv_mqtt_publish_string(const char *subtopic, const char *message, 
+int serv_mqtt_publish_string(const char *topic, const char *message,
                              int qos, bool retain);
-
-/**
- * @brief Publish JSON-formatted sensor data
- * @param sensor_type Sensor type identifier
- * @param value Sensor value
- * @param unit Unit string (e.g., "°C", "%")
- * @return Message ID on success, -1 on failure
- */
-int serv_mqtt_publish_sensor(const char *sensor_type, float value, const char *unit);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Subscription Functions
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 /**
- * @brief Subscribe to a topic
- * @param subtopic Topic suffix (appended to prefix + "/cmd/")
- * @param qos QoS level, -1 for default
+ * @brief Subscribe to exact topic
+ *
+ * Examples:
+ * - "gateway/ota/notify"  (global broadcast)
+ * - "devices/esp32_001/commands/#"  (device-specific with wildcard)
+ *
+ * @param topic Full topic path (supports MQTT wildcards + and #)
+ * @param qos QoS level (0-2), -1 for default
  * @return Message ID on success, -1 on failure
  */
-int serv_mqtt_subscribe(const char *subtopic, int qos);
+int serv_mqtt_subscribe(const char *topic, int qos);
 
 /**
- * @brief Unsubscribe from a topic
- * @param subtopic Topic suffix
+ * @brief Unsubscribe from exact topic
+ * @param topic Full topic path
  * @return Message ID on success, -1 on failure
  */
-int serv_mqtt_unsubscribe(const char *subtopic);
+int serv_mqtt_unsubscribe(const char *topic);
 
 /**
  * @brief Register event callback
@@ -227,6 +223,29 @@ bool serv_mqtt_is_connected(void);
  */
 void serv_mqtt_get_stats(uint32_t *messages_sent, uint32_t *messages_received,
                          uint32_t *reconnect_count);
+
+/**
+ * @brief Get configured device ID
+ * @return Device ID string (NULL if not configured)
+ */
+const char* serv_mqtt_get_device_id(void);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Topic Helper Macros (Industry-Standard Hierarchy)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+// Global/Broadcast topics (one-to-many)
+#define MQTT_TOPIC_GLOBAL_OTA_NOTIFY        "gateway/ota/notify"
+#define MQTT_TOPIC_GLOBAL_CONFIG            "gateway/config/update"
+#define MQTT_TOPIC_GLOBAL_TIME              "gateway/system/time"
+
+// Device-specific topic builders (requires device_id at runtime)
+// Use with snprintf: snprintf(topic, sizeof(topic), MQTT_TOPIC_DEVICE_TELEMETRY_FMT, device_id, "temp");
+#define MQTT_TOPIC_DEVICE_TELEMETRY_FMT     "devices/%s/telemetry/%s"  // (device_id, sensor_name)
+#define MQTT_TOPIC_DEVICE_STATUS_FMT        "devices/%s/status"        // (device_id)
+#define MQTT_TOPIC_DEVICE_COMMANDS_FMT      "devices/%s/commands/%s"   // (device_id, command)
+#define MQTT_TOPIC_DEVICE_OTA_STATUS_FMT    "devices/%s/ota/status"    // (device_id)
+#define MQTT_TOPIC_DEVICE_OTA_PROGRESS_FMT  "devices/%s/ota/progress"  // (device_id)
 
 #ifdef __cplusplus
 }

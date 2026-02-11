@@ -11,4 +11,5 @@ idf_component_register(
         Drivers_BSP
         HAL_Wrapper
         nvs_flash
+        json
 )

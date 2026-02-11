@@ -83,4 +83,6 @@ desktop.ini
 *.temp
 *.swp
 *~
-STM32/stm32_project.jdebug.user
+
+# JLink debugger user settings
+*.jdebug.user

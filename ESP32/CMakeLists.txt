@@ -15,9 +15,9 @@ set(EXTRA_COMPONENT_DIRS
 )
 
 # Firmware version tracking
-set(PROJECT_VER "1.0.0")
+set(PROJECT_VER "1.1.0")
 set(FIRMWARE_VERSION_MAJOR 1)
-set(FIRMWARE_VERSION_MINOR 0)
+set(FIRMWARE_VERSION_MINOR 1)
 set(FIRMWARE_VERSION_PATCH 0)
 
 # Pass version information to application code
