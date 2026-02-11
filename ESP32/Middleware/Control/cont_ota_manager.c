@@ -21,10 +21,10 @@
 
 static const char *TAG = "OTA_MANAGER";
 
-// MQTT topics
-#define MQTT_TOPIC_OTA_NOTIFY   "ota/notify"       // Server → Device: OTA notification
-#define MQTT_TOPIC_OTA_STATUS   "ota/status"       // Device → Server: OTA status reports
-#define MQTT_TOPIC_OTA_PROGRESS "ota/progress"     // Device → Server: Download progress
+// Note: MQTT topic macros are defined in serv_mqtt_client.h
+// - MQTT_TOPIC_GLOBAL_OTA_NOTIFY
+// - MQTT_TOPIC_DEVICE_OTA_STATUS_FMT
+// - MQTT_TOPIC_DEVICE_OTA_PROGRESS_FMT
 
 // ============================================================================
 // Private State
@@ -69,12 +69,24 @@ static inline void mgr_unlock(void)
  */
 static void report_ota_status(const char *status, const char *message)
 {
+    // Get device ID from MQTT client
+    const char *device_id = serv_mqtt_get_device_id();
+    if (!device_id) {
+        LOG_W(TAG, "Cannot report status: device ID not available");
+        return;
+    }
+
+    // Build device-specific topic using macro
+    char topic[128];
+    snprintf(topic, sizeof(topic), MQTT_TOPIC_DEVICE_OTA_STATUS_FMT, device_id);
+
+    // Build JSON payload
     char payload[256];
     snprintf(payload, sizeof(payload),
              "{\"status\":\"%s\",\"message\":\"%s\",\"version\":\"%s\"}",
              status, message, s_mgr.version);
 
-    serv_mqtt_publish(MQTT_TOPIC_OTA_STATUS, payload, strlen(payload), 1, false);
+    serv_mqtt_publish(topic, payload, strlen(payload), 1, false);
     LOG_I(TAG, "OTA Status: %s - %s", status, message);
 }
 
@@ -83,9 +95,21 @@ static void report_ota_status(const char *status, const char *message)
  */
 static void report_ota_progress(uint8_t progress)
 {
+    // Get device ID from MQTT client
+    const char *device_id = serv_mqtt_get_device_id();
+    if (!device_id) {
+        return;  // Silently fail for progress updates
+    }
+
+    // Build device-specific topic using macro
+    char topic[128];
+    snprintf(topic, sizeof(topic), MQTT_TOPIC_DEVICE_OTA_PROGRESS_FMT, device_id);
+
+    // Build JSON payload
     char payload[64];
     snprintf(payload, sizeof(payload), "{\"progress\":%u}", progress);
-    serv_mqtt_publish(MQTT_TOPIC_OTA_PROGRESS, payload, strlen(payload), 0, false);
+
+    serv_mqtt_publish(topic, payload, strlen(payload), 0, false);
 }
 
 /**
@@ -352,17 +376,28 @@ ota_mgr_status_t cont_ota_manager_init(void)
 ota_mgr_status_t cont_ota_manager_start(void)
 {
     if (!s_mgr.initialized) {
+        LOG_E(TAG, "Cannot start: OTA manager not initialized");
         return OTA_MGR_ERR_NOT_INITIALIZED;
     }
 
-    // Subscribe to MQTT OTA notification topic
-    // Note: serv_mqtt_client must be initialized and connected first
-    // TODO: Subscribe to MQTT_TOPIC_OTA_NOTIFY when MQTT client supports subscriptions
+    LOG_I(TAG, "Starting OTA manager...");
 
-    // Subscribe to OTA events via event bus
-    event_bus_subscribe(EVENT_MQTT_DATA_RECEIVED, on_mqtt_ota_notify);
+    // Subscribe to global MQTT OTA notification topic
+    int msg_id = serv_mqtt_subscribe(MQTT_TOPIC_GLOBAL_OTA_NOTIFY, 1);
+    if (msg_id >= 0) {
+        LOG_I(TAG, "Subscribed to MQTT topic: %s (msg_id=%d)", MQTT_TOPIC_GLOBAL_OTA_NOTIFY, msg_id);
+    } else {
+        LOG_W(TAG, "Failed to subscribe to MQTT OTA topic (broker may not be connected yet)");
+        // This is non-fatal - subscription will retry on reconnect
+    }
 
-    LOG_I(TAG, "OTA manager started, listening for notifications");
+    // Subscribe to MQTT data events via event bus
+    if (event_bus_subscribe(EVENT_MQTT_DATA_RECEIVED, on_mqtt_ota_notify) != EVENT_BUS_OK) {
+        LOG_E(TAG, "Failed to subscribe to MQTT data events");
+        return OTA_MGR_ERR_INTERNAL;
+    }
+
+    LOG_I(TAG, "OTA manager started - listening for firmware update notifications");
     return OTA_MGR_OK;
 }
 

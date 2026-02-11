@@ -51,8 +51,27 @@ static void on_wifi_disconnected(event_type_t type, void *data)
 {
     (void)type;
     (void)data;
-    
+
     LOG_W(TAG, "WiFi disconnected - network services may be unavailable");
+}
+
+/**
+ * @brief Handle MQTT connected event - start OTA manager
+ */
+static void on_mqtt_connected(event_type_t type, void *data)
+{
+    (void)type;
+    (void)data;
+
+    LOG_I(TAG, "MQTT connected - enabling OTA update notifications");
+
+    // Start OTA manager (subscribes to ota/notify topic)
+    ota_mgr_status_t status = cont_ota_manager_start();
+    if (status == OTA_MGR_OK) {
+        LOG_I(TAG, "OTA manager started and listening for updates");
+    } else {
+        LOG_E(TAG, "Failed to start OTA manager: %d", status);
+    }
 }
 
 // ============================================================================
@@ -83,6 +102,9 @@ bool app_init(void)
     event_bus_subscribe(EVENT_WIFI_CONNECTED, on_wifi_connected);
     event_bus_subscribe(EVENT_WIFI_DISCONNECTED, on_wifi_disconnected);
 
+    // Subscribe to MQTT events
+    event_bus_subscribe(EVENT_MQTT_CONNECTED, on_mqtt_connected);
+
     // Initialize WiFi manager
     if (cont_wifi_manager_init() == WIFI_MGR_OK) {
         LOG_I(TAG, "[OK] WiFi manager initialized");
@@ -103,10 +125,10 @@ bool app_init(void)
     // Initialize MQTT client with credentials
     mqtt_client_config_t mqtt_config = {
         .broker_uri = MQTT_BROKER_URI,
+        .device_id = MQTT_TOPIC_PREFIX,  // Reuse topic_prefix as device_id for now
         .client_id = MQTT_CLIENT_ID,
         .username = MQTT_USERNAME,
         .password = MQTT_PASSWORD,
-        .topic_prefix = MQTT_TOPIC_PREFIX,
         .keepalive_sec = 120,
         .qos = 1,
         .clean_session = true
