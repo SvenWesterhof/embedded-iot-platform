@@ -44,7 +44,7 @@ typedef enum {
     // System Events
     EVENT_SYSTEM_ERROR,
 
-    // OTA Events
+    // OTA Events (ESP32)
     EVENT_OTA_STARTED,
     EVENT_OTA_PROGRESS,
     EVENT_OTA_COMPLETED,
@@ -52,6 +52,12 @@ typedef enum {
     EVENT_OTA_PENDING_VALIDATION,
     EVENT_OTA_VALIDATED,
     EVENT_OTA_ROLLBACK,
+
+    // STM32 OTA Events
+    EVENT_STM32_OTA_STARTED,
+    EVENT_STM32_OTA_PROGRESS,
+    EVENT_STM32_OTA_COMPLETED,
+    EVENT_STM32_OTA_FAILED,
 
     EVENT_MAX
 } event_type_t;
