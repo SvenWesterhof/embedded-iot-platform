@@ -54,6 +54,7 @@ typedef enum {
 // ============================================================================
 
 typedef enum {
+    // Sensor commands (0x01-0x0F)
     CMD_GET_BUFFER_DATA    = 0x01,   /**< Request historical data from buffer */
     CMD_START_MEASUREMENT  = 0x02,   /**< Start live measurement */
     CMD_STOP_MEASUREMENT   = 0x03,   /**< Stop measurement */
@@ -62,6 +63,13 @@ typedef enum {
     CMD_CLEAR_BUFFER       = 0x06,   /**< Clear data buffer */
     CMD_GET_CONFIG         = 0x07,   /**< Get configuration */
     CMD_SET_CONFIG         = 0x08,   /**< Set configuration */
+
+    // Firmware update commands (0x10-0x1F)
+    CMD_FW_UPDATE_START    = 0x10,   /**< Initialize firmware update session */
+    CMD_FW_UPDATE_CHUNK    = 0x11,   /**< Send firmware chunk (256 bytes) */
+    CMD_FW_UPDATE_END      = 0x12,   /**< Finalize and validate firmware */
+    CMD_FW_UPDATE_ABORT    = 0x13,   /**< Cancel firmware update */
+    CMD_FW_UPDATE_STATUS   = 0x14,   /**< Query update progress */
 
     // Notification IDs (0x80+)
     NOTIFY_SENSOR_DATA     = 0x80,   /**< Live sensor data notification */
@@ -161,5 +169,48 @@ typedef struct {
     uint8_t  sensor_type;     /**< Which sensor to stream */
     uint32_t interval_ms;     /**< Sample interval in ms */
 } __attribute__((packed)) cmd_start_stream_t;
+
+// ============================================================================
+// Firmware Update Payload Structures
+// ============================================================================
+
+/** CMD_FW_UPDATE_START payload */
+typedef struct {
+    uint32_t total_size;      /**< Total firmware size in bytes */
+    uint32_t crc32;           /**< Expected CRC32 of complete firmware */
+    uint16_t chunk_size;      /**< Chunk size (typically 256 bytes) */
+    uint8_t  version_major;   /**< Firmware major version */
+    uint8_t  version_minor;   /**< Firmware minor version */
+    uint8_t  version_patch;   /**< Firmware patch version */
+} __attribute__((packed)) cmd_fw_update_start_t;
+
+/** CMD_FW_UPDATE_CHUNK payload */
+typedef struct {
+    uint16_t chunk_index;     /**< Sequential chunk number (0-based) */
+    uint16_t chunk_length;    /**< Actual bytes in this chunk (≤256) */
+    uint8_t  data[256];       /**< Firmware data (variable length) */
+} __attribute__((packed)) cmd_fw_update_chunk_t;
+
+/** CMD_FW_UPDATE_END payload */
+typedef struct {
+    uint8_t validate_only;    /**< 1=validate only, 0=validate and activate */
+} __attribute__((packed)) cmd_fw_update_end_t;
+
+/** Firmware update state enum */
+typedef enum {
+    FW_UPDATE_IDLE        = 0,  /**< No update in progress */
+    FW_UPDATE_RECEIVING   = 1,  /**< Receiving firmware chunks */
+    FW_UPDATE_VALIDATING  = 2,  /**< Validating firmware CRC32 */
+    FW_UPDATE_READY       = 3,  /**< Validated, ready to activate */
+    FW_UPDATE_ERROR       = 4,  /**< Update failed */
+} fw_update_state_t;
+
+/** RESP_FW_UPDATE_STATUS payload */
+typedef struct {
+    uint8_t  state;           /**< Current update state (fw_update_state_t) */
+    uint32_t bytes_received;  /**< Total bytes received so far */
+    uint16_t chunks_received; /**< Total chunks received */
+    uint8_t  error_code;      /**< Error code if state == FW_UPDATE_ERROR */
+} __attribute__((packed)) resp_fw_update_status_t;
 
 #endif // PROTOCOL_COMMON_H
