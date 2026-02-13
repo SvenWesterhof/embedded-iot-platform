@@ -1,0 +1,10 @@
+# Python dependencies for firmware upload tools
+
+# AWS S3 SDK for firmware storage
+boto3>=1.26.0
+
+# MQTT client for device notifications
+paho-mqtt>=2.0.0
+
+# Cryptography library for ED25519 signing (STM32 firmware)
+cryptography>=41.0.0
