@@ -422,8 +422,10 @@ static void handle_data(esp_mqtt_event_handle_t event)
     if (ctx.user_callback) {
         ctx.user_callback(FEAT_MQTT_EVT_DATA_RECEIVED, &message);
     }
-    
+
     // Publish to event bus for other components
+    // Note: Only publishing payload data. Managers should subscribe to specific
+    // MQTT topics and validate the JSON format to determine if it's for them.
     event_bus_publish(EVENT_MQTT_DATA_RECEIVED, (void *)event->data);
 }
 

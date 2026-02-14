@@ -1,17 +1,13 @@
 /**
  * @file cont_ota_manager.h
- * @brief OTA Manager Control
+ * @brief Unified OTA Manager Controller
  *
- * Industrial OTA workflow:
- * 1. Device connects via MQTT (TLS)
- * 2. Server notifies device of new firmware via MQTT
- * 3. Server sends HTTPS download URL via MQTT
- * 4. Device downloads firmware via HTTPS
- * 5. Device verifies signature
- * 6. Bootloader verifies again (Secure Boot)
- * 7. Device reports success/failure via MQTT
- *
- * Orchestrates OTA process and coordinates with serv_ota_update and serv_mqtt_client.
+ * Single controller for all OTA operations:
+ * 1. Subscribes to MQTT OTA notification topic
+ * 2. Parses JSON and routes by "target" field
+ * 3. ESP32 target → serv_esp32_ota (streaming HTTPS OTA)
+ * 4. STM32 target → serv_stm32_ota (download → verify → UART transfer)
+ * 5. Reports status/progress via MQTT (subscribes to OTA events)
  */
 
 #ifndef CONT_OTA_MANAGER_H
@@ -29,64 +25,50 @@ typedef enum {
     OTA_MGR_ERR_INVALID_ARG,
     OTA_MGR_ERR_NOT_INITIALIZED,
     OTA_MGR_ERR_IN_PROGRESS,
-    OTA_MGR_ERR_DOWNLOAD_FAILED,
-    OTA_MGR_ERR_VERIFY_FAILED,
     OTA_MGR_ERR_INTERNAL
 } ota_mgr_status_t;
 
 /**
- * @brief OTA notification from server (via MQTT)
- */
-typedef struct {
-    const char *version;            // New firmware version
-    const char *https_url;          // HTTPS URL to firmware binary
-    size_t expected_size;           // Expected firmware size
-    const char *signature;          // Expected signature (hex string)
-    bool auto_reboot;               // Reboot after successful update
-} ota_notification_t;
-
-/**
- * @brief Initialize OTA manager
- * Subscribes to MQTT OTA topics
+ * @brief Initialize unified OTA manager
+ *
+ * Initializes both ESP32 OTA service and STM32 OTA service.
+ *
  * @return OTA_MGR_OK on success
  */
 ota_mgr_status_t cont_ota_manager_init(void);
 
 /**
  * @brief Start OTA manager
- * Begins listening for OTA notifications
+ *
+ * Subscribes to MQTT OTA topic, event bus OTA events, and begins
+ * listening for notifications for both ESP32 and STM32 targets.
+ *
  * @return OTA_MGR_OK on success
  */
 ota_mgr_status_t cont_ota_manager_start(void);
 
 /**
- * @brief Trigger HTTPS OTA update (for testing or manual updates)
- * @param notification OTA notification parameters
- * @return OTA_MGR_OK on success
- */
-ota_mgr_status_t cont_ota_trigger_update(const ota_notification_t *notification);
-
-/**
- * @brief Cancel ongoing OTA update
+ * @brief Cancel ongoing OTA update (ESP32 or STM32)
  * @return OTA_MGR_OK on success
  */
 ota_mgr_status_t cont_ota_cancel_update(void);
 
 /**
- * @brief Validate app after boot (call from app_main after init)
- * Marks app as valid if booted from OTA partition
- * Reports validation success via MQTT
+ * @brief Validate app after boot (ESP32 only)
+ *
+ * Marks app as valid if booted from OTA partition (prevents rollback).
+ * Reports validation success via MQTT.
  */
 void cont_ota_validate_after_boot(void);
 
 /**
- * @brief Check if OTA update is in progress
+ * @brief Check if any OTA update is in progress (ESP32 or STM32)
  * @return true if update in progress
  */
 bool cont_ota_is_update_in_progress(void);
 
 /**
- * @brief Get current OTA progress (0-100%)
+ * @brief Get current ESP32 OTA progress (0-100%)
  * @return Progress percentage
  */
 uint8_t cont_ota_get_progress(void);

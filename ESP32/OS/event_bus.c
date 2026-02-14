@@ -5,7 +5,7 @@
 
 static const char *TAG = "EVENT_BUS";
 
-#define MAX_SUBSCRIBERS 10
+#define MAX_SUBSCRIBERS 16
 #define EVENT_QUEUE_SIZE 20
 #define EVENT_BUS_TASK_PRIORITY 6
 #define EVENT_BUS_TASK_STACK 3072

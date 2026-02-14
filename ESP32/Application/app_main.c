@@ -56,7 +56,7 @@ static void on_wifi_disconnected(event_type_t type, void *data)
 }
 
 /**
- * @brief Handle MQTT connected event - start OTA manager
+ * @brief Handle MQTT connected event - start OTA managers
  */
 static void on_mqtt_connected(event_type_t type, void *data)
 {
@@ -65,12 +65,12 @@ static void on_mqtt_connected(event_type_t type, void *data)
 
     LOG_I(TAG, "MQTT connected - enabling OTA update notifications");
 
-    // Start OTA manager (subscribes to ota/notify topic)
-    ota_mgr_status_t status = cont_ota_manager_start();
-    if (status == OTA_MGR_OK) {
-        LOG_I(TAG, "OTA manager started and listening for updates");
+    // Start unified OTA manager (subscribes to gateway/ota/notify for both ESP32 and STM32)
+    ota_mgr_status_t ota_status = cont_ota_manager_start();
+    if (ota_status == OTA_MGR_OK) {
+        LOG_I(TAG, "OTA manager started - listening for ESP32 and STM32 updates");
     } else {
-        LOG_E(TAG, "Failed to start OTA manager: %d", status);
+        LOG_E(TAG, "Failed to start OTA manager: %d", ota_status);
     }
 }
 
@@ -147,12 +147,12 @@ bool app_init(void)
         LOG_I(TAG, "[OK] STM32 protocol initialized");
     }
 
-    // Initialize OTA manager
+    // Initialize unified OTA manager (handles both ESP32 and STM32)
     if (cont_ota_manager_init() == OTA_MGR_OK) {
         char partition_info[64];
         cont_ota_get_partition_info(partition_info, sizeof(partition_info));
-        LOG_I(TAG, "[OK] OTA manager initialized - Running from: %s", partition_info);
-        cont_ota_validate_after_boot();  // Validate app after boot
+        LOG_I(TAG, "[OK] OTA manager initialized (ESP32 + STM32) - Running from: %s", partition_info);
+        cont_ota_validate_after_boot();
     }
 
     LOG_I(TAG, "========================================");

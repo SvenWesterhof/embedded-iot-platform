@@ -6,6 +6,7 @@
 #include "serv_https_download.h"
 #include "portable_log.h"
 #include "esp_http_client.h"
+#include "esp_crt_bundle.h"
 #include <string.h>
 #include <stdlib.h>
 
@@ -116,6 +117,12 @@ https_download_status_t serv_https_download(const https_download_config_t *confi
         .user_data = &ctx,
         .timeout_ms = config->timeout_ms > 0 ? config->timeout_ms : DEFAULT_TIMEOUT_MS,
         .buffer_size = config->buffer_size > 0 ? config->buffer_size : DEFAULT_BUFFER_SIZE,
+
+        // TLS/SSL Configuration for HTTPS
+        // NOTE: For production, replace with proper certificate verification
+        // Either use .cert_pem with AWS root CA certificate or enable global CA store
+        .skip_cert_common_name_check = true,  // Skip hostname verification
+        .crt_bundle_attach = esp_crt_bundle_attach,  // Use ESP32 certificate bundle
     };
 
     client = esp_http_client_init(&http_config);
