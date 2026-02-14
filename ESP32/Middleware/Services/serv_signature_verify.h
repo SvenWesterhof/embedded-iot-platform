@@ -1,8 +1,8 @@
 /**
  * @file serv_signature_verify.h
- * @brief Signature Verification Service - ED25519 signature verification for STM32 firmware
+ * @brief Signature Verification Service - RSA signature verification for firmware
  *
- * Verifies ED25519 signatures for STM32 firmware downloads.
+ * Verifies RSA-2048 signatures for STM32 and ESP32 firmware downloads.
  * Uses embedded public key and mbedTLS for cryptographic operations.
  */
 
@@ -23,8 +23,8 @@ typedef enum {
 
 // Signature algorithm types
 typedef enum {
-    SIG_ALG_ED25519,
-    SIG_ALG_RSA_3072,  // Future expansion
+    SIG_ALG_RSA_2048,
+    SIG_ALG_RSA_3072,  // Future expansion for higher security
 } sig_algorithm_t;
 
 /**
@@ -37,16 +37,19 @@ typedef enum {
 sig_verify_status_t serv_signature_verify_init(void);
 
 /**
- * @brief Verify ED25519 signature for STM32 firmware
+ * @brief Verify RSA-2048 signature for firmware
+ *
+ * Computes SHA256 hash of firmware and verifies RSA signature.
+ * Works for both STM32 and ESP32 firmware verification.
  *
  * @param firmware_data Pointer to firmware binary
  * @param firmware_size Size of firmware in bytes
- * @param signature_b64 Base64-encoded ED25519 signature (64 bytes decoded)
+ * @param signature_b64 Base64-encoded RSA signature (256 bytes for RSA-2048)
  * @return SIG_VERIFY_OK if signature is valid, error code otherwise
  */
-sig_verify_status_t serv_signature_verify_stm32(const uint8_t *firmware_data,
-                                                uint32_t firmware_size,
-                                                const char *signature_b64);
+sig_verify_status_t serv_signature_verify_firmware(const uint8_t *firmware_data,
+                                                    uint32_t firmware_size,
+                                                    const char *signature_b64);
 
 /**
  * @brief Get status code as human-readable string

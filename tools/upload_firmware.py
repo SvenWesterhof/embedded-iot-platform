@@ -5,7 +5,7 @@ Firmware Upload and OTA Notification Script
 Automates the firmware release process for dual-platform (ESP32 and STM32):
 1. Uploads firmware binary to AWS S3
 2. Calculates checksums (SHA256, CRC32)
-3. Applies platform-specific signing (RSA-3072 for ESP32, ED25519 for STM32)
+3. Applies platform-specific signing (RSA-3072 for ESP32, RSA-2048 for STM32)
 4. Updates firmware manifest
 5. Sends MQTT notification to devices
 """
@@ -25,8 +25,8 @@ from pathlib import Path
 import boto3
 from botocore.client import Config
 import paho.mqtt.client as mqtt
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.backends import default_backend
 
 # Configuration (override with environment variables)
@@ -40,14 +40,13 @@ S3_ENDPOINT = os.getenv('S3_ENDPOINT', None)  # Set to MinIO URL for local testi
 # MQTT Configuration
 MQTT_BROKER = os.getenv('MQTT_BROKER', 'broker.hivemq.com')
 MQTT_PORT = int(os.getenv('MQTT_PORT', '1883'))
-MQTT_TOPIC_ESP32_NOTIFY = os.getenv('MQTT_TOPIC_ESP32_NOTIFY', 'gateway/ota/notify')
-MQTT_TOPIC_STM32_NOTIFY = os.getenv('MQTT_TOPIC_STM32_NOTIFY', 'gateway/stm32/ota/notify')
+MQTT_TOPIC_OTA_NOTIFY = os.getenv('MQTT_TOPIC_ESP32_NOTIFY', 'gateway/ota/notify')
 
 # Signing Keys Configuration
 # ESP32: RSA-3072 key (used by espsecure.py)
-# STM32: ED25519 key (verified by ESP32 before forwarding to STM32)
+# STM32: RSA-2048 key (verified by ESP32 before forwarding to STM32)
 ESP32_SIGNING_KEY = Path(__file__).parent.parent / 'ESP32' / 'keys' / 'ota_signing_key.pem'
-STM32_SIGNING_KEY = Path(__file__).parent.parent / 'ESP32' / 'keys' / 'stm32_signing_key.pem'
+STM32_SIGNING_KEY = Path(__file__).parent.parent / 'ESP32' / 'keys' / 'stm32_private_key.pem'
 
 def extract_version_from_cmake():
     """Extract firmware version from ESP32/CMakeLists.txt"""
@@ -191,18 +190,18 @@ def sign_esp32_firmware(file_path, key_path):
         return None
 
 def sign_stm32_firmware(file_path, key_path):
-    """Sign STM32 firmware using ED25519
+    """Sign STM32 firmware using RSA-2048
 
     Args:
         file_path: Path to firmware binary
-        key_path: Path to ED25519 private key (PEM format)
+        key_path: Path to RSA private key (PEM format)
 
-    Returns: signature as base64 string (64 bytes encoded)
+    Returns: signature as base64 string (256 bytes encoded for RSA-2048)
     """
     if not key_path.exists():
         raise FileNotFoundError(f"STM32 signing key not found: {key_path}")
 
-    # Load ED25519 private key
+    # Load RSA private key
     with open(key_path, 'rb') as f:
         private_key = serialization.load_pem_private_key(
             f.read(),
@@ -214,8 +213,13 @@ def sign_stm32_firmware(file_path, key_path):
     with open(file_path, 'rb') as f:
         firmware_data = f.read()
 
-    # Sign the firmware
-    signature = private_key.sign(firmware_data)
+    # Sign the firmware with RSA-2048 using PKCS#1 v1.5 padding and SHA256
+    # This matches mbedTLS verification on ESP32
+    signature = private_key.sign(
+        firmware_data,
+        padding.PKCS1v15(),
+        hashes.SHA256()
+    )
 
     # Return as base64 for JSON storage
     return base64.b64encode(signature).decode('ascii')
@@ -225,12 +229,11 @@ def verify_stm32_signature(file_path, signature_b64, public_key_path):
 
     Args:
         file_path: Path to firmware binary
-        signature_b64: Base64-encoded signature
-        public_key_path: Path to ED25519 public key
+        signature_b64: Base64-encoded RSA signature
+        public_key_path: Path to RSA public key (PEM format)
 
     Returns: True if valid, False otherwise
     """
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
     from cryptography.exceptions import InvalidSignature
 
     with open(public_key_path, 'rb') as f:
@@ -245,7 +248,13 @@ def verify_stm32_signature(file_path, signature_b64, public_key_path):
     signature = base64.b64decode(signature_b64)
 
     try:
-        public_key.verify(signature, firmware_data)
+        # Verify RSA signature with PKCS#1 v1.5 padding and SHA256
+        public_key.verify(
+            signature,
+            firmware_data,
+            padding.PKCS1v15(),
+            hashes.SHA256()
+        )
         return True
     except InvalidSignature:
         return False
@@ -410,8 +419,9 @@ def send_mqtt_notification(version, url, file_size, platform, checksums, signatu
 
     # Platform-specific topic selection
     if platform == 'esp32':
-        topic = MQTT_TOPIC_ESP32_NOTIFY
+        topic = MQTT_TOPIC_OTA_NOTIFY
         notification = {
+            'target': 'esp32',
             'version': version,
             'url': url,
             'size': file_size,
@@ -419,19 +429,19 @@ def send_mqtt_notification(version, url, file_size, platform, checksums, signatu
             'auto_reboot': auto_reboot
         }
     elif platform == 'stm32':
-        topic = MQTT_TOPIC_STM32_NOTIFY
+        topic = MQTT_TOPIC_OTA_NOTIFY
         notification = {
             'target': 'stm32',
             'version': version,
             'url': url,
             'size': file_size,
             'sha256': checksums['sha256'],
-            'crc32': f"0x{checksums['crc32']:08X}",
+            'crc32': checksums['crc32'],
             'auto_apply': auto_reboot  # STM32 uses 'auto_apply' instead of 'auto_reboot'
         }
-        # Add ED25519 signature if available
+        # Add RSA signature if available
         if signature_b64:
-            notification['signature_ed25519'] = signature_b64
+            notification['signature_rsa'] = signature_b64
     else:
         print(f"Error: Unknown platform: {platform}")
         return False
@@ -441,16 +451,16 @@ def send_mqtt_notification(version, url, file_size, platform, checksums, signatu
     # Connect and publish
     client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
 
-    def on_connect(client, userdata, flags, rc):
-        if rc == 0:
+    def on_connect(client, userdata, flags, reason_code, properties):
+        if reason_code == 0:
             print(f"Connected to MQTT broker")
             client.publish(topic, payload, qos=1)
             print(f"Published to topic: {topic}")
             print(f"   Payload: {payload}")
         else:
-            print(f"MQTT connection failed: {rc}")
+            print(f"MQTT connection failed: {reason_code}")
 
-    def on_publish(client, userdata, mid):
+    def on_publish(client, userdata, mid, reason_code, properties):
         print(f"Message published successfully")
         client.disconnect()
 
@@ -567,25 +577,27 @@ Examples:
             }
 
     elif platform == 'stm32':
-        print("\nSigning STM32 firmware (ED25519)...")
+        print("\nSigning STM32 firmware (RSA-2048)...")
         try:
             signature_b64 = sign_stm32_firmware(args.binary, STM32_SIGNING_KEY)
             signature_info = {
-                'algorithm': 'ED25519',
+                'algorithm': 'RSA-2048',
                 'value': signature_b64
             }
             print(f"  Signature: {signature_b64[:32]}... ({len(signature_b64)} chars)")
 
             # Verify signature for sanity check
-            public_key_path = STM32_SIGNING_KEY.parent / 'stm32_public.pem'
+            public_key_path = STM32_SIGNING_KEY.parent / 'stm32_public_key.pem'
             if public_key_path.exists():
                 if verify_stm32_signature(args.binary, signature_b64, public_key_path):
-                    print("  Signature verified successfully")
+                    print("  ✓ Signature verified successfully")
                 else:
-                    print("  ERROR: Signature verification failed!")
+                    print("  ✗ ERROR: Signature verification failed!")
                     sys.exit(1)
         except Exception as e:
             print(f"Error: STM32 signing failed: {e}")
+            print(f"  Make sure {STM32_SIGNING_KEY} exists")
+            print(f"  Generate keypair with: openssl genrsa -out {STM32_SIGNING_KEY} 2048")
             sys.exit(1)
 
     # Step 3: Upload to storage
@@ -615,7 +627,7 @@ Examples:
     print()
 
     if not args.no_notify:
-        print(f"Devices will receive notification on topic: {MQTT_TOPIC_ESP32_NOTIFY if platform == 'esp32' else MQTT_TOPIC_STM32_NOTIFY}")
+        print(f"Devices will receive notification on topic: {MQTT_TOPIC_OTA_NOTIFY}")
     else:
         print("Upload complete. Run without --no-notify to notify devices.")
 

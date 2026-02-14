@@ -45,6 +45,7 @@ typedef enum {
     EVENT_SYSTEM_ERROR,
 
     // OTA Events (ESP32)
+    EVENT_OTA_NOTIFICATION,        // MQTT notification parsed for ESP32 OTA
     EVENT_OTA_STARTED,
     EVENT_OTA_PROGRESS,
     EVENT_OTA_COMPLETED,
@@ -54,6 +55,7 @@ typedef enum {
     EVENT_OTA_ROLLBACK,
 
     // STM32 OTA Events
+    EVENT_STM32_OTA_NOTIFICATION,  // MQTT notification parsed for STM32 OTA
     EVENT_STM32_OTA_STARTED,
     EVENT_STM32_OTA_PROGRESS,
     EVENT_STM32_OTA_COMPLETED,

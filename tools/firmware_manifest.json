@@ -4,6 +4,260 @@
     {
       "platform": "esp32",
       "version": "1.2.3",
+      "release_date": "2026-02-14T11:21:08Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/esp32/esp32-gateway-v1.2.3.bin",
+      "file_size": 998576,
+      "checksum": {
+        "sha256": "ddde45083d6372b330dd329a7693d5ef8732ecbacfa4c3a6eca46c6435b47fb5"
+      },
+      "signature": {
+        "algorithm": "RSA-3072",
+        "value": "RSA-3072 signature embedded (signed file: iot_gateway_signed.bin)"
+      },
+      "changelog": [
+        "Test ESP32 signing with module approach"
+      ]
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.4",
+      "release_date": "2026-02-14T11:19:01Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.4.bin",
+      "file_size": 97800,
+      "checksum": {
+        "sha256": "aff20a40297dbf8fb391f941558d6e18975a22774c4112a4cfd3c1ed1565a086",
+        "crc32": 3892251830
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "hvqaeukPlSLVzNmT5A/dLgUCQep7ENTohtlMoMKgvuqI8lTjV07b8NT62VmVr0ET/rRUSMk+jSLl9wozIskfz/xfYncLGY/8O5J0Tk91amxZv0tT3anoRvVg0nospWQlO1f5AMmLrbfeX1t5KMuKw7vSdia+MyYdMbkSUXfGvdHmpKw3v69G28Ri/l1Re+DivwyxRppD0b30iOx3X9bsWNOfkLfI68i/VpKIPrQf1cu1SFYelvZgunvrRDlrG7mfM6KkhxJ48tdr8P105+shxC9HdgRIQa6vz//mmqpQkNtXhQwx+hmbd0hUcX4zrjjEWSSnxV3i0gg/SGQnw5cKmQ=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "esp32",
+      "version": "1.2.3",
+      "release_date": "2026-02-14T11:16:54Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/esp32/esp32-gateway-v1.2.3.bin",
+      "file_size": 998576,
+      "checksum": {
+        "sha256": "ddde45083d6372b330dd329a7693d5ef8732ecbacfa4c3a6eca46c6435b47fb5"
+      },
+      "signature": {
+        "algorithm": "RSA-3072",
+        "value": "RSA-3072 signature embedded (signed file: iot_gateway_signed.bin)"
+      },
+      "changelog": [
+        "Test ESP32 signing with module approach"
+      ]
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.4",
+      "release_date": "2026-02-14T10:15:23Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.4.bin",
+      "file_size": 97800,
+      "checksum": {
+        "sha256": "aff20a40297dbf8fb391f941558d6e18975a22774c4112a4cfd3c1ed1565a086",
+        "crc32": 3892251830
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "hvqaeukPlSLVzNmT5A/dLgUCQep7ENTohtlMoMKgvuqI8lTjV07b8NT62VmVr0ET/rRUSMk+jSLl9wozIskfz/xfYncLGY/8O5J0Tk91amxZv0tT3anoRvVg0nospWQlO1f5AMmLrbfeX1t5KMuKw7vSdia+MyYdMbkSUXfGvdHmpKw3v69G28Ri/l1Re+DivwyxRppD0b30iOx3X9bsWNOfkLfI68i/VpKIPrQf1cu1SFYelvZgunvrRDlrG7mfM6KkhxJ48tdr8P105+shxC9HdgRIQa6vz//mmqpQkNtXhQwx+hmbd0hUcX4zrjjEWSSnxV3i0gg/SGQnw5cKmQ=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.4",
+      "release_date": "2026-02-14T10:13:29Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.4.bin",
+      "file_size": 97800,
+      "checksum": {
+        "sha256": "aff20a40297dbf8fb391f941558d6e18975a22774c4112a4cfd3c1ed1565a086",
+        "crc32": 3892251830
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "hvqaeukPlSLVzNmT5A/dLgUCQep7ENTohtlMoMKgvuqI8lTjV07b8NT62VmVr0ET/rRUSMk+jSLl9wozIskfz/xfYncLGY/8O5J0Tk91amxZv0tT3anoRvVg0nospWQlO1f5AMmLrbfeX1t5KMuKw7vSdia+MyYdMbkSUXfGvdHmpKw3v69G28Ri/l1Re+DivwyxRppD0b30iOx3X9bsWNOfkLfI68i/VpKIPrQf1cu1SFYelvZgunvrRDlrG7mfM6KkhxJ48tdr8P105+shxC9HdgRIQa6vz//mmqpQkNtXhQwx+hmbd0hUcX4zrjjEWSSnxV3i0gg/SGQnw5cKmQ=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "esp32",
+      "version": "1.2.3",
+      "release_date": "2026-02-14T10:11:19Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/esp32/esp32-gateway-v1.2.3.bin",
+      "file_size": 999872,
+      "checksum": {
+        "sha256": "e71019fa6e6cb26e01fc8804435564e246e4fc759d0bc8f16a3c8aa468d0e166"
+      },
+      "signature": {
+        "algorithm": "RSA-3072",
+        "value": "RSA-3072 signature embedded (signed file: iot_gateway_signed.bin)"
+      },
+      "changelog": [
+        "Test ESP32 signing with module approach"
+      ]
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.4",
+      "release_date": "2026-02-14T10:10:09Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.4.bin",
+      "file_size": 97800,
+      "checksum": {
+        "sha256": "aff20a40297dbf8fb391f941558d6e18975a22774c4112a4cfd3c1ed1565a086",
+        "crc32": 3892251830
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "hvqaeukPlSLVzNmT5A/dLgUCQep7ENTohtlMoMKgvuqI8lTjV07b8NT62VmVr0ET/rRUSMk+jSLl9wozIskfz/xfYncLGY/8O5J0Tk91amxZv0tT3anoRvVg0nospWQlO1f5AMmLrbfeX1t5KMuKw7vSdia+MyYdMbkSUXfGvdHmpKw3v69G28Ri/l1Re+DivwyxRppD0b30iOx3X9bsWNOfkLfI68i/VpKIPrQf1cu1SFYelvZgunvrRDlrG7mfM6KkhxJ48tdr8P105+shxC9HdgRIQa6vz//mmqpQkNtXhQwx+hmbd0hUcX4zrjjEWSSnxV3i0gg/SGQnw5cKmQ=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.4",
+      "release_date": "2026-02-14T08:59:06Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.4.bin",
+      "file_size": 97800,
+      "checksum": {
+        "sha256": "aff20a40297dbf8fb391f941558d6e18975a22774c4112a4cfd3c1ed1565a086",
+        "crc32": 3892251830
+      },
+      "signature": {
+        "algorithm": "ED25519",
+        "value": "0kt99YUQs5OnBw59DxKuV+QgYQzudG/NMTDtz8oVAzKqck5whHo4jOlR9X4n+lno5JWLvR43ywvMdWveEiVbDw=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "esp32",
+      "version": "1.2.3",
+      "release_date": "2026-02-14T08:57:32Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/esp32/esp32-gateway-v1.2.3.bin",
+      "file_size": 998816,
+      "checksum": {
+        "sha256": "8e62d4936b6af5004d7c7dbbfdaf0ccae0f18ea4b70082c6393dfc64f94f1707"
+      },
+      "signature": {
+        "algorithm": "RSA-3072",
+        "value": "RSA-3072 signature embedded (signed file: iot_gateway_signed.bin)"
+      },
+      "changelog": [
+        "Test ESP32 signing with module approach"
+      ]
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.4",
+      "release_date": "2026-02-14T08:56:31Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.4.bin",
+      "file_size": 97800,
+      "checksum": {
+        "sha256": "aff20a40297dbf8fb391f941558d6e18975a22774c4112a4cfd3c1ed1565a086",
+        "crc32": 3892251830
+      },
+      "signature": {
+        "algorithm": "ED25519",
+        "value": "0kt99YUQs5OnBw59DxKuV+QgYQzudG/NMTDtz8oVAzKqck5whHo4jOlR9X4n+lno5JWLvR43ywvMdWveEiVbDw=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "esp32",
+      "version": "1.2.3",
+      "release_date": "2026-02-14T08:54:06Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/esp32/esp32-gateway-v1.2.3.bin",
+      "file_size": 998816,
+      "checksum": {
+        "sha256": "8e62d4936b6af5004d7c7dbbfdaf0ccae0f18ea4b70082c6393dfc64f94f1707"
+      },
+      "signature": {
+        "algorithm": "RSA-3072",
+        "value": "RSA-3072 signature embedded (signed file: iot_gateway_signed.bin)"
+      },
+      "changelog": [
+        "Test ESP32 signing with module approach"
+      ]
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.4",
+      "release_date": "2026-02-14T08:53:11Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.4.bin",
+      "file_size": 97800,
+      "checksum": {
+        "sha256": "aff20a40297dbf8fb391f941558d6e18975a22774c4112a4cfd3c1ed1565a086",
+        "crc32": 3892251830
+      },
+      "signature": {
+        "algorithm": "ED25519",
+        "value": "0kt99YUQs5OnBw59DxKuV+QgYQzudG/NMTDtz8oVAzKqck5whHo4jOlR9X4n+lno5JWLvR43ywvMdWveEiVbDw=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.3",
+      "release_date": "2026-02-14T08:12:43Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.3.bin",
+      "file_size": 97800,
+      "checksum": {
+        "sha256": "aff20a40297dbf8fb391f941558d6e18975a22774c4112a4cfd3c1ed1565a086",
+        "crc32": 3892251830
+      },
+      "signature": {
+        "algorithm": "ED25519",
+        "value": "0kt99YUQs5OnBw59DxKuV+QgYQzudG/NMTDtz8oVAzKqck5whHo4jOlR9X4n+lno5JWLvR43ywvMdWveEiVbDw=="
+      },
+      "changelog": [
+        "Test STM32  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "esp32",
+      "version": "1.2.3",
+      "release_date": "2026-02-14T08:10:50Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/esp32/esp32-gateway-v1.2.3.bin",
+      "file_size": 976448,
+      "checksum": {
+        "sha256": "d99bcc374ff9731bb99a7569c592a9a040117c3055b857eb70b4bc410646b283"
+      },
+      "signature": {
+        "algorithm": "RSA-3072",
+        "value": "RSA-3072 signature embedded (signed file: iot_gateway_signed.bin)"
+      },
+      "changelog": [
+        "Test ESP32 signing with module approach"
+      ]
+    },
+    {
+      "platform": "esp32",
+      "version": "1.2.3",
       "release_date": "2026-02-13T09:50:44Z",
       "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/esp32/esp32-gateway-v1.2.3.bin",
       "file_size": 976448,

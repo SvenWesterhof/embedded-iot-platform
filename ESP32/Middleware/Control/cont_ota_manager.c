@@ -1,342 +1,226 @@
 /**
  * @file cont_ota_manager.c
- * @brief OTA Manager Control Implementation
+ * @brief Unified OTA Manager Controller
+ *
+ * Pure router + MQTT reporter. No task management or ESP-IDF OTA calls.
+ * Routes OTA notifications to the correct service based on "target" field:
+ * - "esp32" → serv_esp32_ota
+ * - "stm32" → serv_stm32_ota
+ * Subscribes to OTA events from both services for MQTT status reporting.
  */
 
 #include "cont_ota_manager.h"
-#include "../Services/serv_ota_update.h"
+#include "../Services/serv_esp32_ota.h"
+#include "../Services/serv_stm32_ota.h"
 #include "../Services/serv_mqtt_client.h"
 #include "portable_log.h"
 #include "os_wrapper.h"
 #include "../OS/event_bus.h"
-#include "esp_https_ota.h"
-#include "esp_http_client.h"
-#include "esp_crt_bundle.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
-#include "esp_system.h"
 #include "cJSON.h"
 #include <string.h>
 #include <stdio.h>
 
 static const char *TAG = "OTA_MANAGER";
 
-// Note: MQTT topic macros are defined in serv_mqtt_client.h
-// - MQTT_TOPIC_GLOBAL_OTA_NOTIFY
-// - MQTT_TOPIC_DEVICE_OTA_STATUS_FMT
-// - MQTT_TOPIC_DEVICE_OTA_PROGRESS_FMT
-
 // ============================================================================
-// Private State
+// Private State (minimal — no task handles or firmware buffers)
 // ============================================================================
 
-typedef struct {
+static struct {
     bool initialized;
-    bool update_in_progress;
-    os_task_handle_t ota_task_handle;
-    char https_url[256];
-    char version[32];
-    bool auto_reboot;
-    os_mutex_handle_t mutex;
-} ota_mgr_context_t;
-
-static ota_mgr_context_t s_mgr = {0};
+} s_mgr = {0};
 
 // ============================================================================
-// Private Functions
+// MQTT Status Reporting
 // ============================================================================
 
-/**
- * @brief Lock manager context
- */
-static inline bool mgr_lock(void)
+static void report_ota_status(const char *target, const char *status, const char *message)
 {
-    return s_mgr.mutex && os_mutex_take(s_mgr.mutex, 1000) == OS_SUCCESS;
-}
-
-/**
- * @brief Unlock manager context
- */
-static inline void mgr_unlock(void)
-{
-    if (s_mgr.mutex) {
-        os_mutex_give(s_mgr.mutex);
-    }
-}
-
-/**
- * @brief Report OTA status via MQTT
- */
-static void report_ota_status(const char *status, const char *message)
-{
-    // Get device ID from MQTT client
     const char *device_id = serv_mqtt_get_device_id();
     if (!device_id) {
         LOG_W(TAG, "Cannot report status: device ID not available");
         return;
     }
 
-    // Build device-specific topic using macro
     char topic[128];
     snprintf(topic, sizeof(topic), MQTT_TOPIC_DEVICE_OTA_STATUS_FMT, device_id);
 
-    // Build JSON payload
     char payload[256];
     snprintf(payload, sizeof(payload),
-             "{\"status\":\"%s\",\"message\":\"%s\",\"version\":\"%s\"}",
-             status, message, s_mgr.version);
+             "{\"target\":\"%s\",\"status\":\"%s\",\"message\":\"%s\"}",
+             target, status, message);
 
     serv_mqtt_publish(topic, payload, strlen(payload), 1, false);
-    LOG_I(TAG, "OTA Status: %s - %s", status, message);
+    LOG_I(TAG, "[%s] OTA Status: %s - %s", target, status, message);
 }
 
-/**
- * @brief Report OTA progress via MQTT
- */
-static void report_ota_progress(uint8_t progress)
+static void report_ota_progress(const char *target, uint8_t progress)
 {
-    // Get device ID from MQTT client
     const char *device_id = serv_mqtt_get_device_id();
     if (!device_id) {
-        return;  // Silently fail for progress updates
+        return;
     }
 
-    // Build device-specific topic using macro
     char topic[128];
     snprintf(topic, sizeof(topic), MQTT_TOPIC_DEVICE_OTA_PROGRESS_FMT, device_id);
 
-    // Build JSON payload
     char payload[64];
-    snprintf(payload, sizeof(payload), "{\"progress\":%u}", progress);
+    snprintf(payload, sizeof(payload), "{\"target\":\"%s\",\"progress\":%u}", target, progress);
 
     serv_mqtt_publish(topic, payload, strlen(payload), 0, false);
 }
 
-/**
- * @brief HTTP event handler for HTTPS OTA
- */
-static esp_err_t http_event_handler(esp_http_client_event_t *evt)
+// ============================================================================
+// Event Bus Handlers — MQTT reporting for OTA events from services
+// ============================================================================
+
+static void on_esp32_ota_started(event_type_t type, void *data)
 {
-    switch (evt->event_id) {
-        case HTTP_EVENT_ERROR:
-            LOG_E(TAG, "HTTP error");
-            break;
-        case HTTP_EVENT_ON_CONNECTED:
-            LOG_I(TAG, "Connected to server");
-            break;
-        case HTTP_EVENT_HEADER_SENT:
-            break;
-        case HTTP_EVENT_ON_HEADER:
-            break;
-        case HTTP_EVENT_ON_DATA:
-            // Data received, progress handled by esp_https_ota
-            break;
-        case HTTP_EVENT_ON_FINISH:
-            LOG_I(TAG, "HTTP session finished");
-            break;
-        case HTTP_EVENT_DISCONNECTED:
-            LOG_I(TAG, "Disconnected from server");
-            break;
-        default:
-            break;
-    }
-    return ESP_OK;
+    (void)type; (void)data;
+    report_ota_status("esp32", "started", "Downloading firmware");
 }
 
-/**
- * @brief OTA download and flash task
- */
-static void ota_task(void *arg)
+static void on_esp32_ota_progress(event_type_t type, void *data)
 {
-    (void)arg;
-
-    LOG_I(TAG, "OTA task started");
-    report_ota_status("started", "Downloading firmware");
-
-    // Configure HTTPS OTA
-    esp_http_client_config_t http_config = {
-        .url = s_mgr.https_url,
-        .event_handler = http_event_handler,
-        .crt_bundle_attach = esp_crt_bundle_attach,  // Use certificate bundle
-        .timeout_ms = 30000,
-        .buffer_size = 4096,
-        .buffer_size_tx = 1024,
-    };
-
-    esp_https_ota_config_t ota_config = {
-        .http_config = &http_config,
-        .http_client_init_cb = NULL,
-    };
-
-    esp_https_ota_handle_t ota_handle = NULL;
-    esp_err_t err = esp_https_ota_begin(&ota_config, &ota_handle);
-    if (err != ESP_OK) {
-        LOG_E(TAG, "HTTPS OTA begin failed: %s", esp_err_to_name(err));
-        report_ota_status("failed", "Failed to start download");
-        goto ota_task_exit;
+    (void)type;
+    if (data) {
+        uint8_t progress = *(uint8_t *)data;
+        report_ota_progress("esp32", progress);
     }
-
-    LOG_I(TAG, "Downloading firmware...");
-
-    // Download and flash firmware in chunks
-    uint8_t last_progress = 0;
-    while (1) {
-        err = esp_https_ota_perform(ota_handle);
-        if (err != ESP_ERR_HTTPS_OTA_IN_PROGRESS) {
-            break;
-        }
-
-        // Report progress
-        int image_len_read = esp_https_ota_get_image_len_read(ota_handle);
-        int image_size = esp_https_ota_get_image_size(ota_handle);
-        uint8_t progress = (image_size > 0) ? (image_len_read * 100 / image_size) : 0;
-
-        if (progress >= last_progress + 10) {
-            LOG_I(TAG, "Download progress: %u%% (%d / %d bytes)",
-                  progress, image_len_read, image_size);
-            report_ota_progress(progress);
-            last_progress = progress;
-        }
-
-        os_delay_ms(100);  // Yield to other tasks
-    }
-
-    // Check result
-    if (esp_https_ota_is_complete_data_received(ota_handle) != true) {
-        LOG_E(TAG, "Complete data not received");
-        report_ota_status("failed", "Incomplete download");
-        goto ota_task_cleanup;
-    }
-
-    // Finish OTA (verifies image)
-    err = esp_https_ota_finish(ota_handle);
-    if (err != ESP_OK) {
-        LOG_E(TAG, "HTTPS OTA finish failed: %s", esp_err_to_name(err));
-        report_ota_status("failed", "Firmware verification failed");
-        goto ota_task_exit;
-    }
-
-    LOG_I(TAG, "OTA update completed successfully");
-    report_ota_status("completed", "Firmware downloaded and verified");
-    report_ota_progress(100);
-
-    // Auto reboot if requested
-    if (s_mgr.auto_reboot) {
-        LOG_I(TAG, "Auto-reboot enabled, restarting in 5 seconds...");
-        os_delay_ms(5000);
-        esp_restart();
-    } else {
-        LOG_I(TAG, "Firmware ready, reboot required to activate");
-    }
-
-    goto ota_task_exit;
-
-ota_task_cleanup:
-    esp_https_ota_abort(ota_handle);
-
-ota_task_exit:
-    if (mgr_lock()) {
-        s_mgr.update_in_progress = false;
-        s_mgr.ota_task_handle = NULL;
-        mgr_unlock();
-    }
-    os_task_delete(NULL);
 }
 
-/**
- * @brief Parse MQTT OTA notification JSON payload
- *
- * Expected minimal format:
- * {
- *   "version": "1.1.0",
- *   "url": "https://server.s3.amazonaws.com/firmware/esp32-v1.1.0.bin",
- *   "size": 1998432,
- *   "sha256": "e3b0c44...",
- *   "auto_reboot": false
- * }
- */
-static ota_notification_t* parse_ota_notification(const char *json_str)
+static void on_esp32_ota_completed(event_type_t type, void *data)
 {
-    if (!json_str) {
-        return NULL;
-    }
-
-    cJSON *root = cJSON_Parse(json_str);
-    if (!root) {
-        LOG_E(TAG, "JSON parse error: %s", cJSON_GetErrorPtr());
-        return NULL;
-    }
-
-    // Extract required fields
-    cJSON *version_obj = cJSON_GetObjectItem(root, "version");
-    cJSON *url_obj = cJSON_GetObjectItem(root, "url");
-
-    // Validate required fields
-    if (!cJSON_IsString(version_obj) || !cJSON_IsString(url_obj)) {
-        LOG_E(TAG, "Missing required fields: version or url");
-        cJSON_Delete(root);
-        return NULL;
-    }
-
-    // Extract optional fields
-    cJSON *size_obj = cJSON_GetObjectItem(root, "size");
-    cJSON *sha256_obj = cJSON_GetObjectItem(root, "sha256");
-    cJSON *auto_reboot_obj = cJSON_GetObjectItem(root, "auto_reboot");
-
-    // Allocate and populate notification structure
-    static ota_notification_t notification;  // Static to avoid stack issues
-    notification.version = strdup(version_obj->valuestring);
-    notification.https_url = strdup(url_obj->valuestring);
-    notification.expected_size = cJSON_IsNumber(size_obj) ? size_obj->valueint : 0;
-    notification.signature = cJSON_IsString(sha256_obj) ? strdup(sha256_obj->valuestring) : NULL;
-    notification.auto_reboot = cJSON_IsBool(auto_reboot_obj) ? cJSON_IsTrue(auto_reboot_obj) : false;
-
-    LOG_I(TAG, "Parsed OTA notification - Version: %s, URL: %s, Size: %u",
-          notification.version, notification.https_url, notification.expected_size);
-
-    cJSON_Delete(root);
-    return &notification;
+    (void)type; (void)data;
+    report_ota_status("esp32", "completed", "Firmware downloaded and verified");
+    report_ota_progress("esp32", 100);
 }
 
-/**
- * @brief Handle MQTT OTA notification
- */
+static void on_esp32_ota_failed(event_type_t type, void *data)
+{
+    (void)type; (void)data;
+    report_ota_status("esp32", "failed", "Update failed");
+}
+
+static void on_stm32_ota_started(event_type_t type, void *data)
+{
+    (void)type; (void)data;
+    report_ota_status("stm32", "started", "Downloading firmware");
+}
+
+static void on_stm32_ota_completed(event_type_t type, void *data)
+{
+    (void)type; (void)data;
+    report_ota_status("stm32", "completed", "Firmware verified and transferred");
+}
+
+static void on_stm32_ota_failed(event_type_t type, void *data)
+{
+    (void)type; (void)data;
+    report_ota_status("stm32", "failed", "Update failed");
+}
+
+// ============================================================================
+// Unified JSON Parser & Router
+// ============================================================================
+
 static void on_mqtt_ota_notify(event_type_t type, void *data)
 {
     (void)type;
-
     if (!data) {
-        LOG_W(TAG, "Received null MQTT data for OTA notification");
         return;
     }
 
-    // Expect JSON string payload
     const char *json_payload = (const char *)data;
     LOG_I(TAG, "OTA notification received via MQTT");
     LOG_D(TAG, "Payload: %s", json_payload);
 
-    // Parse JSON notification
-    ota_notification_t *notification = parse_ota_notification(json_payload);
-    if (!notification) {
-        LOG_E(TAG, "Failed to parse OTA notification JSON");
+    cJSON *root = cJSON_Parse(json_payload);
+    if (!root) {
+        LOG_E(TAG, "JSON parse error: %s", cJSON_GetErrorPtr());
         return;
     }
 
-    // Trigger OTA update
-    LOG_I(TAG, "Triggering OTA update to version %s", notification->version);
-    ota_mgr_status_t status = cont_ota_trigger_update(notification);
-
-    if (status != OTA_MGR_OK) {
-        LOG_E(TAG, "Failed to trigger OTA update: error code %d", status);
-        // Optionally send error status via MQTT
+    // Determine target (default to "esp32" for backward compatibility)
+    cJSON *target_obj = cJSON_GetObjectItem(root, "target");
+    const char *target = "esp32";
+    if (cJSON_IsString(target_obj)) {
+        target = target_obj->valuestring;
     }
 
-    // Free dynamically allocated strings
-    free((void*)notification->version);
-    free((void*)notification->https_url);
-    if (notification->signature) {
-        free((void*)notification->signature);
+    if (strcmp(target, "esp32") == 0) {
+        // ── ESP32 OTA path ──
+        cJSON *version_obj = cJSON_GetObjectItem(root, "version");
+        cJSON *url_obj = cJSON_GetObjectItem(root, "url");
+
+        if (!cJSON_IsString(version_obj) || !cJSON_IsString(url_obj)) {
+            LOG_E(TAG, "ESP32 OTA: missing required fields (version, url)");
+            cJSON_Delete(root);
+            return;
+        }
+
+        cJSON *size_obj = cJSON_GetObjectItem(root, "size");
+        cJSON *auto_reboot_obj = cJSON_GetObjectItem(root, "auto_reboot");
+
+        esp32_ota_notification_t notif = {0};
+        strncpy(notif.url, url_obj->valuestring, sizeof(notif.url) - 1);
+        strncpy(notif.version, version_obj->valuestring, sizeof(notif.version) - 1);
+        notif.expected_size = cJSON_IsNumber(size_obj) ? (size_t)size_obj->valueint : 0;
+        notif.auto_reboot = cJSON_IsBool(auto_reboot_obj) ? cJSON_IsTrue(auto_reboot_obj) : false;
+
+        LOG_I(TAG, "Routing to ESP32 OTA: version %s", notif.version);
+        esp32_ota_status_t status = serv_esp32_ota_trigger(&notif);
+        if (status != ESP32_OTA_OK) {
+            LOG_E(TAG, "Failed to trigger ESP32 OTA: error %d", status);
+        }
+
+    } else if (strcmp(target, "stm32") == 0) {
+        // ── STM32 OTA path ──
+        cJSON *version_obj = cJSON_GetObjectItem(root, "version");
+        cJSON *url_obj = cJSON_GetObjectItem(root, "url");
+        cJSON *size_obj = cJSON_GetObjectItem(root, "size");
+        cJSON *signature_obj = cJSON_GetObjectItem(root, "signature_rsa");
+
+        if (!cJSON_IsString(version_obj) || !cJSON_IsString(url_obj) ||
+            !cJSON_IsNumber(size_obj) || !cJSON_IsString(signature_obj)) {
+            LOG_E(TAG, "STM32 OTA: missing required fields (version, url, size, signature_rsa)");
+            cJSON_Delete(root);
+            return;
+        }
+
+        cJSON *sha256_obj = cJSON_GetObjectItem(root, "sha256");
+        cJSON *crc32_obj = cJSON_GetObjectItem(root, "crc32");
+        cJSON *auto_apply_obj = cJSON_GetObjectItem(root, "auto_apply");
+
+        stm32_ota_notification_t stm32_notif = {0};
+        strncpy(stm32_notif.target, target, sizeof(stm32_notif.target) - 1);
+        strncpy(stm32_notif.version, version_obj->valuestring, sizeof(stm32_notif.version) - 1);
+        strncpy(stm32_notif.url, url_obj->valuestring, sizeof(stm32_notif.url) - 1);
+        strncpy(stm32_notif.signature_rsa, signature_obj->valuestring,
+                sizeof(stm32_notif.signature_rsa) - 1);
+        stm32_notif.size = (uint32_t)size_obj->valueint;
+
+        if (cJSON_IsString(sha256_obj)) {
+            strncpy(stm32_notif.sha256, sha256_obj->valuestring, sizeof(stm32_notif.sha256) - 1);
+        }
+        if (cJSON_IsNumber(crc32_obj)) {
+            stm32_notif.crc32 = (uint32_t)crc32_obj->valueint;
+        }
+        stm32_notif.auto_apply = (cJSON_IsBool(auto_apply_obj) && cJSON_IsTrue(auto_apply_obj));
+
+        LOG_I(TAG, "Routing to STM32 OTA: version %s", stm32_notif.version);
+        serv_stm32_ota_status_t stm32_status = serv_stm32_ota_trigger(&stm32_notif);
+        if (stm32_status != STM32_OTA_OK) {
+            LOG_E(TAG, "Failed to trigger STM32 OTA: error %d", stm32_status);
+        }
+
+    } else {
+        LOG_W(TAG, "Unknown OTA target: %s", target);
     }
+
+    cJSON_Delete(root);
 }
 
 // ============================================================================
@@ -350,25 +234,22 @@ ota_mgr_status_t cont_ota_manager_init(void)
         return OTA_MGR_OK;
     }
 
-    memset(&s_mgr, 0, sizeof(ota_mgr_context_t));
-
-    // Create mutex
-    s_mgr.mutex = os_mutex_create();
-    if (!s_mgr.mutex) {
-        LOG_E(TAG, "Failed to create mutex");
+    // Initialize ESP32 OTA service
+    esp32_ota_status_t esp32_status = serv_esp32_ota_init();
+    if (esp32_status != ESP32_OTA_OK) {
+        LOG_E(TAG, "Failed to initialize ESP32 OTA service");
         return OTA_MGR_ERR_INTERNAL;
     }
 
-    // Initialize OTA service
-    ota_status_t ota_status = serv_ota_init();
-    if (ota_status != OTA_OK) {
-        LOG_E(TAG, "Failed to initialize OTA service");
-        os_mutex_delete(s_mgr.mutex);
+    // Initialize STM32 OTA service
+    serv_stm32_ota_status_t stm32_status = serv_stm32_ota_init();
+    if (stm32_status != STM32_OTA_OK) {
+        LOG_E(TAG, "Failed to initialize STM32 OTA service");
         return OTA_MGR_ERR_INTERNAL;
     }
 
     s_mgr.initialized = true;
-    LOG_I(TAG, "OTA manager initialized");
+    LOG_I(TAG, "Unified OTA manager initialized (ESP32 + STM32)");
 
     return OTA_MGR_OK;
 }
@@ -380,80 +261,29 @@ ota_mgr_status_t cont_ota_manager_start(void)
         return OTA_MGR_ERR_NOT_INITIALIZED;
     }
 
-    LOG_I(TAG, "Starting OTA manager...");
+    LOG_I(TAG, "Starting unified OTA manager...");
 
-    // Subscribe to global MQTT OTA notification topic
+    // Subscribe to MQTT OTA notification topic
     int msg_id = serv_mqtt_subscribe(MQTT_TOPIC_GLOBAL_OTA_NOTIFY, 1);
     if (msg_id >= 0) {
         LOG_I(TAG, "Subscribed to MQTT topic: %s (msg_id=%d)", MQTT_TOPIC_GLOBAL_OTA_NOTIFY, msg_id);
     } else {
         LOG_W(TAG, "Failed to subscribe to MQTT OTA topic (broker may not be connected yet)");
-        // This is non-fatal - subscription will retry on reconnect
     }
 
-    // Subscribe to MQTT data events via event bus
+    // Subscribe to MQTT data for JSON routing
     event_bus_subscribe(EVENT_MQTT_DATA_RECEIVED, on_mqtt_ota_notify);
 
-    LOG_I(TAG, "OTA manager started - listening for firmware update notifications");
-    return OTA_MGR_OK;
-}
+    // Subscribe to OTA events from services for MQTT status reporting
+    event_bus_subscribe(EVENT_OTA_STARTED, on_esp32_ota_started);
+    event_bus_subscribe(EVENT_OTA_PROGRESS, on_esp32_ota_progress);
+    event_bus_subscribe(EVENT_OTA_COMPLETED, on_esp32_ota_completed);
+    event_bus_subscribe(EVENT_OTA_FAILED, on_esp32_ota_failed);
+    event_bus_subscribe(EVENT_STM32_OTA_STARTED, on_stm32_ota_started);
+    event_bus_subscribe(EVENT_STM32_OTA_COMPLETED, on_stm32_ota_completed);
+    event_bus_subscribe(EVENT_STM32_OTA_FAILED, on_stm32_ota_failed);
 
-ota_mgr_status_t cont_ota_trigger_update(const ota_notification_t *notification)
-{
-    if (!s_mgr.initialized) {
-        return OTA_MGR_ERR_NOT_INITIALIZED;
-    }
-
-    if (!notification || !notification->https_url || !notification->version) {
-        return OTA_MGR_ERR_INVALID_ARG;
-    }
-
-    if (!mgr_lock()) {
-        return OTA_MGR_ERR_INTERNAL;
-    }
-
-    if (s_mgr.update_in_progress) {
-        LOG_E(TAG, "OTA update already in progress");
-        mgr_unlock();
-        return OTA_MGR_ERR_IN_PROGRESS;
-    }
-
-    // Copy parameters
-    strncpy(s_mgr.https_url, notification->https_url, sizeof(s_mgr.https_url) - 1);
-    s_mgr.https_url[sizeof(s_mgr.https_url) - 1] = '\0';
-
-    strncpy(s_mgr.version, notification->version, sizeof(s_mgr.version) - 1);
-    s_mgr.version[sizeof(s_mgr.version) - 1] = '\0';
-
-    s_mgr.auto_reboot = notification->auto_reboot;
-    s_mgr.update_in_progress = true;
-
-    mgr_unlock();
-
-    LOG_I(TAG, "Triggering OTA update:");
-    LOG_I(TAG, "  Version: %s", s_mgr.version);
-    LOG_I(TAG, "  URL: %s", s_mgr.https_url);
-    LOG_I(TAG, "  Auto-reboot: %s", s_mgr.auto_reboot ? "yes" : "no");
-
-    // Create OTA task (large stack for HTTPS + TLS)
-    os_result_t result = os_task_create(
-        ota_task,
-        "ota_task",
-        8192,  // 8KB stack for HTTPS + TLS
-        NULL,
-        OS_PRIORITY_NORMAL,
-        &s_mgr.ota_task_handle
-    );
-
-    if (result != OS_SUCCESS) {
-        LOG_E(TAG, "Failed to create OTA task");
-        if (mgr_lock()) {
-            s_mgr.update_in_progress = false;
-            mgr_unlock();
-        }
-        return OTA_MGR_ERR_INTERNAL;
-    }
-
+    LOG_I(TAG, "OTA manager started - listening for ESP32 and STM32 update notifications");
     return OTA_MGR_OK;
 }
 
@@ -463,26 +293,19 @@ ota_mgr_status_t cont_ota_cancel_update(void)
         return OTA_MGR_ERR_NOT_INITIALIZED;
     }
 
-    if (!mgr_lock()) {
-        return OTA_MGR_ERR_INTERNAL;
-    }
-
-    if (!s_mgr.update_in_progress) {
-        mgr_unlock();
+    if (serv_esp32_ota_is_in_progress()) {
+        serv_esp32_ota_abort();
+        LOG_W(TAG, "ESP32 OTA update cancelled");
+        report_ota_status("esp32", "cancelled", "Update cancelled by user");
         return OTA_MGR_OK;
     }
 
-    // Delete OTA task if running
-    if (s_mgr.ota_task_handle) {
-        os_task_delete(s_mgr.ota_task_handle);
-        s_mgr.ota_task_handle = NULL;
+    if (serv_stm32_ota_is_in_progress()) {
+        serv_stm32_ota_abort();
+        LOG_W(TAG, "STM32 OTA update cancelled");
+        report_ota_status("stm32", "cancelled", "Update cancelled by user");
+        return OTA_MGR_OK;
     }
-
-    s_mgr.update_in_progress = false;
-    mgr_unlock();
-
-    LOG_W(TAG, "OTA update cancelled");
-    report_ota_status("cancelled", "Update cancelled by user");
 
     return OTA_MGR_OK;
 }
@@ -493,26 +316,23 @@ void cont_ota_validate_after_boot(void)
         return;
     }
 
-    // Get running partition to determine if we're on OTA or factory
     const esp_partition_t *running = esp_ota_get_running_partition();
     if (!running) {
         LOG_E(TAG, "Failed to get running partition");
         return;
     }
 
-    // Check if running from OTA partition
     bool is_ota = (running->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_0 ||
                    running->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1);
 
-    // Mark app as valid (prevents rollback)
-    ota_status_t status = serv_ota_mark_app_valid();
-    if (status == OTA_OK) {
+    esp32_ota_status_t status = serv_esp32_ota_mark_app_valid();
+    if (status == ESP32_OTA_OK) {
         if (is_ota) {
             LOG_I(TAG, "OTA firmware validated after boot");
-            report_ota_status("validated", "New firmware running successfully");
+            report_ota_status("esp32", "validated", "New firmware running successfully");
         } else {
             LOG_I(TAG, "Factory firmware validated (no OTA performed)");
-            report_ota_status("ready", "Factory firmware active, OTA ready");
+            report_ota_status("esp32", "ready", "Factory firmware active, OTA ready");
         }
     } else {
         LOG_E(TAG, "Failed to mark app as valid (status=%d)", status);
@@ -521,12 +341,12 @@ void cont_ota_validate_after_boot(void)
 
 bool cont_ota_is_update_in_progress(void)
 {
-    return s_mgr.update_in_progress;
+    return serv_esp32_ota_is_in_progress() || serv_stm32_ota_is_in_progress();
 }
 
 uint8_t cont_ota_get_progress(void)
 {
-    return serv_ota_get_progress();
+    return serv_esp32_ota_get_progress();
 }
 
 ota_mgr_status_t cont_ota_get_partition_info(char *buffer, size_t buffer_size)
@@ -541,7 +361,6 @@ ota_mgr_status_t cont_ota_get_partition_info(char *buffer, size_t buffer_size)
         return OTA_MGR_ERR_INTERNAL;
     }
 
-    // Determine partition type
     const char *type_str = "Unknown";
     if (running->subtype == ESP_PARTITION_SUBTYPE_APP_FACTORY) {
         type_str = "factory";
