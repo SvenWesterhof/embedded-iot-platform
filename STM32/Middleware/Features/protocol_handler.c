@@ -533,7 +533,13 @@ static void handle_cmd_fw_update_start(const protocol_packet_t *cmd)
         resp = RESP_ERROR;
     }
 
+    // Send response FIRST so ESP32 doesn't timeout during erase
     protocol_handler_send_response(cmd->cmd_id, cmd->seq, resp, NULL, 0);
+
+    // Now perform the blocking bank erase (~7 seconds)
+    if (resp == RESP_OK) {
+        serv_firmware_update_erase();
+    }
 }
 
 static void handle_cmd_fw_update_chunk(const protocol_packet_t *cmd)

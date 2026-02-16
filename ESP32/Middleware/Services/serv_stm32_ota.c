@@ -193,10 +193,12 @@ serv_stm32_ota_status_t serv_stm32_ota_deinit(void)
 // UART Firmware Transfer
 // ============================================================================
 
-#define FW_CHUNK_DATA_SIZE  252  // 256 max payload - 4 byte chunk header
-#define FW_CHUNK_TIMEOUT_MS 5000
+#define FW_CHUNK_DATA_SIZE   252  // 256 max payload - 4 byte chunk header
+#define FW_CHUNK_TIMEOUT_MS  5000
 #define FW_CHUNK_MAX_RETRIES 3
-#define FW_END_TIMEOUT_MS   10000
+#define FW_END_TIMEOUT_MS    10000
+#define FW_ERASE_POLL_MS     1000  // Poll interval while waiting for bank erase
+#define FW_ERASE_TIMEOUT_MS  15000 // Max time to wait for bank erase
 
 static bool transfer_firmware_to_stm32(const uint8_t *fw_data, uint32_t fw_size)
 {
@@ -222,6 +224,40 @@ static bool transfer_firmware_to_stm32(const uint8_t *fw_data, uint32_t fw_size)
                 &start_cmd, sizeof(start_cmd), NULL, NULL, FW_CHUNK_TIMEOUT_MS);
     if (resp != RESP_OK) {
         LOG_E(TAG, "STM32 rejected FW_UPDATE_START: %d", resp);
+        return false;
+    }
+
+    // Step 1b: Poll until STM32 finishes erasing flash bank
+    LOG_I(TAG, "Waiting for STM32 to erase flash bank...");
+    uint32_t erase_start = xTaskGetTickCount() * portTICK_PERIOD_MS;
+    bool erase_done = false;
+
+    while ((xTaskGetTickCount() * portTICK_PERIOD_MS - erase_start) < FW_ERASE_TIMEOUT_MS) {
+        vTaskDelay(pdMS_TO_TICKS(FW_ERASE_POLL_MS));
+
+        resp_fw_update_status_t fw_status = {0};
+        resp = stm32_protocol_send_command(CMD_FW_UPDATE_STATUS,
+                    NULL, 0, &fw_status, &(uint16_t){sizeof(fw_status)},
+                    FW_CHUNK_TIMEOUT_MS);
+        if (resp != RESP_OK) {
+            LOG_W(TAG, "Status poll failed: %d", resp);
+            continue;
+        }
+
+        if (fw_status.state == FW_UPDATE_RECEIVING) {
+            LOG_I(TAG, "STM32 flash erased, ready to receive chunks");
+            erase_done = true;
+            break;
+        } else if (fw_status.state == FW_UPDATE_ERROR) {
+            LOG_E(TAG, "STM32 erase failed (error_code=%u)", fw_status.error_code);
+            return false;
+        }
+        // Still ERASING, keep polling
+    }
+
+    if (!erase_done) {
+        LOG_E(TAG, "STM32 erase timed out after %u ms", FW_ERASE_TIMEOUT_MS);
+        stm32_protocol_send_command(CMD_FW_UPDATE_ABORT, NULL, 0, NULL, NULL, 2000);
         return false;
     }
 

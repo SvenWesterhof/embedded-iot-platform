@@ -199,10 +199,11 @@ typedef struct {
 /** Firmware update state enum */
 typedef enum {
     FW_UPDATE_IDLE        = 0,  /**< No update in progress */
-    FW_UPDATE_RECEIVING   = 1,  /**< Receiving firmware chunks */
-    FW_UPDATE_VALIDATING  = 2,  /**< Validating firmware CRC32 */
-    FW_UPDATE_READY       = 3,  /**< Validated, ready to activate */
-    FW_UPDATE_ERROR       = 4,  /**< Update failed */
+    FW_UPDATE_ERASING     = 1,  /**< Erasing inactive flash bank */
+    FW_UPDATE_RECEIVING   = 2,  /**< Receiving firmware chunks */
+    FW_UPDATE_VALIDATING  = 3,  /**< Validating firmware CRC32 */
+    FW_UPDATE_READY       = 4,  /**< Validated, ready to activate */
+    FW_UPDATE_ERROR       = 5,  /**< Update failed */
 } fw_update_state_t;
 
 /** RESP_FW_UPDATE_STATUS payload */

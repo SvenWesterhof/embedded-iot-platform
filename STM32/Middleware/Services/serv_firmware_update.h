@@ -32,12 +32,23 @@ void serv_firmware_update_init(void);
 /**
  * @brief Handle CMD_FW_UPDATE_START
  *
- * Determines inactive bank, erases it, prepares for receiving chunks.
+ * Validates parameters, stores metadata, sets state to ERASING.
+ * Does NOT erase — call serv_firmware_update_erase() after sending the response.
  *
  * @param cmd Start command payload
  * @return FW_UPDATE_SVC_OK on success
  */
 fw_update_svc_status_t serv_firmware_update_start(const cmd_fw_update_start_t *cmd);
+
+/**
+ * @brief Erase the inactive flash bank (blocking, ~7 seconds)
+ *
+ * Must be called after serv_firmware_update_start() and after the RESP_OK
+ * has been sent to ESP32. Transitions state from ERASING → RECEIVING.
+ *
+ * @return FW_UPDATE_SVC_OK on success
+ */
+fw_update_svc_status_t serv_firmware_update_erase(void);
 
 /**
  * @brief Handle CMD_FW_UPDATE_CHUNK

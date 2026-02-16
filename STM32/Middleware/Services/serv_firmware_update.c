@@ -91,8 +91,18 @@ fw_update_svc_status_t serv_firmware_update_start(const cmd_fw_update_start_t *c
           s_fw.version_major, s_fw.version_minor, s_fw.version_patch,
           s_fw.total_size, s_fw.total_chunks_expected, s_fw.target_bank);
 
-    // Erase target bank
-    s_fw.state = FW_UPDATE_RECEIVING;  // Temporarily set for status queries
+    // Set state to ERASING — caller sends response, then calls erase separately
+    s_fw.state = FW_UPDATE_ERASING;
+    return FW_UPDATE_SVC_OK;
+}
+
+fw_update_svc_status_t serv_firmware_update_erase(void)
+{
+    if (s_fw.state != FW_UPDATE_ERASING) {
+        LOG_W(TAG, "Cannot erase: state=%u (not ERASING)", s_fw.state);
+        return FW_UPDATE_SVC_ERR_STATE;
+    }
+
     LOG_I(TAG, "Erasing bank %u...", s_fw.target_bank);
 
     hal_flash_status_t fl_status = hal_flash_erase_bank(s_fw.target_bank);

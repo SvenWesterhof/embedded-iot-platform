@@ -52,6 +52,33 @@ hal_flash_status_t hal_flash_init(void)
     if (!crc32_table_initialized) {
         crc32_init_table();
     }
+
+    // Ensure flash is in dual-bank mode (nDBANK = 0)
+    FLASH_OBProgramInitTypeDef ob_config;
+    HAL_FLASHEx_OBGetConfig(&ob_config);
+
+    if (ob_config.USERConfig & FLASH_OPTCR_nDBANK) {
+        LOG_W(TAG, "Flash is in SINGLE-BANK mode — switching to dual-bank (requires reset)...");
+
+        HAL_FLASH_Unlock();
+        HAL_FLASH_OB_Unlock();
+
+        ob_config.OptionType = OPTIONBYTE_USER;
+        ob_config.USERConfig &= ~FLASH_OPTCR_nDBANK;
+
+        HAL_StatusTypeDef status = HAL_FLASHEx_OBProgram(&ob_config);
+        if (status != HAL_OK) {
+            LOG_E(TAG, "Failed to program dual-bank option byte: %d", status);
+            HAL_FLASH_OB_Lock();
+            HAL_FLASH_Lock();
+            return HAL_FL_ERR_WRITE;
+        }
+
+        LOG_I(TAG, "Option byte written, launching reset...");
+        HAL_FLASH_OB_Launch();  // Triggers system reset
+        // Should not reach here
+    }
+
     LOG_I(TAG, "Flash HAL initialized (dual-bank, %u sectors/bank)", SECTORS_PER_BANK);
     return HAL_FL_OK;
 }
