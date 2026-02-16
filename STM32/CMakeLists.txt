@@ -79,8 +79,8 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # SEGGER SystemView configuration (survives STM32CubeMX regeneration)
     # Disabled — SystemView overhead was causing instability
     # USE_SEGGER_SYSTEMVIEW=1
-    # SEGGER RTT for logging (used by portable_log.h)
-    USE_SEGGER_RTT=1
+    # SEGGER RTT for logging — disabled, using USART3 VCP printf instead
+    # USE_SEGGER_RTT=1
     # STM32F7 family identifier (used by portable_log.h)
     STM32F7=1
     # Add user defined symbols

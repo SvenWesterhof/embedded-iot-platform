@@ -38,7 +38,7 @@ void services_init(void)
     LOG_I(TAG, "Protocol handler initialized\n");
 
 #ifdef ENABLE_UART_TEST
-    SEGGER_RTT_printf(0, "Services: Initializing UART test...\n");
+    LOG_I(TAG, "Initializing UART test...");
     serv_uart_test_init();
     LOG_I(TAG, "UART test service initialized\n");
 #endif

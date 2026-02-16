@@ -26,8 +26,9 @@
 #include "os_wrapper.h"
 #if USE_SEGGER_SYSTEMVIEW
 #include "SEGGER_SYSVIEW.h"
-#endif
 #include "SEGGER_RTT.h"
+#endif
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -55,6 +56,7 @@ RTC_HandleTypeDef hrtc;
 SPI_HandleTypeDef hspi1;
 
 UART_HandleTypeDef huart2;
+UART_HandleTypeDef huart3;
 DMA_HandleTypeDef hdma_usart2_rx;
 DMA_HandleTypeDef hdma_usart2_tx;
 
@@ -79,6 +81,7 @@ static void MX_SPI1_Init(void);
 static void MX_I2C4_Init(void);
 static void MX_RTC_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_USART3_UART_Init(void);
 void StartDefaultTask(void *argument);
 
 /* USER CODE BEGIN PFP */
@@ -86,7 +89,12 @@ void StartDefaultTask(void *argument);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+// Retarget printf to USART3 (ST-Link VCP on micro-USB)
+int __io_putchar(int ch)
+{
+  HAL_UART_Transmit(&huart3, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
+  return ch;
+}
 /* USER CODE END 0 */
 
 /**
@@ -118,13 +126,13 @@ int main(void)
   /* USER CODE BEGIN SysInit */
   // CRITICAL: Update SystemCoreClock variable after clock reconfiguration
   SystemCoreClockUpdate();
-  SEGGER_RTT_WriteString(0, "=== Clock configured to 120MHz (8MHz HSE, PLLN=240) ===\n");
-  SEGGER_RTT_printf(0, "SystemCoreClock variable: %lu Hz\n", SystemCoreClock);
+  printf("=== Clock configured to 120MHz (8MHz HSE, PLLN=240) ===\n");
+  printf("SystemCoreClock variable: %lu Hz\n", SystemCoreClock);
 
   // CRITICAL: Reinitialize HAL tick timer after clock config
   HAL_InitTick(TICK_INT_PRIORITY);
 
-  SEGGER_RTT_printf(0, "HAL tick reinitialized successfully\n");
+  printf("HAL tick reinitialized successfully\n");
 
   // Enable DWT cycle counter for SystemView timestamps
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
@@ -140,36 +148,37 @@ int main(void)
   MX_I2C4_Init();
   MX_RTC_Init();
   MX_USART2_UART_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-  SEGGER_RTT_WriteString(0, "\n=== STM32F767 Application Starting ===\n");
-  SEGGER_RTT_printf(0, "System Clock: %lu Hz\n", HAL_RCC_GetSysClockFreq());
-  SEGGER_RTT_printf(0, "HAL Tick: %lu ms\n", HAL_GetTick());
+  printf("\n=== STM32F767 Application Starting ===\n");
+  printf("System Clock: %lu Hz\n", HAL_RCC_GetSysClockFreq());
+  printf("HAL Tick: %lu ms\n", HAL_GetTick());
 
   // Check reset reason
   if (__HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST)) {
-    SEGGER_RTT_WriteString(0, "RESET: Independent Watchdog\n");
+    printf("RESET: Independent Watchdog\n");
   }
   if (__HAL_RCC_GET_FLAG(RCC_FLAG_WWDGRST)) {
-    SEGGER_RTT_WriteString(0, "RESET: Window Watchdog\n");
+    printf("RESET: Window Watchdog\n");
   }
   if (__HAL_RCC_GET_FLAG(RCC_FLAG_SFTRST)) {
-    SEGGER_RTT_WriteString(0, "RESET: Software Reset\n");
+    printf("RESET: Software Reset\n");
   }
   if (__HAL_RCC_GET_FLAG(RCC_FLAG_PORRST)) {
-    SEGGER_RTT_WriteString(0, "RESET: Power-On Reset\n");
+    printf("RESET: Power-On Reset\n");
   }
   if (__HAL_RCC_GET_FLAG(RCC_FLAG_PINRST)) {
-    SEGGER_RTT_WriteString(0, "RESET: External Pin\n");
+    printf("RESET: External Pin\n");
   }
   __HAL_RCC_CLEAR_RESET_FLAGS();
-  SEGGER_RTT_WriteString(0, "DEBUG: Reset flags cleared\n");
+  printf("DEBUG: Reset flags cleared\n");
 
   // Initialize SEGGER SystemView configuration (recording starts after scheduler)
 #if USE_SEGGER_SYSTEMVIEW
   SEGGER_SYSVIEW_Conf();
-  SEGGER_RTT_WriteString(0, "SEGGER SystemView configured (will start after scheduler init)\n");
+  printf("SEGGER SystemView configured (will start after scheduler init)\n");
 #else
-  SEGGER_RTT_WriteString(0, "SEGGER SystemView: Disabled\n");
+  printf("SEGGER SystemView: Disabled\n");
 #endif
 
   // NOTE: app_init() moved to StartDefaultTask() to run AFTER FreeRTOS scheduler is initialized
@@ -482,6 +491,41 @@ static void MX_USART2_UART_Init(void)
 }
 
 /**
+  * @brief USART3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART3_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART3_Init 0 */
+
+  /* USER CODE END USART3_Init 0 */
+
+  /* USER CODE BEGIN USART3_Init 1 */
+
+  /* USER CODE END USART3_Init 1 */
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = 115200;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart3.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART3_Init 2 */
+
+  /* USER CODE END USART3_Init 2 */
+
+}
+
+/**
   * Enable DMA controller clock
   */
 static void MX_DMA_Init(void)
@@ -575,8 +619,8 @@ void StartDefaultTask(void *argument)
   static uint8_t sysview_started = 0;
   if (!sysview_started) {
     SEGGER_SYSVIEW_Start();
-    SEGGER_RTT_WriteString(0, "SEGGER SystemView recording started from task\n");
-    SEGGER_RTT_printf(0, "SystemView State: %d\n", SEGGER_SYSVIEW_IsStarted());
+    printf("SEGGER SystemView recording started from task\n");
+    printf("SystemView State: %d\n", SEGGER_SYSVIEW_IsStarted());
     sysview_started = 1;
   }
 #endif
@@ -586,9 +630,9 @@ void StartDefaultTask(void *argument)
 
   /* Initialize application AFTER FreeRTOS scheduler is running
    * This is critical because app_init() creates FreeRTOS tasks/queues via UART driver init */
-  SEGGER_RTT_WriteString(0, "Initializing application (post-scheduler)...\n");
+  printf("Initializing application (post-scheduler)...\n");
   app_init();
-  SEGGER_RTT_WriteString(0, "Application initialized successfully\n");
+  printf("Application initialized successfully\n");
 
   /* Infinite loop */
   for(;;)
@@ -660,7 +704,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
-  SEGGER_RTT_WriteString(0, "\n*** ERROR_HANDLER CALLED ***\n");
+  printf("\n*** ERROR_HANDLER CALLED ***\n");
   __asm("BKPT #1");  // Breakpoint to catch in debugger
   __disable_irq();
   while (1)
