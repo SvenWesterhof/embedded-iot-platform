@@ -59,7 +59,7 @@ bool event_bus_init(void)
     os_result_t result = os_task_create_pinned(
         event_dispatch_task,
         "event_dispatch",
-        3072,
+        4096,
         NULL,
         EVENT_BUS_TASK_PRIORITY,
         &event_bus.dispatch_task_handle,

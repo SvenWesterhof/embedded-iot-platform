@@ -229,15 +229,16 @@ static bool transfer_firmware_to_stm32(const uint8_t *fw_data, uint32_t fw_size)
 
     // Step 1b: Poll until STM32 finishes erasing flash bank
     LOG_I(TAG, "Waiting for STM32 to erase flash bank...");
-    uint32_t erase_start = xTaskGetTickCount() * portTICK_PERIOD_MS;
+    uint32_t erase_start = os_get_time_ms();
     bool erase_done = false;
 
-    while ((xTaskGetTickCount() * portTICK_PERIOD_MS - erase_start) < FW_ERASE_TIMEOUT_MS) {
-        vTaskDelay(pdMS_TO_TICKS(FW_ERASE_POLL_MS));
+    while ((os_get_time_ms() - erase_start) < FW_ERASE_TIMEOUT_MS) {
+        os_delay_ms(FW_ERASE_POLL_MS);
 
         resp_fw_update_status_t fw_status = {0};
+        size_t status_len = sizeof(fw_status);
         resp = stm32_protocol_send_command(CMD_FW_UPDATE_STATUS,
-                    NULL, 0, &fw_status, &(uint16_t){sizeof(fw_status)},
+                    NULL, 0, &fw_status, &status_len,
                     FW_CHUNK_TIMEOUT_MS);
         if (resp != RESP_OK) {
             LOG_W(TAG, "Status poll failed: %d", resp);
@@ -424,6 +425,12 @@ cleanup:
     } else {
         LOG_E(TAG, "STM32 OTA failed");
         event_bus_publish(EVENT_STM32_OTA_FAILED, NULL);
+    }
+
+    // Reset state to IDLE so next OTA trigger can proceed
+    if (os_mutex_take(s_ctx.state_mutex, 1000) == OS_SUCCESS) {
+        s_ctx.state = STM32_OTA_STATE_IDLE;
+        os_mutex_give(s_ctx.state_mutex);
     }
 
     os_task_delete(NULL);

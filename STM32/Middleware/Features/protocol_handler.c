@@ -577,9 +577,6 @@ static void handle_cmd_fw_update_end(const protocol_packet_t *cmd)
     const cmd_fw_update_end_t *end_cmd =
         (const cmd_fw_update_end_t *)cmd->payload;
 
-    // Note: if auto-apply and CRC valid, serv_firmware_update_end() will
-    // swap banks and reset — we never return. Send response only on
-    // validate_only=1 or error.
     fw_update_svc_status_t status = serv_firmware_update_end(end_cmd);
 
     response_status_t resp = RESP_OK;
@@ -587,7 +584,15 @@ static void handle_cmd_fw_update_end(const protocol_packet_t *cmd)
         resp = RESP_ERROR;
     }
 
+    // Send response FIRST so ESP32 receives it before a potential reset
     protocol_handler_send_response(cmd->cmd_id, cmd->seq, resp, NULL, 0);
+
+    // If auto-apply requested and validation passed, swap bank and reset
+    if (resp == RESP_OK && !end_cmd->validate_only) {
+        os_delay_ms(50);  // Let UART TX complete
+        serv_firmware_update_apply();
+        // Does not return
+    }
 }
 
 static void handle_cmd_fw_update_abort(const protocol_packet_t *cmd)

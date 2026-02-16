@@ -66,7 +66,12 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
 )
-target_link_options(${PROJECT_NAME} PRIVATE "-u" "_printf_float")
+# Application linker script (after bootloader sector 0)
+target_link_options(${PROJECT_NAME} PRIVATE
+    -T${CMAKE_SOURCE_DIR}/STM32F767XX_FLASH.ld
+    -Wl,-Map=${CMAKE_PROJECT_NAME}.map
+    "-u" "_printf_float"
+)
 
 
 # Add sources to executable
@@ -115,3 +120,6 @@ add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E echo "  Hex:    ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.hex"
     COMMAND ${CMAKE_COMMAND} -E echo "  ELF:    $<TARGET_FILE:${CMAKE_PROJECT_NAME}>"
 )
+
+# Bootloader (separate executable — sector 0 of Bank 1)
+add_subdirectory(Bootloader)

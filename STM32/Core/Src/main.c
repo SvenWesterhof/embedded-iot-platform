@@ -105,7 +105,10 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+  /* Dual-bank OTA with bootloader: application always runs from 0x08008000.
+     Bootloader at sectors 0-1 (0x08000000) sets VTOR before jumping here,
+     but we reinforce it in case of direct SWD flash. */
+  SCB->VTOR = 0x08008000U;
   /* USER CODE END 1 */
 
   /* MPU Configuration--------------------------------------------------------*/
@@ -151,8 +154,11 @@ int main(void)
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
   printf("\n=== STM32F767 Application Starting ===\n");
+  printf("Firmware Version: v1.2.3\n");  // UPDATE THIS FOR EACH BUILD
   printf("System Clock: %lu Hz\n", HAL_RCC_GetSysClockFreq());
   printf("HAL Tick: %lu ms\n", HAL_GetTick());
+  printf("VTOR: 0x%08lX\n", SCB->VTOR);
+  printf("Executing from: 0x%08lX\n", (uint32_t)&main);
 
   // Check reset reason
   if (__HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST)) {

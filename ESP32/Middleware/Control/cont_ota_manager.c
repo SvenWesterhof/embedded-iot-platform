@@ -206,7 +206,7 @@ static void on_mqtt_ota_notify(event_type_t type, void *data)
             strncpy(stm32_notif.sha256, sha256_obj->valuestring, sizeof(stm32_notif.sha256) - 1);
         }
         if (cJSON_IsNumber(crc32_obj)) {
-            stm32_notif.crc32 = (uint32_t)crc32_obj->valueint;
+            stm32_notif.crc32 = (uint32_t)crc32_obj->valuedouble;
         }
         stm32_notif.auto_apply = (cJSON_IsBool(auto_apply_obj) && cJSON_IsTrue(auto_apply_obj));
 

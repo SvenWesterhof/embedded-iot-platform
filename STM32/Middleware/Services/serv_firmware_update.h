@@ -65,13 +65,20 @@ fw_update_svc_status_t serv_firmware_update_chunk(const cmd_fw_update_chunk_t *c
 /**
  * @brief Handle CMD_FW_UPDATE_END
  *
- * Validates CRC32 over written firmware. If valid and !validate_only,
- * swaps boot bank and resets (does not return).
+ * Validates CRC32 over written firmware. On success, state becomes READY.
  *
  * @param cmd End command payload
- * @return FW_UPDATE_SVC_OK on success (or does not return on bank swap)
+ * @return FW_UPDATE_SVC_OK on success
  */
 fw_update_svc_status_t serv_firmware_update_end(const cmd_fw_update_end_t *cmd);
+
+/**
+ * @brief Swap boot bank and reset (does not return)
+ *
+ * Must be called after serv_firmware_update_end() succeeds and after
+ * the response has been sent to ESP32. Allows UART TX to complete first.
+ */
+void serv_firmware_update_apply(void);
 
 /**
  * @brief Handle CMD_FW_UPDATE_ABORT

@@ -44,8 +44,7 @@ void serv_firmware_update_init(void)
     memset(&s_fw, 0, sizeof(s_fw));
     s_fw.state = FW_UPDATE_IDLE;
 
-    uint8_t active = hal_flash_get_active_bank();
-    LOG_I(TAG, "Firmware update service initialized (active bank: %u)", active);
+    LOG_I(TAG, "Firmware update service initialized (OTA staging: Bank 2)");
 }
 
 fw_update_svc_status_t serv_firmware_update_start(const cmd_fw_update_start_t *cmd)
@@ -220,16 +219,24 @@ fw_update_svc_status_t serv_firmware_update_end(const cmd_fw_update_end_t *cmd)
           s_fw.version_major, s_fw.version_minor, s_fw.version_patch,
           s_fw.total_size);
 
-    // If auto-apply: swap bank and reset (does not return)
-    if (!cmd->validate_only) {
-        LOG_I(TAG, "Auto-apply: swapping to bank %u and resetting...",
-              s_fw.target_bank);
-        hal_flash_swap_bank_and_reset();
-        // Should not reach here
+    LOG_I(TAG, "Firmware ready — waiting for apply or manual activation");
+    return FW_UPDATE_SVC_OK;
+}
+
+void serv_firmware_update_apply(void)
+{
+    if (s_fw.state != FW_UPDATE_READY) {
+        LOG_W(TAG, "Cannot apply: state=%u (not READY)", s_fw.state);
+        return;
     }
 
-    LOG_I(TAG, "Validate only — firmware ready, waiting for manual apply");
-    return FW_UPDATE_SVC_OK;
+    LOG_I(TAG, "Applying: setting update flag and resetting...");
+    LOG_I(TAG, "Bootloader will copy %lu bytes from Bank 2 to app area on next boot",
+          s_fw.total_size);
+
+    hal_flash_set_update_flag(s_fw.total_size, s_fw.crc32_expected);
+    hal_flash_reset_for_update();
+    // Does not return
 }
 
 fw_update_svc_status_t serv_firmware_update_abort(void)
