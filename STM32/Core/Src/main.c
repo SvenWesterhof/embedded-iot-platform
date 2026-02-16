@@ -24,7 +24,9 @@
 /* USER CODE BEGIN Includes */
 #include "app_main.h"
 #include "os_wrapper.h"
+#if USE_SEGGER_SYSTEMVIEW
 #include "SEGGER_SYSVIEW.h"
+#endif
 #include "SEGGER_RTT.h"
 /* USER CODE END Includes */
 

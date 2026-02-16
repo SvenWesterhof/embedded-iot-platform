@@ -39,7 +39,7 @@ add_subdirectory(cmake/stm32cubemx)
 # CRITICAL: Configure FreeRTOS with SEGGER SystemView trace macros (survives STM32CubeMX regeneration)
 # Without this, FreeRTOS kernel sources (tasks.c, queue.c, etc.) compile without trace macros
 # This MUST be after add_subdirectory(cmake/stm32cubemx) so the FreeRTOS target exists
-target_compile_definitions(FreeRTOS PRIVATE USE_SEGGER_SYSTEMVIEW=1)
+# target_compile_definitions(FreeRTOS PRIVATE USE_SEGGER_SYSTEMVIEW=1)
 target_include_directories(FreeRTOS PRIVATE
     ${CMAKE_SOURCE_DIR}/Middleware/SEGGER/Patch
     ${CMAKE_SOURCE_DIR}/Middleware/SEGGER/SEGGER
@@ -77,8 +77,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # SEGGER SystemView configuration (survives STM32CubeMX regeneration)
-    # Temporarily disabled to test if SystemView overhead causes crashes
-    USE_SEGGER_SYSTEMVIEW=1
+    # Disabled — SystemView overhead was causing instability
+    # USE_SEGGER_SYSTEMVIEW=1
     # SEGGER RTT for logging (used by portable_log.h)
     USE_SEGGER_RTT=1
     # STM32F7 family identifier (used by portable_log.h)
