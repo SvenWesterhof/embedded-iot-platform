@@ -9,6 +9,7 @@
 #include "os_wrapper.h"
 #include "serv_temperature_sensor.h"
 #include "serv_current_monitor.h"
+#include "serv_firmware_update.h"
 #include "event_bus.h"
 #include "service_events.h"
 #include "hal_rtc.h"
@@ -58,6 +59,11 @@ static void handle_cmd_start_measurement(const protocol_packet_t *cmd);
 static void handle_cmd_stop_measurement(const protocol_packet_t *cmd);
 static void handle_cmd_get_buffer_data(const protocol_packet_t *cmd);
 static void handle_cmd_clear_buffer(const protocol_packet_t *cmd);
+static void handle_cmd_fw_update_start(const protocol_packet_t *cmd);
+static void handle_cmd_fw_update_chunk(const protocol_packet_t *cmd);
+static void handle_cmd_fw_update_end(const protocol_packet_t *cmd);
+static void handle_cmd_fw_update_abort(const protocol_packet_t *cmd);
+static void handle_cmd_fw_update_status(const protocol_packet_t *cmd);
 static void stream_task(void *param);
 static void temperature_event_handler(event_t *event);
 
@@ -339,6 +345,26 @@ static void handle_command(const protocol_packet_t *packet)
             handle_cmd_clear_buffer(packet);
             break;
 
+        case CMD_FW_UPDATE_START:
+            handle_cmd_fw_update_start(packet);
+            break;
+
+        case CMD_FW_UPDATE_CHUNK:
+            handle_cmd_fw_update_chunk(packet);
+            break;
+
+        case CMD_FW_UPDATE_END:
+            handle_cmd_fw_update_end(packet);
+            break;
+
+        case CMD_FW_UPDATE_ABORT:
+            handle_cmd_fw_update_abort(packet);
+            break;
+
+        case CMD_FW_UPDATE_STATUS:
+            handle_cmd_fw_update_status(packet);
+            break;
+
         default:
             LOG_W(TAG, "Unknown command: 0x%02X", packet->cmd_id);
             protocol_handler_send_response(
@@ -482,6 +508,101 @@ static void handle_cmd_clear_buffer(const protocol_packet_t *cmd)
     protocol_handler_send_response(
         cmd->cmd_id, cmd->seq, RESP_OK, NULL, 0);
 }
+
+// ============================================================================
+// Firmware Update Command Handlers
+// ============================================================================
+
+static void handle_cmd_fw_update_start(const protocol_packet_t *cmd)
+{
+    if (cmd->length < sizeof(cmd_fw_update_start_t)) {
+        protocol_handler_send_response(
+            cmd->cmd_id, cmd->seq, RESP_INVALID_PARAM, NULL, 0);
+        return;
+    }
+
+    const cmd_fw_update_start_t *start_cmd =
+        (const cmd_fw_update_start_t *)cmd->payload;
+
+    fw_update_svc_status_t status = serv_firmware_update_start(start_cmd);
+
+    response_status_t resp = RESP_OK;
+    if (status == FW_UPDATE_SVC_ERR_BUSY) {
+        resp = RESP_BUSY;
+    } else if (status != FW_UPDATE_SVC_OK) {
+        resp = RESP_ERROR;
+    }
+
+    protocol_handler_send_response(cmd->cmd_id, cmd->seq, resp, NULL, 0);
+}
+
+static void handle_cmd_fw_update_chunk(const protocol_packet_t *cmd)
+{
+    if (cmd->length < 4) {  // Minimum: chunk_index(2) + chunk_length(2)
+        protocol_handler_send_response(
+            cmd->cmd_id, cmd->seq, RESP_INVALID_PARAM, NULL, 0);
+        return;
+    }
+
+    const cmd_fw_update_chunk_t *chunk_cmd =
+        (const cmd_fw_update_chunk_t *)cmd->payload;
+
+    fw_update_svc_status_t status = serv_firmware_update_chunk(
+        chunk_cmd, cmd->length);
+
+    response_status_t resp = RESP_OK;
+    if (status == FW_UPDATE_SVC_ERR_SEQUENCE) {
+        resp = RESP_INVALID_PARAM;
+    } else if (status != FW_UPDATE_SVC_OK) {
+        resp = RESP_ERROR;
+    }
+
+    protocol_handler_send_response(cmd->cmd_id, cmd->seq, resp, NULL, 0);
+}
+
+static void handle_cmd_fw_update_end(const protocol_packet_t *cmd)
+{
+    if (cmd->length < sizeof(cmd_fw_update_end_t)) {
+        protocol_handler_send_response(
+            cmd->cmd_id, cmd->seq, RESP_INVALID_PARAM, NULL, 0);
+        return;
+    }
+
+    const cmd_fw_update_end_t *end_cmd =
+        (const cmd_fw_update_end_t *)cmd->payload;
+
+    // Note: if auto-apply and CRC valid, serv_firmware_update_end() will
+    // swap banks and reset — we never return. Send response only on
+    // validate_only=1 or error.
+    fw_update_svc_status_t status = serv_firmware_update_end(end_cmd);
+
+    response_status_t resp = RESP_OK;
+    if (status != FW_UPDATE_SVC_OK) {
+        resp = RESP_ERROR;
+    }
+
+    protocol_handler_send_response(cmd->cmd_id, cmd->seq, resp, NULL, 0);
+}
+
+static void handle_cmd_fw_update_abort(const protocol_packet_t *cmd)
+{
+    serv_firmware_update_abort();
+    protocol_handler_send_response(cmd->cmd_id, cmd->seq, RESP_OK, NULL, 0);
+}
+
+static void handle_cmd_fw_update_status(const protocol_packet_t *cmd)
+{
+    resp_fw_update_status_t fw_status;
+    serv_firmware_update_get_status(&fw_status);
+
+    protocol_handler_send_response(
+        cmd->cmd_id, cmd->seq, RESP_OK,
+        &fw_status, sizeof(fw_status));
+}
+
+// ============================================================================
+// Streaming
+// ============================================================================
 
 static void stream_task(void *param)
 {
