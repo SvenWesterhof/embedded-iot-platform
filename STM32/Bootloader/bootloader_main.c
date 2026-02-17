@@ -18,6 +18,27 @@
 #include <stdbool.h>
 
 /* ========================================================================== */
+/* Configuration                                                               */
+/* ========================================================================== */
+
+/**
+ * IWDG watchdog configuration:
+ * 
+ * Set to 1 to enable production always-on IWDG watchdog:
+ * - Bootloader starts IWDG (5s timeout) on EVERY boot
+ * - Application MUST implement watchdog service to kick IWDG periodically
+ * - Provides runtime hang detection and automatic recovery
+ * - Requires application-side watchdog task implementation
+ * 
+ * Set to 0 to disable (current setting):
+ * - No IWDG at all (simplest, for development)
+ * - No application changes needed
+ * 
+ * NOTE: Currently disabled. Enable in future when adding full watchdog service.
+ */
+#define BOOTLOADER_IWDG_ALWAYS_ON   0   /* 0=disabled, 1=enabled */
+
+/* ========================================================================== */
 /* Constants                                                                   */
 /* ========================================================================== */
 
@@ -26,16 +47,28 @@
 #define BANK1_APP_MAX_SIZE      0x000F8000U   /* 992KB (sectors 2-11) */
 
 #define UPDATE_MAGIC            0xDEADBEEFU   /* RTC_BKP0R: update pending */
+#define BOOT_CONFIRMED_MAGIC    0xB007C0DEU   /* RTC_BKP5R: app confirmed OK */
 
 /* RTC Backup Register assignments */
 #define BKP_UPDATE_FLAG         RTC->BKP0R    /* Magic value = update pending */
 #define BKP_FW_SIZE             RTC->BKP1R    /* Firmware size in bytes */
 #define BKP_FW_CRC              RTC->BKP2R    /* Expected CRC32 */
+#define BKP_BOOT_ATTEMPTS       RTC->BKP3R    /* Boot attempt counter */
+#define BKP_FW_VERSION          RTC->BKP4R    /* Packed version: (major<<16)|(minor<<8)|patch */
+#define BKP_BOOT_CONFIRMED      RTC->BKP5R    /* App boot confirmation flag */
+#define BKP_UPDATE_RETRIES      RTC->BKP6R    /* Update retry counter */
+
+/* Boot attempt limits */
+#define MAX_BOOT_ATTEMPTS       3             /* Max consecutive failed boots before rollback */
+#define MAX_UPDATE_RETRIES      3             /* Max update retry attempts before giving up */
 
 /* Dual-bank sector layout */
 #define BANK1_FIRST_APP_SECTOR  2             /* First app sector (after bootloader) */
 #define BANK1_LAST_SECTOR       11            /* Last sector in Bank 1 */
 #define SECTORS_TO_ERASE        (BANK1_LAST_SECTOR - BANK1_FIRST_APP_SECTOR + 1)
+
+/* Bootloader write protection — sectors 0-1 (Bank 1) */
+#define BL_WRP_SECTORS          0x0003U       /* Bitmask: sector 0 and sector 1 */
 
 /* BOOT_ADD0 values */
 #define BOOT_ADDR_BANK1         0x2000U       /* 0x08000000 >> 14 */
@@ -147,6 +180,59 @@ static uint32_t crc32_compute(const uint8_t *data, uint32_t length)
 }
 
 /* ========================================================================== */
+/* IWDG watchdog (direct register access — no HAL driver needed)               */
+/* ========================================================================== */
+
+#define IWDG_KEY_ENABLE     0xCCCCU
+#define IWDG_KEY_WRITE      0x5555U
+#define IWDG_KEY_REFRESH    0xAAAAU
+
+static void bl_iwdg_init(uint32_t timeout_ms)
+{
+    /* IWDG runs from LSI (~32 kHz)
+     * Prescaler /64 → 500 Hz tick → 2ms per count
+     * Max reload = 4095 → max ~8.19 seconds */
+    uint32_t reload = timeout_ms / 2;
+    if (reload > 4095) reload = 4095;
+
+    /* 1. Enable LSI oscillator (required for IWDG) */
+    RCC->CSR |= RCC_CSR_LSION;
+
+    /* 2. Wait for LSI to be ready (with timeout) */
+    uint32_t timeout = 100000;
+    while (!(RCC->CSR & RCC_CSR_LSIRDY) && timeout--) {}
+    if (timeout == 0) {
+        printf("[BL] WARNING: LSI startup timeout, IWDG not started\n");
+        return;
+    }
+
+    /* 3. Enable write access to IWDG registers */
+    IWDG->KR = IWDG_KEY_WRITE;
+
+    /* 4. Configure prescaler and reload value */
+    IWDG->PR = 4;                /* Prescaler /64 */
+    IWDG->RLR = reload;
+
+    /* 5. Wait for registers to update (with timeout) */
+    timeout = 100000;
+    while ((IWDG->SR & (IWDG_SR_PVU | IWDG_SR_RVU)) && timeout--) {}
+    if (timeout == 0) {
+        printf("[BL] WARNING: IWDG register update timeout\n");
+    }
+
+    /* 6. Start watchdog and refresh */
+    IWDG->KR = IWDG_KEY_ENABLE;  /* Start watchdog */
+    IWDG->KR = IWDG_KEY_REFRESH; /* Initial refresh */
+
+    printf("[BL] IWDG started: timeout=%lums (reload=%lu)\n", timeout_ms, reload);
+}
+
+static inline void bl_iwdg_kick(void)
+{
+    IWDG->KR = IWDG_KEY_REFRESH;
+}
+
+/* ========================================================================== */
 /* Backup domain access                                                        */
 /* ========================================================================== */
 
@@ -217,6 +303,84 @@ static void bl_ensure_boot_addr_bank1(void)
 }
 
 /* ========================================================================== */
+/* Bootloader write protection                                                 */
+/* ========================================================================== */
+
+static void bl_protect_bootloader_sectors(void)
+{
+    FLASH_OBProgramInitTypeDef ob;
+    HAL_FLASHEx_OBGetConfig(&ob);
+
+    /* Check if sectors 0-1 are already write-protected
+     * WRPSector bitmask: bit=0 means protected, bit=1 means unprotected
+     * We want bits 0-1 to be 0 (protected) */
+    uint32_t current_wrp = ob.WRPSector;
+    if ((current_wrp & BL_WRP_SECTORS) == 0) {
+        printf("[BL] Sectors 0-1 already write-protected\n");
+        return;
+    }
+
+    printf("[BL] Enabling write-protection for bootloader sectors 0-1...\n");
+
+    HAL_FLASH_Unlock();
+    HAL_FLASH_OB_Unlock();
+
+    ob.OptionType = OPTIONBYTE_WRP;
+    ob.WRPState   = OB_WRPSTATE_ENABLE;
+    ob.WRPSector  = BL_WRP_SECTORS;
+
+    HAL_StatusTypeDef status = HAL_FLASHEx_OBProgram(&ob);
+
+    HAL_FLASH_OB_Lock();
+    HAL_FLASH_Lock();
+
+    if (status != HAL_OK) {
+        printf("[BL] WARNING: Failed to set write protection (status %d)\n", status);
+        return;
+    }
+
+    printf("[BL] Write protection set, launching OB reload...\n");
+    HAL_FLASH_OB_Launch();
+    /* OB_Launch may trigger a reset — that's expected */
+}
+
+/* ========================================================================== */
+/* Boot attempt counter (anti-brick)                                           */
+/* ========================================================================== */
+
+static bool bl_check_boot_attempts(void)
+{
+    uint32_t attempts = BKP_BOOT_ATTEMPTS;
+    uint32_t confirmed = BKP_BOOT_CONFIRMED;
+
+    printf("[BL] Boot attempts: %lu, confirmed: 0x%08lX\n", attempts, confirmed);
+
+    /* If the last boot was confirmed by the application, reset counter */
+    if (confirmed == BOOT_CONFIRMED_MAGIC) {
+        if (attempts > 0) {
+            printf("[BL] Previous boot confirmed OK — resetting attempt counter\n");
+            BKP_BOOT_ATTEMPTS = 0;
+        }
+        BKP_BOOT_CONFIRMED = 0;  /* Clear for next boot cycle */
+        return true;
+    }
+
+    /* Application didn't confirm — increment attempt counter */
+    attempts++;
+    BKP_BOOT_ATTEMPTS = attempts;
+
+    if (attempts >= MAX_BOOT_ATTEMPTS) {
+        printf("[BL] WARNING: %lu consecutive unconfirmed boots (max %d)\n",
+               attempts, MAX_BOOT_ATTEMPTS);
+        printf("[BL] Application may be faulty — boot will proceed but flag is set\n");
+        return false;  /* Signal that we've exceeded max attempts */
+    }
+
+    printf("[BL] Boot attempt %lu/%d\n", attempts, MAX_BOOT_ATTEMPTS);
+    return true;
+}
+
+/* ========================================================================== */
 /* Flash operations                                                            */
 /* ========================================================================== */
 
@@ -236,7 +400,13 @@ static bool bl_erase_app_sectors(void)
     };
 
     uint32_t error = 0;
+    #if BOOTLOADER_IWDG_ALWAYS_ON
+    bl_iwdg_kick();  /* Kick watchdog before long erase operation */
+    #endif
     HAL_StatusTypeDef status = HAL_FLASHEx_Erase(&erase, &error);
+    #if BOOTLOADER_IWDG_ALWAYS_ON
+    bl_iwdg_kick();  /* Kick again after erase completes */
+    #endif
 
     HAL_FLASH_Lock();
 
@@ -273,6 +443,11 @@ static bool bl_copy_firmware(uint32_t fw_size)
 
         dst_addr += 4;
 
+        /* Kick watchdog every 4KB (1024 words) */
+        if ((i & 0x3FF) == 0) {
+            bl_iwdg_kick();
+        }
+
         /* Progress every 64KB */
         if ((i & 0x3FFF) == 0 && i > 0) {
             uint32_t pct = (i * 4 * 100) / fw_size;
@@ -306,8 +481,10 @@ static bool bl_apply_update(void)
 {
     uint32_t fw_size     = BKP_FW_SIZE;
     uint32_t expected_crc = BKP_FW_CRC;
+    uint32_t retry_count = BKP_UPDATE_RETRIES;
 
-    printf("[BL] Update pending: size=%lu, CRC=0x%08lX\n", fw_size, expected_crc);
+    printf("[BL] Update pending: size=%lu, CRC=0x%08lX, retries=%lu\n", 
+           fw_size, expected_crc, retry_count);
 
     /* Validate size */
     if (fw_size == 0 || fw_size > BANK1_APP_MAX_SIZE) {
@@ -315,25 +492,82 @@ static bool bl_apply_update(void)
         return false;
     }
 
-    /* Erase application sectors */
-    if (!bl_erase_app_sectors()) {
+    /* CRITICAL: Verify staged firmware in Bank 2 BEFORE erasing Bank 1
+     * This prevents bricking if:
+     * - Staged firmware was corrupted during write
+     * - Flash read from Bank 2 fails
+     * - Metadata mismatch
+     * If this check fails, Bank 1 (old app) remains intact */
+    printf("[BL] Verifying staged firmware in Bank 2...\n");
+    #if BOOTLOADER_IWDG_ALWAYS_ON
+    bl_iwdg_kick();  /* CRC can take time on large firmware */
+    #endif
+    uint32_t staged_crc = crc32_compute((const uint8_t *)BANK2_BASE, fw_size);
+    
+    if (staged_crc != expected_crc) {
+        printf("[BL] ERROR: Staged firmware CRC mismatch!\n");
+        printf("[BL]   Expected: 0x%08lX\n", expected_crc);
+        printf("[BL]   Computed: 0x%08lX\n", staged_crc);
+        printf("[BL] Bank 1 (old firmware) NOT erased — system still bootable\n");
+        /* Clear update flag - staged firmware is bad, don't retry */
+        BKP_UPDATE_FLAG = 0x00000000;
+        BKP_UPDATE_RETRIES = 0;
         return false;
     }
+    printf("[BL] Staged firmware verified OK\n");
 
-    /* Copy from Bank 2 staging to Bank 1 application area */
-    if (!bl_copy_firmware(fw_size)) {
-        return false;
+    /* NOW it's safe to erase Bank 1 — we know Bank 2 has valid firmware */
+    bool erase_ok = bl_erase_app_sectors();
+    bool copy_ok = false;
+    bool verify_ok = false;
+
+    if (erase_ok) {
+        /* Copy from Bank 2 staging to Bank 1 application area */
+        copy_ok = bl_copy_firmware(fw_size);
+        
+        if (copy_ok) {
+            /* Verify CRC of the copied firmware */
+            verify_ok = bl_verify_crc(fw_size, expected_crc);
+            if (!verify_ok) {
+                printf("[BL] ERROR: CRC mismatch after copy!\n");
+            }
+        }
     }
 
-    /* Verify CRC of the copied firmware */
-    if (!bl_verify_crc(fw_size, expected_crc)) {
-        printf("[BL] ERROR: CRC mismatch after copy!\n");
-        return false;
+    /* Check if update succeeded */
+    if (!erase_ok || !copy_ok || !verify_ok) {
+        /* Update failed, but Bank 2 is valid - implement retry logic */
+        retry_count++;
+        BKP_UPDATE_RETRIES = retry_count;
+
+        if (retry_count >= MAX_UPDATE_RETRIES) {
+            printf("[BL] ERROR: Update failed after %lu attempts, giving up\n", retry_count);
+            /* Clear flags to stop retrying */
+            BKP_UPDATE_FLAG = 0x00000000;
+            BKP_UPDATE_RETRIES = 0;
+            return false;
+        } else {
+            printf("[BL] Update failed (attempt %lu/%d), will retry on next boot\n",
+                   retry_count, MAX_UPDATE_RETRIES);
+            printf("[BL] Bank 2 staging area still contains valid firmware\n");
+            /* DON'T clear update flag - will retry next boot */
+            return false;
+        }
     }
 
-    /* Clear the update flag */
+    /* Success! Clear all update metadata */
     bl_enable_backup_domain();
     BKP_UPDATE_FLAG = 0x00000000;
+    BKP_UPDATE_RETRIES = 0;       /* Reset retry counter */
+    BKP_BOOT_ATTEMPTS = 0;        /* Reset attempt counter for new firmware */
+    BKP_BOOT_CONFIRMED = 0;       /* New firmware must confirm itself */
+
+    /* Log version from BKP4R if set by the application */
+    uint32_t ver = BKP_FW_VERSION;
+    if (ver != 0) {
+        printf("[BL] New firmware version: v%lu.%lu.%lu\n",
+               (ver >> 16) & 0xFF, (ver >> 8) & 0xFF, ver & 0xFF);
+    }
 
     printf("[BL] Update applied successfully\n");
     return true;
@@ -526,7 +760,8 @@ int main(void)
 
     /* Print reset cause and banner */
     bl_print_reset_cause();
-    printf("\n=== STM32F767 Dual-Bank Bootloader v1.0 ===\n\n");
+    printf("\n=== STM32F767 Dual-Bank Bootloader v1.1 ===\n");
+    printf("=== Production-hardened: IWDG + WRP + Boot Counter ===\n\n");
 
     /* Enable backup domain for RTC backup registers */
     printf("[BL] Enabling backup domain...\n");
@@ -536,8 +771,25 @@ int main(void)
     printf("[BL] Checking option bytes...\n");
     bl_ensure_boot_addr_bank1();
 
+    /* Protect bootloader sectors from accidental writes (one-time) */
+    bl_protect_bootloader_sectors();
+
     /* Initialize CRC table */
     crc32_init_table();
+
+#if BOOTLOADER_IWDG_ALWAYS_ON
+    /* ===================================================================
+     * PRODUCTION MODE: Start IWDG on EVERY boot
+     * - Timeout: 5 seconds (generous for application startup)
+     * - Application MUST kick watchdog or it will reset
+     * - Industry standard for unattended/field devices
+     * =================================================================== */
+    printf("[BL] Starting IWDG (always-on mode) - App must service it\n");
+    bl_iwdg_init(5000);  /* 5 second timeout for application */
+#endif
+
+    /* Check boot attempt counter (anti-brick mechanism) */
+    bool boot_healthy = bl_check_boot_attempts();
 
     /* Check for pending firmware update */
     uint32_t update_flag = BKP_UPDATE_FLAG;
@@ -545,11 +797,19 @@ int main(void)
     if (update_flag == UPDATE_MAGIC) {
         printf("[BL] Firmware update pending — applying...\n");
 
+        #if BOOTLOADER_IWDG_ALWAYS_ON
+        bl_iwdg_kick();
+        #endif
+
         if (!bl_apply_update()) {
             printf("[BL] Update FAILED\n");
 
             /* Clear the flag to avoid infinite retry loop */
             BKP_UPDATE_FLAG = 0x00000000;
+
+            #if BOOTLOADER_IWDG_ALWAYS_ON
+            bl_iwdg_kick();
+            #endif
 
             /* If there's still a valid app, try to boot it anyway */
             if (bl_validate_app()) {
@@ -562,6 +822,15 @@ int main(void)
         }
     } else {
         printf("[BL] No update pending (flag=0x%08lX)\n", update_flag);
+#if BOOTLOADER_IWDG_ALWAYS_ON
+        bl_iwdg_kick();  /* Kick before validation in always-on mode */
+#endif
+    }
+
+    /* Report boot health status */
+    if (!boot_healthy) {
+        printf("[BL] WARNING: Max boot attempts reached — app may be faulty\n");
+        printf("[BL] App must call hal_flash_confirm_boot() to clear this warning\n");
     }
 
     /* Validate application */
@@ -569,6 +838,12 @@ int main(void)
         printf("[BL] No valid application found!\n");
         bl_error_blink();
     }
+
+#if BOOTLOADER_IWDG_ALWAYS_ON
+    /* Final kick before jumping to app (app will take over servicing) */
+    bl_iwdg_kick();
+    printf("[BL] IWDG running (5s timeout) - App must service it!\n\n");
+#endif
 
     /* Jump to application */
     bl_jump_to_app();

@@ -231,10 +231,12 @@ void serv_firmware_update_apply(void)
     }
 
     LOG_I(TAG, "Applying: setting update flag and resetting...");
-    LOG_I(TAG, "Bootloader will copy %lu bytes from Bank 2 to app area on next boot",
-          s_fw.total_size);
+    LOG_I(TAG, "New firmware: v%u.%u.%u, %lu bytes",
+          s_fw.version_major, s_fw.version_minor, s_fw.version_patch, s_fw.total_size);
+    LOG_I(TAG, "Bootloader will copy from Bank 2 to app area on next boot");
 
-    hal_flash_set_update_flag(s_fw.total_size, s_fw.crc32_expected);
+    hal_flash_set_update_flag(s_fw.total_size, s_fw.crc32_expected,
+                              s_fw.version_major, s_fw.version_minor, s_fw.version_patch);
     hal_flash_reset_for_update();
     // Does not return
 }
