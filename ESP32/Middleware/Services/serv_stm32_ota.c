@@ -9,9 +9,10 @@
 #include "event_bus.h"
 #include "os_wrapper.h"
 #include "portable_log.h"
-#include "protocol_common.h"
+#include "feat_stm32_protocol.h"
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 static const char *TAG = "STM32_OTA_SVC";
 
@@ -189,6 +190,149 @@ serv_stm32_ota_status_t serv_stm32_ota_deinit(void)
 }
 
 // ============================================================================
+// UART Firmware Transfer
+// ============================================================================
+
+#define FW_CHUNK_DATA_SIZE   252  // 256 max payload - 4 byte chunk header
+#define FW_CHUNK_TIMEOUT_MS  5000
+#define FW_CHUNK_MAX_RETRIES 3
+#define FW_END_TIMEOUT_MS    10000
+#define FW_ERASE_POLL_MS     1000  // Poll interval while waiting for bank erase
+#define FW_ERASE_TIMEOUT_MS  15000 // Max time to wait for bank erase
+
+static bool transfer_firmware_to_stm32(const uint8_t *fw_data, uint32_t fw_size)
+{
+    // Parse version string (e.g. "1.2.3")
+    uint8_t ver_major = 0, ver_minor = 0, ver_patch = 0;
+    sscanf(s_ctx.current_update.version, "%hhu.%hhu.%hhu",
+           &ver_major, &ver_minor, &ver_patch);
+
+    // Step 1: Send CMD_FW_UPDATE_START
+    cmd_fw_update_start_t start_cmd = {
+        .total_size = fw_size,
+        .crc32 = s_ctx.current_update.crc32,
+        .chunk_size = FW_CHUNK_DATA_SIZE,
+        .version_major = ver_major,
+        .version_minor = ver_minor,
+        .version_patch = ver_patch,
+    };
+
+    LOG_I(TAG, "Sending FW_UPDATE_START: %lu bytes, v%u.%u.%u",
+          fw_size, ver_major, ver_minor, ver_patch);
+
+    int resp = stm32_protocol_send_command(CMD_FW_UPDATE_START,
+                &start_cmd, sizeof(start_cmd), NULL, NULL, FW_CHUNK_TIMEOUT_MS);
+    if (resp != RESP_OK) {
+        LOG_E(TAG, "STM32 rejected FW_UPDATE_START: %d", resp);
+        return false;
+    }
+
+    // Step 1b: Poll until STM32 finishes erasing flash bank
+    LOG_I(TAG, "Waiting for STM32 to erase flash bank...");
+    uint32_t erase_start = os_get_time_ms();
+    bool erase_done = false;
+
+    while ((os_get_time_ms() - erase_start) < FW_ERASE_TIMEOUT_MS) {
+        os_delay_ms(FW_ERASE_POLL_MS);
+
+        resp_fw_update_status_t fw_status = {0};
+        size_t status_len = sizeof(fw_status);
+        resp = stm32_protocol_send_command(CMD_FW_UPDATE_STATUS,
+                    NULL, 0, &fw_status, &status_len,
+                    FW_CHUNK_TIMEOUT_MS);
+        if (resp != RESP_OK) {
+            LOG_W(TAG, "Status poll failed: %d", resp);
+            continue;
+        }
+
+        if (fw_status.state == FW_UPDATE_RECEIVING) {
+            LOG_I(TAG, "STM32 flash erased, ready to receive chunks");
+            erase_done = true;
+            break;
+        } else if (fw_status.state == FW_UPDATE_ERROR) {
+            LOG_E(TAG, "STM32 erase failed (error_code=%u)", fw_status.error_code);
+            return false;
+        }
+        // Still ERASING, keep polling
+    }
+
+    if (!erase_done) {
+        LOG_E(TAG, "STM32 erase timed out after %u ms", FW_ERASE_TIMEOUT_MS);
+        stm32_protocol_send_command(CMD_FW_UPDATE_ABORT, NULL, 0, NULL, NULL, 2000);
+        return false;
+    }
+
+    // Step 2: Send firmware chunks
+    uint16_t total_chunks = (uint16_t)((fw_size + FW_CHUNK_DATA_SIZE - 1) / FW_CHUNK_DATA_SIZE);
+    uint8_t last_progress = 0;
+
+    LOG_I(TAG, "Sending %u chunks (%u bytes each)", total_chunks, FW_CHUNK_DATA_SIZE);
+
+    for (uint16_t i = 0; i < total_chunks; i++) {
+        uint32_t offset = (uint32_t)i * FW_CHUNK_DATA_SIZE;
+        uint32_t remaining = fw_size - offset;
+        uint16_t this_len = (remaining > FW_CHUNK_DATA_SIZE)
+                            ? FW_CHUNK_DATA_SIZE : (uint16_t)remaining;
+
+        cmd_fw_update_chunk_t chunk = {
+            .chunk_index = i,
+            .chunk_length = this_len,
+        };
+        memcpy(chunk.data, fw_data + offset, this_len);
+
+        // Retry logic for individual chunks
+        bool chunk_sent = false;
+        for (int retry = 0; retry <= FW_CHUNK_MAX_RETRIES; retry++) {
+            resp = stm32_protocol_send_command(CMD_FW_UPDATE_CHUNK,
+                        &chunk, 4 + this_len, NULL, NULL, FW_CHUNK_TIMEOUT_MS);
+            if (resp == RESP_OK) {
+                chunk_sent = true;
+                break;
+            }
+            if (retry < FW_CHUNK_MAX_RETRIES) {
+                LOG_W(TAG, "Chunk %u/%u failed (resp=%d), retry %d/%d",
+                      i, total_chunks, resp, retry + 1, FW_CHUNK_MAX_RETRIES);
+            }
+        }
+
+        if (!chunk_sent) {
+            LOG_E(TAG, "Chunk %u/%u failed after %d retries",
+                  i, total_chunks, FW_CHUNK_MAX_RETRIES);
+            stm32_protocol_send_command(CMD_FW_UPDATE_ABORT,
+                        NULL, 0, NULL, NULL, 2000);
+            return false;
+        }
+
+        // Progress reporting at ~10% intervals
+        uint8_t progress = (uint8_t)((uint32_t)(i + 1) * 100 / total_chunks);
+        if (progress >= last_progress + 10 || i == total_chunks - 1) {
+            event_bus_publish(EVENT_STM32_OTA_PROGRESS, &progress);
+            last_progress = progress;
+            LOG_I(TAG, "Transfer progress: %u%%", progress);
+        }
+    }
+
+    // Step 3: Send CMD_FW_UPDATE_END
+    cmd_fw_update_end_t end_cmd = {
+        .validate_only = s_ctx.current_update.auto_apply ? 0 : 1,
+    };
+
+    LOG_I(TAG, "Sending FW_UPDATE_END (auto_apply=%s)",
+          s_ctx.current_update.auto_apply ? "yes" : "no");
+
+    resp = stm32_protocol_send_command(CMD_FW_UPDATE_END,
+                &end_cmd, sizeof(end_cmd), NULL, NULL, FW_END_TIMEOUT_MS);
+    if (resp != RESP_OK) {
+        LOG_E(TAG, "FW_UPDATE_END failed: %d", resp);
+        return false;
+    }
+
+    LOG_I(TAG, "Firmware transfer completed: %lu bytes in %u chunks",
+          fw_size, total_chunks);
+    return true;
+}
+
+// ============================================================================
 // Internal Task
 // ============================================================================
 
@@ -254,13 +398,12 @@ static void stm32_ota_task(void *arg)
 
     // Phase 3: Transfer to STM32 via UART
     LOG_I(TAG, "Phase 3: Transferring firmware to STM32...");
-    // TODO: Implement UART transfer via feat_stm32_protocol
-    // - Send CMD_FW_UPDATE_START with total_size, crc32, version
-    // - Send firmware in CMD_FW_UPDATE_CHUNK packets (256 bytes each)
-    // - Send CMD_FW_UPDATE_END
-    // - Wait for STM32 reboot and verification
-    LOG_W(TAG, "UART transfer not yet implemented");
+    if (!transfer_firmware_to_stm32(firmware_buffer, firmware_size)) {
+        LOG_E(TAG, "UART transfer to STM32 failed");
+        goto cleanup;
+    }
 
+    LOG_I(TAG, "Firmware transfer to STM32 complete");
     final_state = STM32_OTA_STATE_COMPLETE;
 
 cleanup:
@@ -282,6 +425,12 @@ cleanup:
     } else {
         LOG_E(TAG, "STM32 OTA failed");
         event_bus_publish(EVENT_STM32_OTA_FAILED, NULL);
+    }
+
+    // Reset state to IDLE so next OTA trigger can proceed
+    if (os_mutex_take(s_ctx.state_mutex, 1000) == OS_SUCCESS) {
+        s_ctx.state = STM32_OTA_STATE_IDLE;
+        os_mutex_give(s_ctx.state_mutex);
     }
 
     os_task_delete(NULL);

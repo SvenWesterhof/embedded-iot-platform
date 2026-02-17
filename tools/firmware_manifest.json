@@ -2,6 +2,593 @@
   "manifest_version": "2.0",
   "firmware_releases": [
     {
+      "platform": "stm32",
+      "version": "1.2.6",
+      "release_date": "2026-02-16T15:19:31Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.6.bin",
+      "file_size": 102896,
+      "checksum": {
+        "sha256": "d5519ecfa2dac6c378efc8e11a7d8f466a814194c9ac587b0f1ef1829ba14057",
+        "crc32": 323863509
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "28IdLckYeHu47Y1+9SlcAB+K1+zRziqu8RTfv07zpvXf1XLCgkI12XdfnCvmUH7cR9bQV67wIWDtAKkGQ/mWqp06FnME56M4rIKeRxKerzHOt9jsdgzcfRBSGdYXePTxZV/DrW+BAKD0haiJIazHztUeW8m5oFKFanSqzZ7ouhtvV7qCEo67xTmpxZMyM/juMJDOLLiohXKvmUY6Z20bl+Ow2jBo1PS5CDSroVM7lErSjfq+9GnqrIZ8WhL73GkR9IbX86Ijp57GgyiUNsjsl9KaoZGZj4bJ+Y15MCBO7hzYeh/lBz1wEk3bt1RXKfzulnWEkYOoGBRRn5jI6CZaJQ=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.6",
+      "release_date": "2026-02-16T15:17:33Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.6.bin",
+      "file_size": 102896,
+      "checksum": {
+        "sha256": "d5519ecfa2dac6c378efc8e11a7d8f466a814194c9ac587b0f1ef1829ba14057",
+        "crc32": 323863509
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "28IdLckYeHu47Y1+9SlcAB+K1+zRziqu8RTfv07zpvXf1XLCgkI12XdfnCvmUH7cR9bQV67wIWDtAKkGQ/mWqp06FnME56M4rIKeRxKerzHOt9jsdgzcfRBSGdYXePTxZV/DrW+BAKD0haiJIazHztUeW8m5oFKFanSqzZ7ouhtvV7qCEo67xTmpxZMyM/juMJDOLLiohXKvmUY6Z20bl+Ow2jBo1PS5CDSroVM7lErSjfq+9GnqrIZ8WhL73GkR9IbX86Ijp57GgyiUNsjsl9KaoZGZj4bJ+Y15MCBO7hzYeh/lBz1wEk3bt1RXKfzulnWEkYOoGBRRn5jI6CZaJQ=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.6",
+      "release_date": "2026-02-16T15:10:28Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.6.bin",
+      "file_size": 102992,
+      "checksum": {
+        "sha256": "3006a37f759087668d242c583000da175812eedc1535268e231d55216fd20167",
+        "crc32": 4273154155
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "JHBfb+cE1Q/3mXZNg244M4+et7fQSQWoh7pk8q0HHIRSimzBFIFTqeiVtjYe2rmofHDqv78yDsPMRDIkW0ekDZ7T/zWtmg0l0tFdqRB9S4rV92tJ8dgGCFRRAcVh+Tu8+MNemdbIprVq7tZr2flUmi26cnT3zjmPDpkp3XppK15PE+9mgtNsJXhWNq3O2eNAWcV2EiRFT3lO9P99jhwWM27y7CgO6z0EGFDYr2YgTsvZqEthZZxcyltny7R2MjQfCCrdICe1f5nM7fPCWqUCJ9Mx8gL/taVFGi5WBtBVDvnVP6JQFsJqVqdbOTmUI3f9FUpZ7XqwlVjQ8TIhSgimUw=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.6",
+      "release_date": "2026-02-16T15:06:46Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.6.bin",
+      "file_size": 102992,
+      "checksum": {
+        "sha256": "3006a37f759087668d242c583000da175812eedc1535268e231d55216fd20167",
+        "crc32": 4273154155
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "JHBfb+cE1Q/3mXZNg244M4+et7fQSQWoh7pk8q0HHIRSimzBFIFTqeiVtjYe2rmofHDqv78yDsPMRDIkW0ekDZ7T/zWtmg0l0tFdqRB9S4rV92tJ8dgGCFRRAcVh+Tu8+MNemdbIprVq7tZr2flUmi26cnT3zjmPDpkp3XppK15PE+9mgtNsJXhWNq3O2eNAWcV2EiRFT3lO9P99jhwWM27y7CgO6z0EGFDYr2YgTsvZqEthZZxcyltny7R2MjQfCCrdICe1f5nM7fPCWqUCJ9Mx8gL/taVFGi5WBtBVDvnVP6JQFsJqVqdbOTmUI3f9FUpZ7XqwlVjQ8TIhSgimUw=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.6",
+      "release_date": "2026-02-16T15:02:15Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.6.bin",
+      "file_size": 102992,
+      "checksum": {
+        "sha256": "3006a37f759087668d242c583000da175812eedc1535268e231d55216fd20167",
+        "crc32": 4273154155
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "JHBfb+cE1Q/3mXZNg244M4+et7fQSQWoh7pk8q0HHIRSimzBFIFTqeiVtjYe2rmofHDqv78yDsPMRDIkW0ekDZ7T/zWtmg0l0tFdqRB9S4rV92tJ8dgGCFRRAcVh+Tu8+MNemdbIprVq7tZr2flUmi26cnT3zjmPDpkp3XppK15PE+9mgtNsJXhWNq3O2eNAWcV2EiRFT3lO9P99jhwWM27y7CgO6z0EGFDYr2YgTsvZqEthZZxcyltny7R2MjQfCCrdICe1f5nM7fPCWqUCJ9Mx8gL/taVFGi5WBtBVDvnVP6JQFsJqVqdbOTmUI3f9FUpZ7XqwlVjQ8TIhSgimUw=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.6",
+      "release_date": "2026-02-16T14:49:04Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.6.bin",
+      "file_size": 102784,
+      "checksum": {
+        "sha256": "d86b0feff425d6c6cb071548154eac827a938cebf63b836ae7ae6da9163f72d3",
+        "crc32": 575285032
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "kR5ZttBXItt9j2Edv5gZFhc3/NKRSS4eBgjdEa8V2EdhJD6m22MEUhIG9/qbuUJIhs1PJtlqO5RrEG2/KFPi39xoSJ9J09iQjQqknaKQj6IxGD/9HLdtE7TT9ox+5ulSLhf/aDWX1SW/8PPLigqiLtfP8pfV1pDQEzMd48JOmW9Cg76+vpVwIIU4VGzntBTs01wA50vsbxFNH5KznobHXZKRaV5XnchJHxSDvzRXCGyGYNBCXaFTx3soO7tNS5fiUwNihnySuy5p6Pn73vB1rvPdBWcrIizA/FP86iIghJDS+ANoHb+WwhVzXFKqsxG5tAZx5XRAG09xm+8E00oj4A=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.6",
+      "release_date": "2026-02-16T14:47:28Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.6.bin",
+      "file_size": 102784,
+      "checksum": {
+        "sha256": "d86b0feff425d6c6cb071548154eac827a938cebf63b836ae7ae6da9163f72d3",
+        "crc32": 575285032
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "kR5ZttBXItt9j2Edv5gZFhc3/NKRSS4eBgjdEa8V2EdhJD6m22MEUhIG9/qbuUJIhs1PJtlqO5RrEG2/KFPi39xoSJ9J09iQjQqknaKQj6IxGD/9HLdtE7TT9ox+5ulSLhf/aDWX1SW/8PPLigqiLtfP8pfV1pDQEzMd48JOmW9Cg76+vpVwIIU4VGzntBTs01wA50vsbxFNH5KznobHXZKRaV5XnchJHxSDvzRXCGyGYNBCXaFTx3soO7tNS5fiUwNihnySuy5p6Pn73vB1rvPdBWcrIizA/FP86iIghJDS+ANoHb+WwhVzXFKqsxG5tAZx5XRAG09xm+8E00oj4A=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.6",
+      "release_date": "2026-02-16T14:43:23Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.6.bin",
+      "file_size": 102784,
+      "checksum": {
+        "sha256": "d86b0feff425d6c6cb071548154eac827a938cebf63b836ae7ae6da9163f72d3",
+        "crc32": 575285032
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "kR5ZttBXItt9j2Edv5gZFhc3/NKRSS4eBgjdEa8V2EdhJD6m22MEUhIG9/qbuUJIhs1PJtlqO5RrEG2/KFPi39xoSJ9J09iQjQqknaKQj6IxGD/9HLdtE7TT9ox+5ulSLhf/aDWX1SW/8PPLigqiLtfP8pfV1pDQEzMd48JOmW9Cg76+vpVwIIU4VGzntBTs01wA50vsbxFNH5KznobHXZKRaV5XnchJHxSDvzRXCGyGYNBCXaFTx3soO7tNS5fiUwNihnySuy5p6Pn73vB1rvPdBWcrIizA/FP86iIghJDS+ANoHb+WwhVzXFKqsxG5tAZx5XRAG09xm+8E00oj4A=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.6",
+      "release_date": "2026-02-16T14:41:55Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.6.bin",
+      "file_size": 102784,
+      "checksum": {
+        "sha256": "d86b0feff425d6c6cb071548154eac827a938cebf63b836ae7ae6da9163f72d3",
+        "crc32": 575285032
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "kR5ZttBXItt9j2Edv5gZFhc3/NKRSS4eBgjdEa8V2EdhJD6m22MEUhIG9/qbuUJIhs1PJtlqO5RrEG2/KFPi39xoSJ9J09iQjQqknaKQj6IxGD/9HLdtE7TT9ox+5ulSLhf/aDWX1SW/8PPLigqiLtfP8pfV1pDQEzMd48JOmW9Cg76+vpVwIIU4VGzntBTs01wA50vsbxFNH5KznobHXZKRaV5XnchJHxSDvzRXCGyGYNBCXaFTx3soO7tNS5fiUwNihnySuy5p6Pn73vB1rvPdBWcrIizA/FP86iIghJDS+ANoHb+WwhVzXFKqsxG5tAZx5XRAG09xm+8E00oj4A=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.6",
+      "release_date": "2026-02-16T14:34:22Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.6.bin",
+      "file_size": 102640,
+      "checksum": {
+        "sha256": "226ca3670135ef4b1bdcd96bb9ac95619cb311845c779fefbb5a040cd2abc09a",
+        "crc32": 2389483426
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "bru8ADcmjocWZYfCllQQwUnjV/ppS+jftJ+Vg30NRrrglAECWlKXx1J7JNu6QCIodqSb6PvNsauYkw7YI98MwuQYSTHcas37cW7cfkrBPA5JcoELFQ2CwCAbu9XDEyWWRsbxJbsnJSwzioWswxxGiQFTC35nFvyeDDwNwWAu6g4Sx2DHO5B+r+k2mFHWQdfw0Pq2BjqTp9V+nI2im1Suz0cbN+B8FECl1XhpdPoj/dIUTEn69En5VuWZDBCKBlqAX3HhMNnoHeo9r32MFxOsRGAqI9fwlrCTjApQhyGIWu8OfN6gSr6oJeeJ/bXVa2D7g711f0KCb6/D5bt0G+wI7w=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.6",
+      "release_date": "2026-02-16T14:32:10Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.6.bin",
+      "file_size": 102640,
+      "checksum": {
+        "sha256": "9357285e80172bcfd34ee49a74f0c7b3f73a9bb2803446748f35cccda24785f6",
+        "crc32": 4068718258
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "xEKBg/16BgIEWw3Ev7WAZ4lV1OAx4Q2F6RdWsG4lr97/31ZHvxBfiDB5Pc/qkFjfzjqAG0XzlFJP9grGGTd50gcmLgXCTJzAZYqRr70wmpJDEfVudRrANQzezlBi74k2a+/G4fSCzC6Fjp1PECM3fL0m9yTv5T4RVWPthsbQ4JWE/wufd5obhzLVA1nLYMYUc8FcmiK2g8Ets9nhl2wGNlbO8uwdn/9VmqPqwdknXSIpueCsUxEXl1AkQsSRRAM6l8Io9hj4jlQN1mZedv9DRGO3SuNpwQXtZmYaW3pwRjZcRIuYxh29+OteBgfWNLOtSyGWr89NSxqRv/92ulQ03w=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.6",
+      "release_date": "2026-02-16T14:24:47Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.6.bin",
+      "file_size": 102712,
+      "checksum": {
+        "sha256": "61c4439b59552f2f3012d0f6a558556127d45b321de07a252e4d8ad1cef40084",
+        "crc32": 712918818
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "tn1Gp9RHJNy2O91bb40SJVgFZoAJDR7uDnOM2YwDgrZCXAcbMb/M7IcYtHkkQefib9b3uT/1yRUGrE7YQJtzk85lS6KYCCB6TgAQGx+n19OlrhnzyU4aDOQwCrHyWw7TLy+59HLTI4aHiTBzaLLy9M3t0GoAWvU0oaurbtVDpzhO7fCcBb7Fe65X/x+YtkHBvTth7OZOGFzqANDNk0uPNL/paOhUJrxv/PCFjqR+WyeicKKkhz72oWd6xEP4Fs6YdBzs8ZqzY21GiYpuFFSFJ3ZhnElNeR3/dp4JseydvCQN4Kx5Gjfx7xMzfRiW1vZrQnKB9py6O6+cl4KoXNSmyQ=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.6",
+      "release_date": "2026-02-16T14:22:52Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.6.bin",
+      "file_size": 102712,
+      "checksum": {
+        "sha256": "a5e1f82d62d93296eaf838da9fb463a6d397232f82a4656099c6596a848cc738",
+        "crc32": 3634018551
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "OY9urCGEqfFjkfLroIv7h6omjq4KYuEfIOewmu1BybuygeOS/e3oD0nA6Mg7rdqK94JIDMK6VOioz2lqGIfEEtw77h/jGl6u3/khdJP5Xzo6FXGNXvEziMF65g8gTKtcTtxU5VMuulEFVfEtWBrbkSqEXHBn2tvJEP4DeDnQxOQRPFDMK+7TNaEQKsK5kLBmNoakNEPOgfVKoft63fiYRTapDtaDW18mAakDr/7MY9PtGG5vpbbE9PYGcuoNqHMnN3JvTpUg/xXsC47f2rKfUFlzxz4z8kvyyQDxsEXq1mOpOI+cm7pY8onO9lTNwt7AZIQHmr9nOsdcHyZQhtvGkg=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.6",
+      "release_date": "2026-02-16T14:16:00Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.6.bin",
+      "file_size": 102600,
+      "checksum": {
+        "sha256": "f6e34c504a837bfdc055153f0c287d7692f8338109c83f012774d9c731094b57",
+        "crc32": 1206264022
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "qmvHb2rjoSEn9/X/hHmM5c1fNu8UwdIgd6lVFN5W0ZjLmI8s+Qim05em5nxVd5++5SaQecuzi/sNKHs7uE6bc0UH8Epmneb039TpiBpZ7ua9QiFpPMUgChEgyK+AC/AAW0hoXwVJb6cGwS+xKcjWrfBpoQLphV7xcAJywnfR+7KmAaYxUn7wa8h6vKm/nly7sD2sWK3Tbu41hnCWk1ecJtaBnYg6865uYe2GD16+Bu9oanJ/8tcTbF0YNxM0lMzVoraUa1zgVNjuCc0F15EXoIPz5DfAuyuuU/vgJr4nXuEeWlkoqWqWOY+qmBvgo31cNZbfsNXCXFzXlmxUGbdyoQ=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.6",
+      "release_date": "2026-02-16T14:09:45Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.6.bin",
+      "file_size": 102608,
+      "checksum": {
+        "sha256": "15ba40bfc51a5aec286287f1bab3d9901f4de5ed452976c6a96bb4be1e318c33",
+        "crc32": 1746868299
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "UVMBxooFy79KCzhcDr4LlBgJs+PJKXv2HgiTgn5BY4SVZg8zxxbB78TI36Evi31eY6zSmv+u2cddzUsiyj2qXeEZuoMJyMGx0OqNdFmMQafHU3wxdo3VsuEHKjQXYBt019xllZZUsLojuBBr9hcCOlRyfEjGkRCRYu6KJMFEBCWXY1aY/6AePmUawxJDRCU8q/1uU4O/dMej84M7GsbF/t9TezWo+AfB2k22LTm7WLbFZa5eye4YCeUcMJ0boseskdMH/4h1dWwEtKQX9xnfoK6zBqJatxB03yvOdVg4E3wkgMsFKAUKMegchIvniR1GxLPj2klzEzbRNU/zZqaPoA=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.6",
+      "release_date": "2026-02-16T14:02:04Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.6.bin",
+      "file_size": 102256,
+      "checksum": {
+        "sha256": "7b05733961c8f098cda7ad38e64a0e95f26a2664f8a2766f3abafc9c99f0b1c4",
+        "crc32": 2630215252
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "h/frgFe/VssLOwLLxTwaTclvuZN7SgGF3dfmZjvOC82yWshjiL5lou1b50f9lqBUbH4PeRnSWEsvaxo4wZ/wxhaoAzxRVdFN0Ke/Z/F5pj6JHW6Jr/DFwLnnou7xcmMXpZJH0MjGAeJ4Redj6UpSPdxYIzFSxwF5UI/nzzu3Ef6Swih74OhjDgqSIpjDVhJywXV/s8XbopbdgDtuySLBxdCf8Td2Jxi72H26hiJEeFqvFViYyX4PfDfFvMVLPXI4lR4kwVH2psz/yJPq6FXWnaVRzBqypd3N5bTf4dbleSK6yPWDS36K2Mw9jvLqxauGrl0NunEuHUTFjE66P40sIQ=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.5",
+      "release_date": "2026-02-16T13:55:20Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.5.bin",
+      "file_size": 101576,
+      "checksum": {
+        "sha256": "db60c65de801ea804ab378b2871a1587e630f2611bd7b09e930db9af5194fa3a",
+        "crc32": 748951031
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "fSziOv3vfooQQlnpe/AVZGOJcnnIMA0+JotJVgkZkn4bmXt+/Gj1j8iPGc56UA9xIPby8zqqZkPf7OfCwASDNDzrZhF8vSjpWJt2QQxFC6iEqey6z2orZwEhulTdza+74uYGz40IajLhZUxYl0uDxB+gq/yD8AbKVDn2BHHtgobW1c5A3rQZejPxiug4Ru1nVIi6Cmjpn/KMATUpFlFltdG/WKrGEORWR3jjIDlX79TTJi00WOKgWiw6h2P/fg/gfs7Ep2PNQ45veB3AxvUZ2hpY1OVjTwJoGSRwxbcDi85HOIOT3dI8NBzVY9xPgvLzVNZet1e9Q5I9ER2siI/e9w=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.5",
+      "release_date": "2026-02-16T13:37:43Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.5.bin",
+      "file_size": 101528,
+      "checksum": {
+        "sha256": "882d263d22ee9518443efce21be9af7428753b8394e5b719739a959a06818146",
+        "crc32": 4089027913
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "Mk9YmSqwikM+qFYNRRjfQW3dYPHXZngsJAdY/Emm9h3sdCOgBn12KEd/VkQnws/Tnao1zsACXW/QF3UtmTrViBLubuRmGR14OOtoq/bBPZ3cgWt4qVn/Qub5aMaIMFlynN+yXgwjKUZ00UxeAg3J3CahO9AZGFTV7hLx3jPHu15Ok52xzoNOCbgbSJOgNLL07E+ZxmxGSgXiG+S1rBzhbDVOAMJWvyYbp7FFnm01WY7xsHx2rG0z8NsQPcc0S0ZN+QckK8/sFlEy5GbYk31XjuIDznj7bXEwUKpkaKL9epfr4RsYHBsu85cRUPRgfMokCOKBWzywAY3u2nmN6loy8Q=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.5",
+      "release_date": "2026-02-16T13:34:38Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.5.bin",
+      "file_size": 101528,
+      "checksum": {
+        "sha256": "8e233fc90d3950c930e8bd884cba0f0e1dda69c5baeaa394e59622b9474c765c",
+        "crc32": 1262850888
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "mmrSz6Qvv/AU/q82BmzUFC/F38e/WkCmiIibR+Lz59nAf/XGTqdMujfxi11KojhVY43Aoc2zE8N0alqkiPOtEpucZTJZpYvWBEoNpftM9U/SI2PsMEK7iYViQ8nRb2j2sjgCp9UH2w1c5Yf37hOcc6pxFbKFAMajUlO/K/IV/h20ighOPMy/ASntBvhSuUt4FeGpHr2ti5b9km8C9g7sHVefAJQP6NoVzX3cTxC7OIfiiLA+wjTW0Mq5ZM28FM0r6yai0TS7L1yucwRQerBLexzlvV2Zs/oJ+LTHk5WHCdSwJWizbgrwhUPv/QJjRrhANFvjnUS1wszjTUELMg4OlQ=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.5",
+      "release_date": "2026-02-16T13:31:12Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.5.bin",
+      "file_size": 101528,
+      "checksum": {
+        "sha256": "8e233fc90d3950c930e8bd884cba0f0e1dda69c5baeaa394e59622b9474c765c",
+        "crc32": 1262850888
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "mmrSz6Qvv/AU/q82BmzUFC/F38e/WkCmiIibR+Lz59nAf/XGTqdMujfxi11KojhVY43Aoc2zE8N0alqkiPOtEpucZTJZpYvWBEoNpftM9U/SI2PsMEK7iYViQ8nRb2j2sjgCp9UH2w1c5Yf37hOcc6pxFbKFAMajUlO/K/IV/h20ighOPMy/ASntBvhSuUt4FeGpHr2ti5b9km8C9g7sHVefAJQP6NoVzX3cTxC7OIfiiLA+wjTW0Mq5ZM28FM0r6yai0TS7L1yucwRQerBLexzlvV2Zs/oJ+LTHk5WHCdSwJWizbgrwhUPv/QJjRrhANFvjnUS1wszjTUELMg4OlQ=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.5",
+      "release_date": "2026-02-16T13:28:40Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.5.bin",
+      "file_size": 101528,
+      "checksum": {
+        "sha256": "8e233fc90d3950c930e8bd884cba0f0e1dda69c5baeaa394e59622b9474c765c",
+        "crc32": 1262850888
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "mmrSz6Qvv/AU/q82BmzUFC/F38e/WkCmiIibR+Lz59nAf/XGTqdMujfxi11KojhVY43Aoc2zE8N0alqkiPOtEpucZTJZpYvWBEoNpftM9U/SI2PsMEK7iYViQ8nRb2j2sjgCp9UH2w1c5Yf37hOcc6pxFbKFAMajUlO/K/IV/h20ighOPMy/ASntBvhSuUt4FeGpHr2ti5b9km8C9g7sHVefAJQP6NoVzX3cTxC7OIfiiLA+wjTW0Mq5ZM28FM0r6yai0TS7L1yucwRQerBLexzlvV2Zs/oJ+LTHk5WHCdSwJWizbgrwhUPv/QJjRrhANFvjnUS1wszjTUELMg4OlQ=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.5",
+      "release_date": "2026-02-16T13:25:05Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.5.bin",
+      "file_size": 101528,
+      "checksum": {
+        "sha256": "8e233fc90d3950c930e8bd884cba0f0e1dda69c5baeaa394e59622b9474c765c",
+        "crc32": 1262850888
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "mmrSz6Qvv/AU/q82BmzUFC/F38e/WkCmiIibR+Lz59nAf/XGTqdMujfxi11KojhVY43Aoc2zE8N0alqkiPOtEpucZTJZpYvWBEoNpftM9U/SI2PsMEK7iYViQ8nRb2j2sjgCp9UH2w1c5Yf37hOcc6pxFbKFAMajUlO/K/IV/h20ighOPMy/ASntBvhSuUt4FeGpHr2ti5b9km8C9g7sHVefAJQP6NoVzX3cTxC7OIfiiLA+wjTW0Mq5ZM28FM0r6yai0TS7L1yucwRQerBLexzlvV2Zs/oJ+LTHk5WHCdSwJWizbgrwhUPv/QJjRrhANFvjnUS1wszjTUELMg4OlQ=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.4",
+      "release_date": "2026-02-16T13:22:23Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.4.bin",
+      "file_size": 101528,
+      "checksum": {
+        "sha256": "30a7436be8b961309c7a105983f40c4c7c772180683f69b71aea7dddceb67bbb",
+        "crc32": 149225903
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "tQSDDtFLOd90gehqudzYc8rKF3PtKci9CVTARrK+FW4hXm6nTnrGZoo2NKlxK106Dfs+227GEfU21BXAwOEsAA2RJASjWY4h1EVtpfpWRW++nhc9WxHvfzqLNex5Q1zkj5tK7DnMSWKbL8pcoh0QjFhmXFuR2dht/cGBNvnNyp2asuwoh9CMwD8IE/uYnnQk07A0HNBuvKjpZjOjSEqkLZ5y39hb+ZQhIQMFRrQHOo+xPpju7mBwHuXqyHAwBjt1kFiKvdpydtPaMayhEBEP3TvQ17bCL0vuX1CsbBh60ntDJ/dXU68kedqBmkML4PHxrZTzWopnh/7uvXOodsmRnQ=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.4",
+      "release_date": "2026-02-16T13:13:31Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.4.bin",
+      "file_size": 101488,
+      "checksum": {
+        "sha256": "a4ddaa50952af35cc078a717866342fd88255114a222a2c10222722633cba6c3",
+        "crc32": 2176671350
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "YH9V3vyz/c98LrXoeNhqSeOsKWBL1bCmvr99P27GBhY1ks11iO5fmMiTKkG66lPGgqb9kyRqY0PDeiTnEb7r0v1FG6Ujovt0ZisaZODldd5a2CXX2EDg3J2bXvt5hzyDJHH0i8g7gCfkztCTHWenRCqzHH63+clz8GsongSMBfpJVqa0tJSyqiL6xcYgLLQgtsrqRePQeEc7AYKPZpLiQzHKNhT21Ps7sONAQ9ApqH226Mwszz+TvPDDm82phjdJG0JsGG/8oOichJK5x2v8rLMeoLLKQVnk1S+EDejEC7ASkq/1TO5U30HrA23ToO8nM9p1LPsAMcoEt/qDWahM1g=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.4",
+      "release_date": "2026-02-16T13:06:23Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.4.bin",
+      "file_size": 101344,
+      "checksum": {
+        "sha256": "e7f6ec834a13fb1721daa145fa5f868c538b20b4d02a52f66fef4d8effbf0c0f",
+        "crc32": 2163304682
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "x3MLA17jYRahqo6wmQdVo3ez12e4BfCr6ncQHL0FLU3JRcO/Qa+Jk7gXIabTauVrCHF0LgvXK8gbu9KVUAuQ0Crz15MNmCEJkSE8qebgeJ9qyG95DghxJxtTi5NgW65u9IPz9lmUSqVQOEOuGgcP2ljLFJhkWFK5QrTzufgsXGGpx/3lWPocuQ73kho1YJpHjGsWtdDI76OADR0rKUxFTMHRaYktGnUPijdNTyXABnZjrmBlu9U3pY1Q5Ub49mCkNqT2Cyo8xA3trYfBjjg7/+H5qlZjMrewL2KhzCh8a5tVN+CoWVHI2fSF20IqFHV+tuUriWooS7VinnRvejVkxA=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.4",
+      "release_date": "2026-02-16T13:02:35Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.4.bin",
+      "file_size": 101344,
+      "checksum": {
+        "sha256": "e7f6ec834a13fb1721daa145fa5f868c538b20b4d02a52f66fef4d8effbf0c0f",
+        "crc32": 2163304682
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "x3MLA17jYRahqo6wmQdVo3ez12e4BfCr6ncQHL0FLU3JRcO/Qa+Jk7gXIabTauVrCHF0LgvXK8gbu9KVUAuQ0Crz15MNmCEJkSE8qebgeJ9qyG95DghxJxtTi5NgW65u9IPz9lmUSqVQOEOuGgcP2ljLFJhkWFK5QrTzufgsXGGpx/3lWPocuQ73kho1YJpHjGsWtdDI76OADR0rKUxFTMHRaYktGnUPijdNTyXABnZjrmBlu9U3pY1Q5Ub49mCkNqT2Cyo8xA3trYfBjjg7/+H5qlZjMrewL2KhzCh8a5tVN+CoWVHI2fSF20IqFHV+tuUriWooS7VinnRvejVkxA=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.4",
+      "release_date": "2026-02-16T12:45:58Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.4.bin",
+      "file_size": 101216,
+      "checksum": {
+        "sha256": "43b653310873a8b879ba87704139f0d7161ab83a246b09f89d922f0a41b4b64b",
+        "crc32": 3827472509
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "ulGpRrVJJ2vDZQOMKYz2pZaKTaCHoMHWI2TeFSxm8OPe7dhdtv4o+hMhWrPW22jVdA57EoCW4HtR9wusu0FHlUVpdujs5c6I8skb1EHDyLq9u2eqLK2xkrW183THSv8ddEfRM6dSCgF72aH1A1cKy7ftrsnPyN3liHIXGmPGbxeAwBVv31YL2ecRB6HVyYoW4wEskogEAafY/2hzwEOk7ivVMGofY9NPJcaEI0wvRIREq3k5eFGuobVE7xG4KvjPKVhSU8VApWGcATxTQYnHgB2AIWua4qZlL7eLMIb8UJ1zd0B/ASfiw3MfiRR4XRXVcARQMAYWCilcTuTWbjWVSg=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.4",
+      "release_date": "2026-02-16T12:43:51Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.4.bin",
+      "file_size": 101216,
+      "checksum": {
+        "sha256": "43b653310873a8b879ba87704139f0d7161ab83a246b09f89d922f0a41b4b64b",
+        "crc32": 3827472509
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "ulGpRrVJJ2vDZQOMKYz2pZaKTaCHoMHWI2TeFSxm8OPe7dhdtv4o+hMhWrPW22jVdA57EoCW4HtR9wusu0FHlUVpdujs5c6I8skb1EHDyLq9u2eqLK2xkrW183THSv8ddEfRM6dSCgF72aH1A1cKy7ftrsnPyN3liHIXGmPGbxeAwBVv31YL2ecRB6HVyYoW4wEskogEAafY/2hzwEOk7ivVMGofY9NPJcaEI0wvRIREq3k5eFGuobVE7xG4KvjPKVhSU8VApWGcATxTQYnHgB2AIWua4qZlL7eLMIb8UJ1zd0B/ASfiw3MfiRR4XRXVcARQMAYWCilcTuTWbjWVSg=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.4",
+      "release_date": "2026-02-16T12:42:57Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.4.bin",
+      "file_size": 101216,
+      "checksum": {
+        "sha256": "43b653310873a8b879ba87704139f0d7161ab83a246b09f89d922f0a41b4b64b",
+        "crc32": 3827472509
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "ulGpRrVJJ2vDZQOMKYz2pZaKTaCHoMHWI2TeFSxm8OPe7dhdtv4o+hMhWrPW22jVdA57EoCW4HtR9wusu0FHlUVpdujs5c6I8skb1EHDyLq9u2eqLK2xkrW183THSv8ddEfRM6dSCgF72aH1A1cKy7ftrsnPyN3liHIXGmPGbxeAwBVv31YL2ecRB6HVyYoW4wEskogEAafY/2hzwEOk7ivVMGofY9NPJcaEI0wvRIREq3k5eFGuobVE7xG4KvjPKVhSU8VApWGcATxTQYnHgB2AIWua4qZlL7eLMIb8UJ1zd0B/ASfiw3MfiRR4XRXVcARQMAYWCilcTuTWbjWVSg=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "stm32",
+      "version": "1.2.4",
+      "release_date": "2026-02-16T12:32:56Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/stm32/stm32-sensor-v1.2.4.bin",
+      "file_size": 100792,
+      "checksum": {
+        "sha256": "0a867059466130369c90ca1f11866f51e1ac385461282d7673cbf493a13e254b",
+        "crc32": 2253830806
+      },
+      "signature": {
+        "algorithm": "RSA-2048",
+        "value": "mRCh7ghDrZvxBBXiLw7/VGljeELFoiiHbdMBCL87zrsyxuTsazo3ykbAJsRTcTTOsJdXTBdUKpu+J2n8dljbiie9x60isCyc6ZcW5HQPvNGYF+v9Rvsz8PWrdK58380iTxqZzCSgAlYQHG+A2A93IEEAWUL2vDT0n8onmAhlEGCVNGChsdRXfMrM85DHX0y8+2GNpWUc+3HCyd/lA1XUZ01rcA+7wI/KXxboFDD4oOeA+aU7LpKG0EWXjTyGcjCS57Ys0DnxPjfLyFM1oMS/K/bDq1j5bv2ut9mXYLafXD9xUaL79vnNNJ8e5NeC41ItEK6mMiOg7oZ/79Hjfe91sw=="
+      },
+      "changelog": [
+        "Test STM32 MQQT OTA and  signing with module approach"
+      ],
+      "target_hardware": "STM32F767"
+    },
+    {
+      "platform": "esp32",
+      "version": "1.2.3",
+      "release_date": "2026-02-16T12:30:47Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/esp32/esp32-gateway-v1.2.3.bin",
+      "file_size": 1010160,
+      "checksum": {
+        "sha256": "c7a7d8329916a14434f7b9de4a2c9e9442b3a3e19a4fa92d3926d6165f44f548"
+      },
+      "signature": {
+        "algorithm": "RSA-3072",
+        "value": "RSA-3072 signature embedded (signed file: iot_gateway_signed.bin)"
+      },
+      "changelog": [
+        "Test ESP32 signing with module approach"
+      ]
+    },
+    {
       "platform": "esp32",
       "version": "1.2.3",
       "release_date": "2026-02-14T11:21:08Z",

@@ -3,6 +3,7 @@
 #include "serv_temperature_sensor.h"
 #include "serv_display.h"
 #include "serv_current_monitor.h"
+#include "serv_firmware_update.h"
 #include "protocol_handler.h"
 #include "portable_log.h"
 // /#include "hal_uart.h"
@@ -30,11 +31,14 @@ void services_init(void)
     current_monitor_init();
     LOG_I(TAG, "Current monitor initialized\n");
 
+    serv_firmware_update_init();
+    LOG_I(TAG, "Firmware update service initialized\n");
+
     protocol_handler_init();
     LOG_I(TAG, "Protocol handler initialized\n");
 
 #ifdef ENABLE_UART_TEST
-    SEGGER_RTT_printf(0, "Services: Initializing UART test...\n");
+    LOG_I(TAG, "Initializing UART test...");
     serv_uart_test_init();
     LOG_I(TAG, "UART test service initialized\n");
 #endif

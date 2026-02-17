@@ -39,7 +39,7 @@ add_subdirectory(cmake/stm32cubemx)
 # CRITICAL: Configure FreeRTOS with SEGGER SystemView trace macros (survives STM32CubeMX regeneration)
 # Without this, FreeRTOS kernel sources (tasks.c, queue.c, etc.) compile without trace macros
 # This MUST be after add_subdirectory(cmake/stm32cubemx) so the FreeRTOS target exists
-target_compile_definitions(FreeRTOS PRIVATE USE_SEGGER_SYSTEMVIEW=1)
+# target_compile_definitions(FreeRTOS PRIVATE USE_SEGGER_SYSTEMVIEW=1)
 target_include_directories(FreeRTOS PRIVATE
     ${CMAKE_SOURCE_DIR}/Middleware/SEGGER/Patch
     ${CMAKE_SOURCE_DIR}/Middleware/SEGGER/SEGGER
@@ -66,7 +66,12 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
 )
-target_link_options(${PROJECT_NAME} PRIVATE "-u" "_printf_float")
+# Application linker script (after bootloader sector 0)
+target_link_options(${PROJECT_NAME} PRIVATE
+    -T${CMAKE_SOURCE_DIR}/STM32F767XX_FLASH.ld
+    -Wl,-Map=${CMAKE_PROJECT_NAME}.map
+    "-u" "_printf_float"
+)
 
 
 # Add sources to executable
@@ -77,10 +82,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # SEGGER SystemView configuration (survives STM32CubeMX regeneration)
-    # Temporarily disabled to test if SystemView overhead causes crashes
-    USE_SEGGER_SYSTEMVIEW=1
-    # SEGGER RTT for logging (used by portable_log.h)
-    USE_SEGGER_RTT=1
+    # Disabled — SystemView overhead was causing instability
+    # USE_SEGGER_SYSTEMVIEW=1
+    # SEGGER RTT for logging — disabled, using USART3 VCP printf instead
+    # USE_SEGGER_RTT=1
     # STM32F7 family identifier (used by portable_log.h)
     STM32F7=1
     # Add user defined symbols
@@ -115,3 +120,6 @@ add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E echo "  Hex:    ${CMAKE_BINARY_DIR}/${CMAKE_PROJECT_NAME}.hex"
     COMMAND ${CMAKE_COMMAND} -E echo "  ELF:    $<TARGET_FILE:${CMAKE_PROJECT_NAME}>"
 )
+
+# Bootloader (separate executable — sector 0 of Bank 1)
+add_subdirectory(Bootloader)

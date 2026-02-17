@@ -3,7 +3,7 @@
 #include "hal_delay.h"
 
 static uint32_t last_toggle = 0;
-static uint32_t interval_ms = 2000;
+static uint32_t interval_ms = 5000;
 
 void blinky_init(void)
 {

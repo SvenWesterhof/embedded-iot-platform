@@ -23,7 +23,9 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "portable_log.h"
+#if USE_SEGGER_SYSTEMVIEW
 #include "SEGGER_SYSVIEW.h"
+#endif
 
 // Forward declaration for HAL UART IDLE interrupt handler
 extern void hal_uart_idle_isr(void *huart);
@@ -187,11 +189,15 @@ void DebugMon_Handler(void)
 void DMA1_Stream5_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Stream5_IRQn 0 */
+#if USE_SEGGER_SYSTEMVIEW
   SEGGER_SYSVIEW_RecordEnterISR();
+#endif
   /* USER CODE END DMA1_Stream5_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_usart2_rx);
   /* USER CODE BEGIN DMA1_Stream5_IRQn 1 */
+#if USE_SEGGER_SYSTEMVIEW
   SEGGER_SYSVIEW_RecordExitISR();
+#endif
   /* USER CODE END DMA1_Stream5_IRQn 1 */
 }
 
@@ -201,11 +207,15 @@ void DMA1_Stream5_IRQHandler(void)
 void DMA1_Stream6_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA1_Stream6_IRQn 0 */
+#if USE_SEGGER_SYSTEMVIEW
   SEGGER_SYSVIEW_RecordEnterISR();
+#endif
   /* USER CODE END DMA1_Stream6_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_usart2_tx);
   /* USER CODE BEGIN DMA1_Stream6_IRQn 1 */
+#if USE_SEGGER_SYSTEMVIEW
   SEGGER_SYSVIEW_RecordExitISR();
+#endif
   /* USER CODE END DMA1_Stream6_IRQn 1 */
 }
 
@@ -215,7 +225,9 @@ void DMA1_Stream6_IRQHandler(void)
 void USART2_IRQHandler(void)
 {
   /* USER CODE BEGIN USART2_IRQn 0 */
+#if USE_SEGGER_SYSTEMVIEW
   SEGGER_SYSVIEW_RecordEnterISR();
+#endif
 
   // Handle UART IDLE interrupt for ISR-based RX triggering
   hal_uart_idle_isr(&huart2);
@@ -223,7 +235,9 @@ void USART2_IRQHandler(void)
   HAL_UART_IRQHandler(&huart2);
   /* USER CODE BEGIN USART2_IRQn 1 */
 
+#if USE_SEGGER_SYSTEMVIEW
   SEGGER_SYSVIEW_RecordExitISR();
+#endif
   /* USER CODE END USART2_IRQn 1 */
 }
 
