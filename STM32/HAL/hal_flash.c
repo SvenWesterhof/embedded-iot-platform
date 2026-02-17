@@ -24,6 +24,7 @@ static const char *TAG = "HAL_FLASH";
 
 // RTC backup register magic value for update pending
 #define UPDATE_MAGIC     0xDEADBEEFU
+#define BOOT_CONFIRMED_MAGIC  0xB007C0DEU
 
 // ============================================================================
 // CRC32 (software implementation — standard polynomial 0x04C11DB7)
@@ -225,9 +226,11 @@ uint32_t hal_flash_get_bank_base(uint8_t bank)
     return 0;
 }
 
-void hal_flash_set_update_flag(uint32_t fw_size, uint32_t crc32)
+void hal_flash_set_update_flag(uint32_t fw_size, uint32_t crc32,
+                               uint8_t version_major, uint8_t version_minor, uint8_t version_patch)
 {
-    LOG_I(TAG, "Setting update flag: size=%lu, CRC=0x%08lX", fw_size, crc32);
+    LOG_I(TAG, "Setting update flag: v%u.%u.%u, size=%lu, CRC=0x%08lX",
+          version_major, version_minor, version_patch, fw_size, crc32);
 
     // Enable backup domain access
     __HAL_RCC_PWR_CLK_ENABLE();
@@ -237,6 +240,11 @@ void hal_flash_set_update_flag(uint32_t fw_size, uint32_t crc32)
     // Write firmware metadata to RTC backup registers
     RTC->BKP1R = fw_size;
     RTC->BKP2R = crc32;
+
+    // Store new firmware version (packed: major<<16 | minor<<8 | patch)
+    uint32_t packed_version = (version_major << 16) | (version_minor << 8) | version_patch;
+    RTC->BKP4R = packed_version;
+
     RTC->BKP0R = UPDATE_MAGIC;  // Write flag last (atomic commit)
 
     LOG_I(TAG, "Update flag set — bootloader will copy on next boot");
@@ -265,4 +273,46 @@ uint32_t hal_flash_compute_crc32(uint32_t address, uint32_t length)
     }
 
     return crc ^ 0xFFFFFFFF;
+}
+
+void hal_flash_confirm_boot(void)
+{
+    // Enable backup domain access
+    __HAL_RCC_PWR_CLK_ENABLE();
+    HAL_PWR_EnableBkUpAccess();
+    __HAL_RCC_RTC_ENABLE();
+
+    // Write confirmation magic to RTC backup register
+    RTC->BKP5R = BOOT_CONFIRMED_MAGIC;
+
+    LOG_I(TAG, "Boot confirmed — bootloader will reset attempt counter on next boot");
+}
+
+uint32_t hal_flash_get_boot_attempts(void)
+{
+    // Enable backup domain access (read-only, safe to call anytime)
+    __HAL_RCC_PWR_CLK_ENABLE();
+    HAL_PWR_EnableBkUpAccess();
+    __HAL_RCC_RTC_ENABLE();
+
+    return RTC->BKP3R;
+}
+
+// ============================================================================
+// Watchdog Functions
+// ============================================================================
+
+#define IWDG_KEY_REFRESH    0xAAAAU
+
+void hal_watchdog_kick(void)
+{
+    /* Refresh IWDG counter (prevents reset) */
+    IWDG->KR = IWDG_KEY_REFRESH;
+}
+
+bool hal_watchdog_is_active(void)
+{
+    /* Check if IWDG is running by reading the status register
+     * If IWDG was never started, these registers are typically 0 */
+    return (IWDG->PR != 0 || IWDG->RLR != 0);
 }

@@ -86,8 +86,12 @@ uint32_t hal_flash_get_bank_base(uint8_t bank);
  *
  * @param fw_size Firmware size in bytes
  * @param crc32 Expected CRC32 of the firmware
+ * @param version_major Major version number
+ * @param version_minor Minor version number
+ * @param version_patch Patch version number
  */
-void hal_flash_set_update_flag(uint32_t fw_size, uint32_t crc32);
+void hal_flash_set_update_flag(uint32_t fw_size, uint32_t crc32,
+                               uint8_t version_major, uint8_t version_minor, uint8_t version_patch);
 
 /**
  * @brief Reset the system to trigger bootloader firmware copy
@@ -103,5 +107,59 @@ void hal_flash_reset_for_update(void);
  * @return CRC32 value
  */
 uint32_t hal_flash_compute_crc32(uint32_t address, uint32_t length);
+
+/**
+ * @brief Confirm successful boot to bootloader
+ *
+ * Writes magic value to RTC backup register to signal that the application
+ * has successfully initialized. Bootloader uses this for the anti-brick
+ * boot counter mechanism.
+ *
+ * Call this AFTER all critical initialization is complete.
+ */
+void hal_flash_confirm_boot(void);
+
+/**
+ * @brief Get the current boot attempt counter value
+ * @return Number of consecutive unconfirmed boots
+ */
+uint32_t hal_flash_get_boot_attempts(void);
+
+/* ========================================================================== */
+/* Watchdog (IWDG) Functions                                                   */
+/* ========================================================================== */
+
+/**
+ * @brief Kick (refresh) the independent watchdog timer
+ *
+ * Must be called periodically when bootloader starts IWDG in always-on mode.
+ * If not called within the timeout period (typically 5s), the system resets.
+ *
+ * Thread-safe: can be called from tasks or interrupts.
+ */
+void hal_watchdog_kick(void);
+
+/**
+ * @brief Check if IWDG is running
+ * @return true if IWDG was started by bootloader, false otherwise
+ */
+bool hal_watchdog_is_active(void);
+
+/**
+ * @brief Confirm successful boot to the bootloader
+ *
+ * The application MUST call this after successful initialization.
+ * If the bootloader doesn't see this confirmation after MAX_BOOT_ATTEMPTS
+ * consecutive resets, it flags the firmware as potentially faulty.
+ *
+ * This writes BOOT_CONFIRMED_MAGIC (0xB007C0DE) to RTC_BKP5R.
+ */
+void hal_flash_confirm_boot(void);
+
+/**
+ * @brief Get the number of consecutive unconfirmed boot attempts
+ * @return Boot attempt count from RTC_BKP3R
+ */
+uint32_t hal_flash_get_boot_attempts(void);
 
 #endif // HAL_FLASH_H
