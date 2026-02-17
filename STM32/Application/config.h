@@ -14,6 +14,9 @@
 #define APP_VERSION_MINOR       0
 #define APP_VERSION_PATCH       0
 
+// Packed firmware version (used by OTA bootloader)
+#define FW_VERSION_PACKED   ((APP_VERSION_MAJOR << 16) | (APP_VERSION_MINOR << 8) | APP_VERSION_PATCH)
+
 // Feature Flags
 #define FEATURE_BLINKY_ENABLED          1
 #define FEATURE_TEMPERATURE_ENABLED     1
