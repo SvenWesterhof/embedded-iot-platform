@@ -37,6 +37,9 @@ compile_commands.json
 ESP32/keys/*.pem
 ESP32/keys/iot/
 
+# NVS provisioning binary (contains device private key)
+nvs_iot_creds.bin
+
 # -----------------------------------------------------------------------------
 # IDE and Editor files
 # -----------------------------------------------------------------------------

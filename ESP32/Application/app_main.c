@@ -11,8 +11,13 @@
 #include "../Middleware/Features/feat_stm32_protocol.h"
 #include "portable_log.h"
 #include <nvs_flash.h>
+#include <nvs.h>
 
 static const char *TAG = "APP_MAIN";
+
+// Buffer for device private key loaded from NVS at boot
+// Must persist for the lifetime of the MQTT connection
+static char s_device_key_pem[2048];
 
 // ============================================================================
 // Event Handlers
@@ -64,6 +69,15 @@ static void on_mqtt_connected(event_type_t type, void *data)
     (void)data;
 
     LOG_I(TAG, "MQTT connected - enabling OTA update notifications");
+
+    // Publish online status here (event bus task context) — safe to call serv_mqtt_publish.
+    // Must NOT be done from the MQTT event handler (MQTT client task) because calling
+    // esp_mqtt_client_publish mid-CONNACK transition produces CLIENT_ERROR on AWS IoT Core.
+    char status_topic[96];
+    snprintf(status_topic, sizeof(status_topic), "devices/%s/status",
+             serv_mqtt_get_device_id() ? serv_mqtt_get_device_id() : "unknown");
+    LOG_I(TAG, "Publishing online status to topic: %s", status_topic);
+    serv_mqtt_publish_string(status_topic, "online", 1, true);
 
     // Start unified OTA manager (subscribes to gateway/ota/notify for both ESP32 and STM32)
     ota_mgr_status_t ota_status = cont_ota_manager_start();
@@ -122,6 +136,27 @@ bool app_init(void)
         serv_ntp_set_server(NTP_SERVER);
     }
     
+    // Load device private key from NVS (provisioned via tools/provision_device.py)
+    const char *device_key = NULL;
+    {
+        nvs_handle_t nvs;
+        esp_err_t err = nvs_open("iot_creds", NVS_READONLY, &nvs);
+        if (err == ESP_OK) {
+            size_t key_len = sizeof(s_device_key_pem) - 1;  // Reserve 1 byte for null terminator
+            err = nvs_get_blob(nvs, "device_key", s_device_key_pem, &key_len);
+            nvs_close(nvs);
+            if (err == ESP_OK) {
+                s_device_key_pem[key_len] = '\0';  // mbedTLS PEM parser requires null termination
+                device_key = s_device_key_pem;
+                LOG_I(TAG, "[OK] Device private key loaded from NVS (%d bytes)", (int)key_len);
+            } else {
+                LOG_E(TAG, "[FAIL] Device key not found in NVS — run tools/provision_device.py");
+            }
+        } else {
+            LOG_E(TAG, "[FAIL] Failed to open NVS namespace 'iot_creds': %s", esp_err_to_name(err));
+        }
+    }
+
     // Initialize MQTT client with credentials
     mqtt_client_config_t mqtt_config = {
         .broker_uri = MQTT_BROKER_URI,
@@ -134,10 +169,11 @@ bool app_init(void)
         .clean_session = true,
         .tls_ca_cert     = (const char *)amazon_root_ca_pem_start,
         .tls_client_cert = (const char *)device_cert_pem_start,
-        .tls_client_key  = (const char *)device_key_pem_start,
+        .tls_client_key  = device_key,   // NULL if not provisioned → mTLS disabled
     };
     if (serv_mqtt_init(&mqtt_config) == MQTT_OK) {
-        LOG_I(TAG, "[OK] MQTT client initialized");
+        LOG_I(TAG, "[OK] MQTT client initialized%s",
+              device_key ? " (mTLS)" : " (WARNING: no client key, mTLS disabled)");
     }
     
     // Initialize dashboard server
