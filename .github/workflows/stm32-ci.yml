@@ -1,0 +1,145 @@
+name: STM32 CI
+
+# Runs on push / PR when STM32 firmware or shared code changes.
+on:
+  push:
+    branches:
+      - master
+      - develop
+      - "feature/**"
+      - "fix/**"
+    paths:
+      - "STM32/**"
+      - "common/**"
+      - "scripts/lint.sh"
+      - "tools/.clang-tidy"
+      - "tools/cppcheck-suppressions.xml"
+      - ".github/workflows/stm32-ci.yml"
+  pull_request:
+    branches:
+      - master
+      - develop
+    paths:
+      - "STM32/**"
+      - "common/**"
+      - "scripts/lint.sh"
+      - "tools/.clang-tidy"
+      - "tools/cppcheck-suppressions.xml"
+
+# ARM GCC 14.3 rel1 official tarball (matches local Windows development toolchain).
+# Using the official tarball instead of apt-get ensures identical compiler flags/codegen.
+env:
+  ARM_TOOLCHAIN_VERSION: "14.3.rel1"
+  ARM_TOOLCHAIN_INSTALL_DIR: "/opt/arm-toolchain"
+  ARM_TOOLCHAIN_URL: "https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi.tar.xz"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Build STM32 firmware (application + bootloader)
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build STM32 Firmware
+    runs-on: ubuntu-latest
+
+    outputs:
+      sha-short: ${{ steps.meta.outputs.sha_short }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Ninja
+        run: sudo apt-get install -y --no-install-recommends ninja-build
+
+      # Cache the ARM GCC toolchain tarball.
+      # Fixed key: toolchain version is pinned, no need to hash dynamic content.
+      - name: Cache ARM GCC toolchain
+        id: cache-arm-gcc
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ARM_TOOLCHAIN_INSTALL_DIR }}
+          key: arm-none-eabi-gcc-${{ env.ARM_TOOLCHAIN_VERSION }}-linux-x86_64
+
+      - name: Download ARM GCC toolchain
+        if: steps.cache-arm-gcc.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$ARM_TOOLCHAIN_INSTALL_DIR"
+          curl -fsSL "$ARM_TOOLCHAIN_URL" -o /tmp/arm-gcc.tar.xz
+          tar -xf /tmp/arm-gcc.tar.xz -C "$ARM_TOOLCHAIN_INSTALL_DIR" --strip-components=1
+          rm /tmp/arm-gcc.tar.xz
+
+      - name: Add ARM GCC to PATH
+        run: echo "$ARM_TOOLCHAIN_INSTALL_DIR/bin" >> "$GITHUB_PATH"
+
+      - name: Verify toolchain
+        run: arm-none-eabi-gcc --version
+
+      - name: Extract short SHA
+        id: meta
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Cache ccache objects for STM32 (~2-4 min saved on incremental builds).
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-stm32-${{ github.sha }}
+          restore-keys: |
+            ccache-stm32-
+
+      - name: Configure (CI preset)
+        working-directory: STM32
+        run: |
+          cmake --preset CI \
+            -DARM_TOOLCHAIN_DIR="$ARM_TOOLCHAIN_INSTALL_DIR/bin"
+
+      - name: Build firmware
+        working-directory: STM32
+        run: cmake --build --preset CI --parallel "$(nproc)"
+
+      - name: Print binary sizes
+        working-directory: STM32
+        run: |
+          echo "=== Application ==="
+          arm-none-eabi-size build/CI/sensor_node.elf
+          echo "=== Bootloader ==="
+          arm-none-eabi-size build/CI/Bootloader/bootloader.elf || true
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: stm32-sensor_node-${{ steps.meta.outputs.sha_short }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            STM32/build/CI/sensor_node.bin
+            STM32/build/CI/sensor_node.hex
+            STM32/build/CI/sensor_node.elf
+            STM32/build/CI/Bootloader/bootloader.bin
+            STM32/build/CI/Bootloader/bootloader.hex
+            STM32/build/CI/compile_commands.json
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Static analysis (cppcheck + clang-tidy)
+  # ---------------------------------------------------------------------------
+  analyze:
+    name: Static Analysis (STM32)
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install analysis tools
+        run: sudo apt-get install -y --no-install-recommends cppcheck clang-tidy-17
+
+      # Restore compile_commands.json from the build job artifact.
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: stm32-sensor_node-${{ needs.build.outputs.sha-short }}
+          path: STM32/build/CI
+
+      - name: Run static analysis
+        run: bash scripts/lint.sh stm32
