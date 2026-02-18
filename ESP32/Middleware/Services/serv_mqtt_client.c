@@ -89,16 +89,39 @@ mqtt_status_t serv_mqtt_init(const mqtt_client_config_t *config)
     
     // Configure MQTT client
     esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = ctx.config.broker_uri,
-        .credentials.client_id = ctx.config.client_id,
-        .credentials.username = ctx.config.username,
-        .credentials.authentication.password = ctx.config.password,
-        .session.keepalive = ctx.config.keepalive_sec,
-        .session.disable_clean_session = !ctx.config.clean_session,
-        .network.reconnect_timeout_ms = 5000,
-        .buffer.size = 1024,
+        .broker = {
+            .address.uri = ctx.config.broker_uri,
+        },
+        .credentials = {
+            .client_id = ctx.config.client_id,
+            .username = ctx.config.username,
+            .authentication = {
+                .password = ctx.config.password,
+            },
+        },
+        .session = {
+            .keepalive = ctx.config.keepalive_sec,
+            .disable_clean_session = !ctx.config.clean_session,
+        },
+        .network = {
+            .reconnect_timeout_ms = 5000,
+        },
+        .buffer = {
+            .size = 1024,
+        },
     };
     
+    // Apply TLS if CA cert provided
+    if (ctx.config.tls_ca_cert != NULL) {
+        mqtt_cfg.broker.verification.certificate = ctx.config.tls_ca_cert;
+        if (ctx.config.tls_client_cert != NULL && ctx.config.tls_client_key != NULL) {
+            mqtt_cfg.credentials.authentication.certificate = ctx.config.tls_client_cert;
+            mqtt_cfg.credentials.authentication.key = ctx.config.tls_client_key;
+        }
+        LOG_I(TAG, "TLS enabled (mTLS: %s)",
+              ctx.config.tls_client_cert != NULL ? "yes" : "no");
+    }
+
     // Create client
     ctx.client = esp_mqtt_client_init(&mqtt_cfg);
     if (ctx.client == NULL) {

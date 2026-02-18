@@ -125,13 +125,16 @@ bool app_init(void)
     // Initialize MQTT client with credentials
     mqtt_client_config_t mqtt_config = {
         .broker_uri = MQTT_BROKER_URI,
-        .device_id = MQTT_TOPIC_PREFIX,  // Reuse topic_prefix as device_id for now
+        .device_id = MQTT_TOPIC_PREFIX,
         .client_id = MQTT_CLIENT_ID,
         .username = MQTT_USERNAME,
         .password = MQTT_PASSWORD,
         .keepalive_sec = 120,
         .qos = 1,
-        .clean_session = true
+        .clean_session = true,
+        .tls_ca_cert     = (const char *)amazon_root_ca_pem_start,
+        .tls_client_cert = (const char *)device_cert_pem_start,
+        .tls_client_key  = (const char *)device_key_pem_start,
     };
     if (serv_mqtt_init(&mqtt_config) == MQTT_OK) {
         LOG_I(TAG, "[OK] MQTT client initialized");
