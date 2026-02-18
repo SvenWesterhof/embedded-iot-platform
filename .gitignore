@@ -33,6 +33,10 @@ compile_commands.json
 **/credentials.h
 !**/credentials.h.template
 
+# Signing keys and IoT certificates - never commit private keys
+ESP32/keys/*.pem
+ESP32/keys/iot/
+
 # -----------------------------------------------------------------------------
 # IDE and Editor files
 # -----------------------------------------------------------------------------
