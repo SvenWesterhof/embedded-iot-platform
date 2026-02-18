@@ -1,0 +1,6 @@
+[submodule "tests/vendor/Unity"]
+	path = tests/vendor/Unity
+	url = https://github.com/ThrowTheSwitch/Unity.git
+[submodule "tests/vendor/CMock"]
+	path = tests/vendor/CMock
+	url = https://github.com/ThrowTheSwitch/CMock.git
