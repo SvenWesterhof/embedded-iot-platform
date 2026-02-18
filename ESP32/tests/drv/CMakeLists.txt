@@ -1,12 +1,8 @@
 idf_component_register(
     SRCS
-        "app_main.c"
     INCLUDE_DIRS
         "."
     REQUIRES
         OS
-        Middleware
         esp_component
-        app_update
-        bootloader_support
 )

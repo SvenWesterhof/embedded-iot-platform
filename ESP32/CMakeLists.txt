@@ -11,6 +11,9 @@ set(EXTRA_COMPONENT_DIRS
     Drivers_BSP
     HAL_Wrapper
     OS
+    tests/app
+    tests/mid
+    tests/drv
     ${CMAKE_CURRENT_SOURCE_DIR}/../common/esp_component
 )
 
