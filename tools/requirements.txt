@@ -8,3 +8,6 @@ paho-mqtt>=2.0.0
 
 # Cryptography library for ED25519 signing (STM32 firmware)
 cryptography>=41.0.0
+
+# Loads .env file from repo root for local development
+python-dotenv>=1.0.0
