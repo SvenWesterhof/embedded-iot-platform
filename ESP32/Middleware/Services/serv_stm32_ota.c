@@ -10,6 +10,7 @@
 #include "os_wrapper.h"
 #include "portable_log.h"
 #include "feat_stm32_protocol.h"
+#include "mbedtls/md.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -190,7 +191,7 @@ serv_stm32_ota_status_t serv_stm32_ota_deinit(void)
 }
 
 // ============================================================================
-// UART Firmware Transfer
+// Streaming UART Transfer (no large firmware buffer required)
 // ============================================================================
 
 #define FW_CHUNK_DATA_SIZE   252  // 256 max payload - 4 byte chunk header
@@ -200,37 +201,108 @@ serv_stm32_ota_status_t serv_stm32_ota_deinit(void)
 #define FW_ERASE_POLL_MS     1000  // Poll interval while waiting for bank erase
 #define FW_ERASE_TIMEOUT_MS  15000 // Max time to wait for bank erase
 
-static bool transfer_firmware_to_stm32(const uint8_t *fw_data, uint32_t fw_size)
+// Context for the streaming download-to-UART callback
+typedef struct {
+    mbedtls_md_context_t sha256_ctx;           // Incremental SHA256 over received data
+    uint16_t             chunk_index;           // Next UART chunk sequence number
+    uint32_t             bytes_forwarded;       // Total bytes forwarded to STM32
+    uint8_t              partial[FW_CHUNK_DATA_SIZE]; // Partial UART chunk accumulator
+    uint16_t             partial_len;           // Bytes currently in partial[]
+    uint8_t              last_progress;         // For 10% progress logging
+} stream_ctx_t;
+
+// Send one UART chunk (partial or full) with retry
+static bool send_uart_chunk(stream_ctx_t *ctx, const uint8_t *data, uint16_t len)
 {
-    // Parse version string (e.g. "1.2.3")
+    cmd_fw_update_chunk_t chunk = {
+        .chunk_index  = ctx->chunk_index,
+        .chunk_length = len,
+    };
+    memcpy(chunk.data, data, len);
+
+    for (int retry = 0; retry <= FW_CHUNK_MAX_RETRIES; retry++) {
+        int resp = stm32_protocol_send_command(CMD_FW_UPDATE_CHUNK,
+                       &chunk, 4 + len, NULL, NULL, FW_CHUNK_TIMEOUT_MS);
+        if (resp == RESP_OK) {
+            ctx->bytes_forwarded += len;
+            ctx->chunk_index++;
+
+            uint32_t total = s_ctx.current_update.size;
+            uint8_t  progress = (total > 0)
+                ? (uint8_t)((ctx->bytes_forwarded * 100) / total) : 0;
+            if (progress >= ctx->last_progress + 10 || ctx->bytes_forwarded == total) {
+                event_bus_publish(EVENT_STM32_OTA_PROGRESS, &progress);
+                ctx->last_progress = progress;
+                LOG_I(TAG, "Transfer progress: %u%%", progress);
+            }
+            return true;
+        }
+        if (retry < FW_CHUNK_MAX_RETRIES) {
+            LOG_W(TAG, "Chunk %u failed (resp=%d), retry %d/%d",
+                  ctx->chunk_index, resp, retry + 1, FW_CHUNK_MAX_RETRIES);
+        }
+    }
+    LOG_E(TAG, "Chunk %u failed after %d retries", ctx->chunk_index, FW_CHUNK_MAX_RETRIES);
+    return false;
+}
+
+// https_chunk_cb_t: called per HTTP chunk; updates SHA256 and forwards to STM32
+static bool stream_to_stm32_cb(const uint8_t *data, uint32_t len, void *user_data)
+{
+    stream_ctx_t *ctx = (stream_ctx_t*)user_data;
+
+    // Accumulate SHA256 hash incrementally
+    mbedtls_md_update(&ctx->sha256_ctx, data, len);
+
+    // Split HTTP chunk (up to 4096 bytes) into FW_CHUNK_DATA_SIZE UART packets
+    uint32_t offset = 0;
+    while (offset < len) {
+        uint16_t space    = FW_CHUNK_DATA_SIZE - ctx->partial_len;
+        uint32_t to_copy  = len - offset;
+        if (to_copy > space) to_copy = space;
+
+        memcpy(ctx->partial + ctx->partial_len, data + offset, (uint16_t)to_copy);
+        ctx->partial_len += (uint16_t)to_copy;
+        offset           += to_copy;
+
+        if (ctx->partial_len == FW_CHUNK_DATA_SIZE) {
+            if (!send_uart_chunk(ctx, ctx->partial, FW_CHUNK_DATA_SIZE)) {
+                return false;
+            }
+            ctx->partial_len = 0;
+        }
+    }
+    return true;
+}
+
+// Initiate STM32 update and wait for Bank 2 flash erase to complete
+static bool stm32_start_and_wait_erase(void)
+{
     uint8_t ver_major = 0, ver_minor = 0, ver_patch = 0;
     sscanf(s_ctx.current_update.version, "%hhu.%hhu.%hhu",
            &ver_major, &ver_minor, &ver_patch);
 
-    // Step 1: Send CMD_FW_UPDATE_START
     cmd_fw_update_start_t start_cmd = {
-        .total_size = fw_size,
-        .crc32 = s_ctx.current_update.crc32,
-        .chunk_size = FW_CHUNK_DATA_SIZE,
+        .total_size    = s_ctx.current_update.size,
+        .crc32         = s_ctx.current_update.crc32,
+        .chunk_size    = FW_CHUNK_DATA_SIZE,
         .version_major = ver_major,
         .version_minor = ver_minor,
         .version_patch = ver_patch,
     };
 
     LOG_I(TAG, "Sending FW_UPDATE_START: %lu bytes, v%u.%u.%u",
-          fw_size, ver_major, ver_minor, ver_patch);
+          s_ctx.current_update.size, ver_major, ver_minor, ver_patch);
 
     int resp = stm32_protocol_send_command(CMD_FW_UPDATE_START,
-                &start_cmd, sizeof(start_cmd), NULL, NULL, FW_CHUNK_TIMEOUT_MS);
+                   &start_cmd, sizeof(start_cmd), NULL, NULL, FW_CHUNK_TIMEOUT_MS);
     if (resp != RESP_OK) {
         LOG_E(TAG, "STM32 rejected FW_UPDATE_START: %d", resp);
         return false;
     }
 
-    // Step 1b: Poll until STM32 finishes erasing flash bank
     LOG_I(TAG, "Waiting for STM32 to erase flash bank...");
     uint32_t erase_start = os_get_time_ms();
-    bool erase_done = false;
 
     while ((os_get_time_ms() - erase_start) < FW_ERASE_TIMEOUT_MS) {
         os_delay_ms(FW_ERASE_POLL_MS);
@@ -238,98 +310,24 @@ static bool transfer_firmware_to_stm32(const uint8_t *fw_data, uint32_t fw_size)
         resp_fw_update_status_t fw_status = {0};
         size_t status_len = sizeof(fw_status);
         resp = stm32_protocol_send_command(CMD_FW_UPDATE_STATUS,
-                    NULL, 0, &fw_status, &status_len,
-                    FW_CHUNK_TIMEOUT_MS);
+                   NULL, 0, &fw_status, &status_len, FW_CHUNK_TIMEOUT_MS);
         if (resp != RESP_OK) {
             LOG_W(TAG, "Status poll failed: %d", resp);
             continue;
         }
-
         if (fw_status.state == FW_UPDATE_RECEIVING) {
             LOG_I(TAG, "STM32 flash erased, ready to receive chunks");
-            erase_done = true;
-            break;
-        } else if (fw_status.state == FW_UPDATE_ERROR) {
+            return true;
+        }
+        if (fw_status.state == FW_UPDATE_ERROR) {
             LOG_E(TAG, "STM32 erase failed (error_code=%u)", fw_status.error_code);
             return false;
         }
-        // Still ERASING, keep polling
     }
 
-    if (!erase_done) {
-        LOG_E(TAG, "STM32 erase timed out after %u ms", FW_ERASE_TIMEOUT_MS);
-        stm32_protocol_send_command(CMD_FW_UPDATE_ABORT, NULL, 0, NULL, NULL, 2000);
-        return false;
-    }
-
-    // Step 2: Send firmware chunks
-    uint16_t total_chunks = (uint16_t)((fw_size + FW_CHUNK_DATA_SIZE - 1) / FW_CHUNK_DATA_SIZE);
-    uint8_t last_progress = 0;
-
-    LOG_I(TAG, "Sending %u chunks (%u bytes each)", total_chunks, FW_CHUNK_DATA_SIZE);
-
-    for (uint16_t i = 0; i < total_chunks; i++) {
-        uint32_t offset = (uint32_t)i * FW_CHUNK_DATA_SIZE;
-        uint32_t remaining = fw_size - offset;
-        uint16_t this_len = (remaining > FW_CHUNK_DATA_SIZE)
-                            ? FW_CHUNK_DATA_SIZE : (uint16_t)remaining;
-
-        cmd_fw_update_chunk_t chunk = {
-            .chunk_index = i,
-            .chunk_length = this_len,
-        };
-        memcpy(chunk.data, fw_data + offset, this_len);
-
-        // Retry logic for individual chunks
-        bool chunk_sent = false;
-        for (int retry = 0; retry <= FW_CHUNK_MAX_RETRIES; retry++) {
-            resp = stm32_protocol_send_command(CMD_FW_UPDATE_CHUNK,
-                        &chunk, 4 + this_len, NULL, NULL, FW_CHUNK_TIMEOUT_MS);
-            if (resp == RESP_OK) {
-                chunk_sent = true;
-                break;
-            }
-            if (retry < FW_CHUNK_MAX_RETRIES) {
-                LOG_W(TAG, "Chunk %u/%u failed (resp=%d), retry %d/%d",
-                      i, total_chunks, resp, retry + 1, FW_CHUNK_MAX_RETRIES);
-            }
-        }
-
-        if (!chunk_sent) {
-            LOG_E(TAG, "Chunk %u/%u failed after %d retries",
-                  i, total_chunks, FW_CHUNK_MAX_RETRIES);
-            stm32_protocol_send_command(CMD_FW_UPDATE_ABORT,
-                        NULL, 0, NULL, NULL, 2000);
-            return false;
-        }
-
-        // Progress reporting at ~10% intervals
-        uint8_t progress = (uint8_t)((uint32_t)(i + 1) * 100 / total_chunks);
-        if (progress >= last_progress + 10 || i == total_chunks - 1) {
-            event_bus_publish(EVENT_STM32_OTA_PROGRESS, &progress);
-            last_progress = progress;
-            LOG_I(TAG, "Transfer progress: %u%%", progress);
-        }
-    }
-
-    // Step 3: Send CMD_FW_UPDATE_END
-    cmd_fw_update_end_t end_cmd = {
-        .validate_only = s_ctx.current_update.auto_apply ? 0 : 1,
-    };
-
-    LOG_I(TAG, "Sending FW_UPDATE_END (auto_apply=%s)",
-          s_ctx.current_update.auto_apply ? "yes" : "no");
-
-    resp = stm32_protocol_send_command(CMD_FW_UPDATE_END,
-                &end_cmd, sizeof(end_cmd), NULL, NULL, FW_END_TIMEOUT_MS);
-    if (resp != RESP_OK) {
-        LOG_E(TAG, "FW_UPDATE_END failed: %d", resp);
-        return false;
-    }
-
-    LOG_I(TAG, "Firmware transfer completed: %lu bytes in %u chunks",
-          fw_size, total_chunks);
-    return true;
+    LOG_E(TAG, "STM32 erase timed out after %u ms", FW_ERASE_TIMEOUT_MS);
+    stm32_protocol_send_command(CMD_FW_UPDATE_ABORT, NULL, 0, NULL, NULL, 2000);
+    return false;
 }
 
 // ============================================================================
@@ -341,74 +339,135 @@ static void stm32_ota_task(void *arg)
     (void)arg;
 
     LOG_I(TAG, "STM32 OTA task started");
-    LOG_I(TAG, "URL: %s", s_ctx.current_update.url);
-    LOG_I(TAG, "Size: %lu bytes", s_ctx.current_update.size);
-    LOG_I(TAG, "Version: %s", s_ctx.current_update.version);
+    LOG_I(TAG, "Version: %s | Size: %lu bytes", s_ctx.current_update.version,
+          s_ctx.current_update.size);
 
     stm32_ota_state_t final_state = STM32_OTA_STATE_FAILED;
-    uint8_t *firmware_buffer = NULL;
-    uint32_t firmware_size = 0;
+    stream_ctx_t stream_ctx;
+    bool sha256_initialized = false;
+    bool stm32_update_started = false;
 
-    // Phase 1: Download firmware via HTTPS
-    LOG_I(TAG, "Phase 1: Downloading firmware...");
-    https_download_config_t download_config = {
-        .url = s_ctx.current_update.url,
-        .expected_size = s_ctx.current_update.size,
-        .timeout_ms = 30000,
-        .buffer_size = 4096,
-        .progress_cb = NULL,
-        .user_data = NULL,
-    };
-
-    https_download_status_t dl_status = serv_https_download(&download_config,
-                                                            &firmware_buffer,
-                                                            &firmware_size);
-    if (dl_status != HTTPS_DOWNLOAD_OK) {
-        LOG_E(TAG, "Firmware download failed: %s",
-                 serv_https_download_status_str(dl_status));
+    // -----------------------------------------------------------------------
+    // Phase 1: Initiate STM32 update — send header and wait for Bank 2 erase.
+    // Done BEFORE the HTTP download so the erase (up to 15s) runs first,
+    // and the download starts right when STM32 is ready to receive chunks.
+    // -----------------------------------------------------------------------
+    LOG_I(TAG, "Phase 1: Initiating STM32 firmware update...");
+    if (!stm32_start_and_wait_erase()) {
+        LOG_E(TAG, "STM32 failed to start firmware update");
         goto cleanup;
     }
+    stm32_update_started = true;
 
-    LOG_I(TAG, "Firmware downloaded: %lu bytes", firmware_size);
+    // -----------------------------------------------------------------------
+    // Phase 2: Stream firmware from HTTPS directly to STM32 + SHA256 hash.
+    // No large firmware buffer — uses only 4KB at a time.
+    // -----------------------------------------------------------------------
+    LOG_I(TAG, "Phase 2: Streaming firmware to STM32...");
 
-    // Update state to VERIFYING
-    if (os_mutex_take(s_ctx.state_mutex, 1000) == OS_SUCCESS) {
-        s_ctx.state = STM32_OTA_STATE_VERIFYING;
-        os_mutex_give(s_ctx.state_mutex);
-    }
-
-    // Phase 2: Verify RSA signature
-    LOG_I(TAG, "Phase 2: Verifying RSA signature...");
-    sig_verify_status_t sig_status = serv_signature_verify_firmware(firmware_buffer,
-                                                                     firmware_size,
-                                                                     s_ctx.current_update.signature_rsa);
-    if (sig_status != SIG_VERIFY_OK) {
-        LOG_E(TAG, "Signature verification failed: %s",
-                 serv_signature_verify_status_str(sig_status));
-        goto cleanup;
-    }
-
-    LOG_I(TAG, "Signature verification successful");
-
-    // Update state to TRANSFERRING
     if (os_mutex_take(s_ctx.state_mutex, 1000) == OS_SUCCESS) {
         s_ctx.state = STM32_OTA_STATE_TRANSFERRING;
         os_mutex_give(s_ctx.state_mutex);
     }
 
-    // Phase 3: Transfer to STM32 via UART
-    LOG_I(TAG, "Phase 3: Transferring firmware to STM32...");
-    if (!transfer_firmware_to_stm32(firmware_buffer, firmware_size)) {
-        LOG_E(TAG, "UART transfer to STM32 failed");
+    memset(&stream_ctx, 0, sizeof(stream_ctx));
+    mbedtls_md_init(&stream_ctx.sha256_ctx);
+
+    int md_ret = mbedtls_md_setup(&stream_ctx.sha256_ctx,
+                                   mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), 0);
+    if (md_ret != 0) {
+        LOG_E(TAG, "Failed to init SHA256 context: -0x%04X", -md_ret);
+        goto cleanup;
+    }
+    sha256_initialized = true;
+    mbedtls_md_starts(&stream_ctx.sha256_ctx);
+
+    https_download_config_t dl_config = {
+        .url           = s_ctx.current_update.url,
+        .expected_size = s_ctx.current_update.size,
+        .timeout_ms    = 0,   // use DEFAULT_TIMEOUT_MS (60s)
+        .buffer_size   = 0,   // use DEFAULT_BUFFER_SIZE (4096)
+        .progress_cb   = NULL,
+        .user_data     = NULL,
+    };
+
+    https_download_status_t dl_status = serv_https_download_stream(
+        &dl_config, stream_to_stm32_cb, &stream_ctx);
+
+    if (dl_status != HTTPS_DOWNLOAD_OK) {
+        LOG_E(TAG, "Streaming download failed: %s",
+                 serv_https_download_status_str(dl_status));
         goto cleanup;
     }
 
-    LOG_I(TAG, "Firmware transfer to STM32 complete");
+    // Flush any remaining partial UART chunk (final chunk < FW_CHUNK_DATA_SIZE bytes)
+    if (stream_ctx.partial_len > 0) {
+        if (!send_uart_chunk(&stream_ctx, stream_ctx.partial, stream_ctx.partial_len)) {
+            LOG_E(TAG, "Failed to flush last UART chunk");
+            goto cleanup;
+        }
+    }
+
+    LOG_I(TAG, "Streaming complete: %lu bytes in %u UART chunks",
+          stream_ctx.bytes_forwarded, stream_ctx.chunk_index);
+
+    // -----------------------------------------------------------------------
+    // Phase 3: Verify RSA signature over the accumulated SHA256 hash.
+    // The 32-byte digest is all we need — full binary is not required.
+    // -----------------------------------------------------------------------
+    LOG_I(TAG, "Phase 3: Verifying RSA signature...");
+
+    if (os_mutex_take(s_ctx.state_mutex, 1000) == OS_SUCCESS) {
+        s_ctx.state = STM32_OTA_STATE_VERIFYING;
+        os_mutex_give(s_ctx.state_mutex);
+    }
+
+    uint8_t sha256_hash[32];
+    mbedtls_md_finish(&stream_ctx.sha256_ctx, sha256_hash);
+    mbedtls_md_free(&stream_ctx.sha256_ctx);
+    sha256_initialized = false;
+
+    sig_verify_status_t sig_status = serv_signature_verify_hash(
+        sha256_hash, s_ctx.current_update.signature_rsa);
+
+    if (sig_status != SIG_VERIFY_OK) {
+        LOG_E(TAG, "Signature verification failed: %s — sending ABORT",
+                 serv_signature_verify_status_str(sig_status));
+        stm32_protocol_send_command(CMD_FW_UPDATE_ABORT, NULL, 0, NULL, NULL, 2000);
+        goto cleanup;
+    }
+
+    LOG_I(TAG, "Signature verified");
+
+    // -----------------------------------------------------------------------
+    // Phase 4: Commit — send FW_UPDATE_END to trigger STM32 reset+copy.
+    // -----------------------------------------------------------------------
+    LOG_I(TAG, "Phase 4: Committing update (auto_apply=%s)...",
+          s_ctx.current_update.auto_apply ? "yes" : "no");
+
+    cmd_fw_update_end_t end_cmd = {
+        .validate_only = s_ctx.current_update.auto_apply ? 0 : 1,
+    };
+
+    int resp = stm32_protocol_send_command(CMD_FW_UPDATE_END,
+                   &end_cmd, sizeof(end_cmd), NULL, NULL, FW_END_TIMEOUT_MS);
+    if (resp != RESP_OK) {
+        LOG_E(TAG, "FW_UPDATE_END failed: %d", resp);
+        goto cleanup;
+    }
+
+    LOG_I(TAG, "STM32 firmware update committed successfully");
     final_state = STM32_OTA_STATE_COMPLETE;
+    stm32_update_started = false;  // ownership transferred to STM32
 
 cleanup:
-    if (firmware_buffer != NULL) {
-        free(firmware_buffer);
+    if (sha256_initialized) {
+        mbedtls_md_free(&stream_ctx.sha256_ctx);
+    }
+
+    // If the update was started but not committed, send ABORT so STM32 clears Bank 2
+    if (stm32_update_started && final_state != STM32_OTA_STATE_COMPLETE) {
+        stm32_protocol_send_command(CMD_FW_UPDATE_ABORT, NULL, 0, NULL, NULL, 2000);
     }
 
     if (os_mutex_take(s_ctx.state_mutex, 1000) == OS_SUCCESS) {
@@ -416,7 +475,7 @@ cleanup:
         s_ctx.ota_task_handle = NULL;
         os_mutex_give(s_ctx.state_mutex);
     } else {
-        LOG_E(TAG, "Failed to acquire mutex in OTA task");
+        LOG_E(TAG, "Failed to acquire mutex in OTA task cleanup");
     }
 
     if (final_state == STM32_OTA_STATE_COMPLETE) {
@@ -427,7 +486,7 @@ cleanup:
         event_bus_publish(EVENT_STM32_OTA_FAILED, NULL);
     }
 
-    // Reset state to IDLE so next OTA trigger can proceed
+    // Reset to IDLE so the next trigger can proceed
     if (os_mutex_take(s_ctx.state_mutex, 1000) == OS_SUCCESS) {
         s_ctx.state = STM32_OTA_STATE_IDLE;
         os_mutex_give(s_ctx.state_mutex);

@@ -42,7 +42,7 @@ typedef enum {
 typedef struct {
     char target[16];            // "stm32"
     char version[32];           // Firmware version
-    char url[256];              // HTTPS download URL
+    char url[1024];              // HTTPS download URL
     uint32_t size;              // Firmware size in bytes
     char sha256[65];            // SHA256 checksum (hex, optional)
     char signature_rsa[512];    // RSA-2048 signature (base64)

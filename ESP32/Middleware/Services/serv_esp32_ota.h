@@ -52,7 +52,7 @@ typedef struct {
 
 // ESP32 OTA notification (parsed by cont_ota_manager, passed here)
 typedef struct {
-    char url[256];              // HTTPS firmware URL
+    char url[1024];              // HTTPS firmware URL
     char version[32];           // Firmware version
     size_t expected_size;       // Expected size (0 = auto from Content-Length)
     bool auto_reboot;           // Reboot after successful update
