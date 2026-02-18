@@ -4,7 +4,6 @@ idf_component_register(
     EMBED_TXTFILES
         "${CMAKE_SOURCE_DIR}/../ESP32/keys/iot/AmazonRootCA1.pem"
         "${CMAKE_SOURCE_DIR}/../ESP32/keys/iot/device-cert.pem"
-        "${CMAKE_SOURCE_DIR}/../ESP32/keys/iot/device-private-key.pem"
     INCLUDE_DIRS
         "."
     REQUIRES
