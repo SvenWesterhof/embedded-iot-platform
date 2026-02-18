@@ -30,6 +30,7 @@ static const char *TAG = "OTA_MANAGER";
 
 static struct {
     bool initialized;
+    bool started;
 } s_mgr = {0};
 
 // ============================================================================
@@ -261,29 +262,29 @@ ota_mgr_status_t cont_ota_manager_start(void)
         return OTA_MGR_ERR_NOT_INITIALIZED;
     }
 
-    LOG_I(TAG, "Starting unified OTA manager...");
+    if (!s_mgr.started) {
+        // First start only: subscribe to event bus (survives across MQTT reconnects)
+        event_bus_subscribe(EVENT_MQTT_DATA_RECEIVED, on_mqtt_ota_notify);
+        event_bus_subscribe(EVENT_OTA_STARTED, on_esp32_ota_started);
+        event_bus_subscribe(EVENT_OTA_PROGRESS, on_esp32_ota_progress);
+        event_bus_subscribe(EVENT_OTA_COMPLETED, on_esp32_ota_completed);
+        event_bus_subscribe(EVENT_OTA_FAILED, on_esp32_ota_failed);
+        event_bus_subscribe(EVENT_STM32_OTA_STARTED, on_stm32_ota_started);
+        event_bus_subscribe(EVENT_STM32_OTA_COMPLETED, on_stm32_ota_completed);
+        event_bus_subscribe(EVENT_STM32_OTA_FAILED, on_stm32_ota_failed);
+        s_mgr.started = true;
+        LOG_I(TAG, "OTA manager started - listening for ESP32 and STM32 update notifications");
+    }
 
-    // Subscribe to MQTT OTA notification topic
+    // Re-subscribe to MQTT topic on every connect (broker clears subscriptions
+    // when clean_session=true, so this must be repeated after each reconnect)
     int msg_id = serv_mqtt_subscribe(MQTT_TOPIC_GLOBAL_OTA_NOTIFY, 1);
     if (msg_id >= 0) {
         LOG_I(TAG, "Subscribed to MQTT topic: %s (msg_id=%d)", MQTT_TOPIC_GLOBAL_OTA_NOTIFY, msg_id);
     } else {
-        LOG_W(TAG, "Failed to subscribe to MQTT OTA topic (broker may not be connected yet)");
+        LOG_W(TAG, "Failed to subscribe to MQTT OTA topic");
     }
 
-    // Subscribe to MQTT data for JSON routing
-    event_bus_subscribe(EVENT_MQTT_DATA_RECEIVED, on_mqtt_ota_notify);
-
-    // Subscribe to OTA events from services for MQTT status reporting
-    event_bus_subscribe(EVENT_OTA_STARTED, on_esp32_ota_started);
-    event_bus_subscribe(EVENT_OTA_PROGRESS, on_esp32_ota_progress);
-    event_bus_subscribe(EVENT_OTA_COMPLETED, on_esp32_ota_completed);
-    event_bus_subscribe(EVENT_OTA_FAILED, on_esp32_ota_failed);
-    event_bus_subscribe(EVENT_STM32_OTA_STARTED, on_stm32_ota_started);
-    event_bus_subscribe(EVENT_STM32_OTA_COMPLETED, on_stm32_ota_completed);
-    event_bus_subscribe(EVENT_STM32_OTA_FAILED, on_stm32_ota_failed);
-
-    LOG_I(TAG, "OTA manager started - listening for ESP32 and STM32 update notifications");
     return OTA_MGR_OK;
 }
 
