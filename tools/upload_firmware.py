@@ -342,18 +342,15 @@ def upload_to_storage(file_path, version, platform):
         }
     )
 
-    # Generate public URL
-    if S3_ENDPOINT:
-        # MinIO/local endpoint
-        url = f"{S3_ENDPOINT}/{S3_BUCKET}/{object_key}"
-    else:
-        # AWS S3 public URL (us-east-1 uses different format)
-        if AWS_REGION == 'us-east-1':
-            url = f"https://{S3_BUCKET}.s3.amazonaws.com/{object_key}"
-        else:
-            url = f"https://{S3_BUCKET}.s3.{AWS_REGION}.amazonaws.com/{object_key}"
+    # Generate pre-signed URL (valid 1 hour — works with private buckets)
+    url = s3_client.generate_presigned_url(
+        'get_object',
+        Params={'Bucket': S3_BUCKET, 'Key': object_key},
+        ExpiresIn=3600,
+    )
 
-    print(f"Uploaded: {url}")
+    print(f"Uploaded: s3://{S3_BUCKET}/{object_key}")
+    print(f"Pre-signed URL (1 hour): {url[:80]}...")
     return url, object_key
 
 def update_manifest(version, url, file_size, platform, checksums, signature_info, changelog):
