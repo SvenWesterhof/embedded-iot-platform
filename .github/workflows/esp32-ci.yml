@@ -74,15 +74,17 @@ jobs:
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Build firmware
-        working-directory: ESP32
         env:
           CCACHE_DIR: ~/.ccache
           IDF_CCACHE_ENABLE: "1"
-        run: idf.py build
+        run: |
+          cd ESP32
+          idf.py build
 
       - name: Print binary size
-        working-directory: ESP32
-        run: idf.py size
+        run: |
+          cd ESP32
+          idf.py size
 
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
