@@ -30,7 +30,7 @@
             "inherits": "default",
             "description": "Used by GitHub Actions CI (Linux). Passes ARM toolchain path and enables compile_commands.json.",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_BUILD_TYPE": "Debug",
                 "ARM_TOOLCHAIN_DIR": "/opt/arm-toolchain/bin",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             }
