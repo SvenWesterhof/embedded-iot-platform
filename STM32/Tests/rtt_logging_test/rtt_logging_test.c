@@ -27,7 +27,7 @@ void rtt_test_logging(void)
     SEGGER_RTT_WriteString(0, "\n=== RTT Logging Test ===\n");
     
     // Test formatted RTT output using SEGGER_RTT_printf
-    SEGGER_RTT_printf(0, "System uptime: %lu ms\n", HAL_GetTick());
+    SEGGER_RTT_printf(0, "System uptime: %u ms\n", HAL_GetTick());
     SEGGER_RTT_printf(0, "Free heap: %u bytes\n", xPortGetFreeHeapSize());
     
     // Test log macros with different levels
@@ -65,7 +65,7 @@ void rtt_test_performance(void)
     uint32_t end_time = HAL_GetTick();
     uint32_t duration = end_time - start_time;
     
-    SEGGER_RTT_printf(0, "RTT Performance: %lu messages in %lu ms (%.2f msg/sec)\n", 
+    SEGGER_RTT_printf(0, "RTT Performance: %u messages in %u ms (%.2f msg/sec)\n", 
                       iterations, duration, 
                       duration > 0 ? (float)iterations * 1000.0f / duration : 0.0f);
 }
@@ -79,15 +79,15 @@ void rtt_test_continuous(void)
 {
     static uint32_t counter = 0;
     
-    LOG_I(TAG, "Continuous test #%lu - Free heap: %u bytes", 
+    LOG_I(TAG, "Continuous test #%u - Free heap: %u bytes", 
           counter++, xPortGetFreeHeapSize());
     
     if (counter % 10 == 0) {
-        LOG_W(TAG, "Checkpoint reached: %lu", counter);
+        LOG_W(TAG, "Checkpoint reached: %u", counter);
     }
     
     if (counter % 50 == 0) {
-        LOG_E(TAG, "Major checkpoint: %lu", counter);
+        LOG_E(TAG, "Major checkpoint: %u", counter);
         rtt_test_performance();
     }
 }

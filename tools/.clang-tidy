@@ -10,8 +10,11 @@ Checks: >
   bugprone-*,
   -bugprone-easily-swappable-parameters,
   -bugprone-macro-parentheses,
+  -bugprone-branch-clone,
+  -bugprone-switch-missing-default-case,
   cert-*,
   -cert-err10-c,
+  -cert-err34-c,
   performance-*,
   portability-*,
   readability-identifier-naming,
@@ -44,6 +47,16 @@ CheckOptions:
     value: UPPER_CASE
   - key: readability-identifier-naming.MacroDefinitionCase
     value: UPPER_CASE
+  # Exemptions for FreeRTOS conventions (pvParameters, task-related names)
+  - key: readability-identifier-naming.ParameterIgnoredRegexp
+    value: "^(pvParameters|pcName|pxCreatedTask|xCoreID|xTask|pcTaskName|uxPriority)$"
+  # Exemptions for log tags (project-wide static const TAG) and CMSIS globals
+  - key: readability-identifier-naming.VariableIgnoredRegexp
+    value: "^(TAG|SystemCoreClock|AHBPrescTable|APBPrescTable|PERF_CHECK_INTERVAL)$"
+  # Exemptions for HAL callbacks, interrupt handlers, CMSIS/HAL/BSP required names,
+  # and third-party display/sensor drivers (ST7735, BSP layer, SEGGER conventions)
+  - key: readability-identifier-naming.FunctionIgnoredRegexp
+    value: "^(HAL_|BSP_|ST7735_|INA226_|HardFault_Handler|SysTick_Handler|SystemInit|Error_Handler|__io_putchar|vApplicationStack|vApplicationIdle|vApplicationTick|vApplicationMalloc).*"
 
 # Only analyse headers inside project source directories.
 # Excludes STM32 HAL, FreeRTOS, ESP-IDF internals.

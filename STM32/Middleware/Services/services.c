@@ -62,7 +62,7 @@ void services_run(void)
     if (os_ticks_to_ms(current_time - last_isr_log_time) >= 5000) {
         uint32_t idle_count, dma_ht_count, dma_tc_count;
         hal_uart_get_isr_counters(&idle_count, &dma_ht_count, &dma_tc_count);
-        LOG_I(TAG, "UART ISR counters: IDLE=%lu, DMA_HT=%lu, DMA_TC=%lu",
+        LOG_I(TAG, "UART ISR counters: IDLE=%u, DMA_HT=%u, DMA_TC=%u",
               idle_count, dma_ht_count, dma_tc_count);
         last_isr_log_time = current_time;
     }

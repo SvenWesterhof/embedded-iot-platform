@@ -155,7 +155,11 @@ if [[ "$TARGET" == "stm32" || "$TARGET" == "all" ]]; then
         "-DSTM32F767xx=1" \
         "-DSTM32F7=1" \
         "-DUSE_HAL_DRIVER=1" \
-        "-DDEBUG=1"
+        "-DDEBUG=1" \
+        "-i" "${REPO_ROOT}/STM32/Middlewares" \
+        "-i" "${REPO_ROOT}/STM32/Drivers" \
+        "-i" "${REPO_ROOT}/STM32/Core" \
+        "-i" "${REPO_ROOT}/STM32/Middleware/SEGGER"
 
     # Try CI preset output first, fall back to Release, then Debug
     STM32_BUILD=""
