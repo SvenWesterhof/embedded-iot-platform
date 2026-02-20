@@ -68,6 +68,7 @@ jobs:
         with:
           esp_idf_version: v5.5
           target: esp32s3
+          path: ESP32
 
       - name: Extract short SHA
         id: meta
