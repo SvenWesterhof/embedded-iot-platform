@@ -70,7 +70,7 @@ jobs:
           esp_idf_version: v5.5
           target: esp32s3
           path: ESP32
-          extra_docker_args: -v ${{ github.workspace }}/.ccache:/root/.ccache -e CCACHE_DIR=/root/.ccache
+          extra_docker_args: -v ${{ github.workspace }}/.ccache:/root/.ccache -e CCACHE_DIR=/root/.ccache -e IDF_CCACHE_ENABLE=1
 
       - name: Extract short SHA
         id: meta
