@@ -63,7 +63,13 @@ jobs:
           restore-keys: |
             ccache-esp32-
 
-      - name: Setup ESP-IDF v5.5
+      - name: Setup dummy credentials and certificates for CI
+        run: |
+          # Copy credentials template (CI builds only - not for production!)
+          cp ESP32/Application/credentials.h.template ESP32/Application/credentials.h
+
+
+      - name: Setup and build using ESP-IDF v5.5
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v5.5
@@ -73,21 +79,6 @@ jobs:
       - name: Extract short SHA
         id: meta
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Setup dummy credentials and certificates for CI
-        run: |
-          # Copy credentials template (CI builds only - not for production!)
-          cp ESP32/Application/credentials.h.template ESP32/Application/credentials.h
-
-          # Create dummy AWS IoT certificates
-          mkdir -p ESP32/keys/iot
-          echo "-----BEGIN CERTIFICATE-----" > ESP32/keys/iot/AmazonRootCA1.pem
-          echo "DUMMY_CI_CERTIFICATE" >> ESP32/keys/iot/AmazonRootCA1.pem
-          echo "-----END CERTIFICATE-----" >> ESP32/keys/iot/AmazonRootCA1.pem
-
-          echo "-----BEGIN CERTIFICATE-----" > ESP32/keys/iot/device-cert.pem
-          echo "DUMMY_CI_CERTIFICATE" >> ESP32/keys/iot/device-cert.pem
-          echo "-----END CERTIFICATE-----" >> ESP32/keys/iot/device-cert.pem
 
       - name: Build firmware
         env:
