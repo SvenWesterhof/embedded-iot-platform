@@ -19,3 +19,9 @@ target_include_directories(SEGGER_SystemView PUBLIC
 target_compile_definitions(SEGGER_SystemView PUBLIC
     RTT_USE_ASM=0
 )
+
+# Suppress trace macro redefinition warnings when SystemView is disabled
+# (SEGGER RTT is still used for logging, but SystemView integration is off)
+target_compile_options(SEGGER_SystemView PRIVATE
+    -Wno-macro-redefined
+)
