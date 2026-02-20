@@ -223,7 +223,7 @@ void app_run(void)
         uptime += 2;
         // Build status JSON for dashboard
         (void)snprintf(status_json, sizeof(status_json),
-            "{\"uptime\":%u,\"wifi\":\"%s\",\"mqtt\":\"%s\",\"ntp\":\"%s\",\"clients\":%d}",
+            "{\"uptime\":%lu,\"wifi\":\"%s\",\"mqtt\":\"%s\",\"ntp\":\"%s\",\"clients\":%d}",
             uptime,
             wifi_manager_is_connected() ? "Connected" : "Disconnected",
             serv_mqtt_is_connected() ? "Connected" : "Disconnected",
