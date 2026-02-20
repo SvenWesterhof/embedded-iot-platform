@@ -1,10 +1,22 @@
-add_library(SEGGER_SystemView STATIC
+# SEGGER library: RTT for logging, optionally SystemView for profiling
+# Note: SystemView is currently disabled (see STM32/CMakeLists.txt USE_SEGGER_SYSTEMVIEW)
+# Only compile RTT files to avoid trace macro redefinition warnings
+
+set(SEGGER_SOURCES
     SEGGER/SEGGER_RTT.c
     SEGGER/SEGGER_RTT_printf.c
-    SEGGER/SEGGER_SYSVIEW.c
-    Config/SEGGER_SYSVIEW_Config_FreeRTOS.c
-    Patch/SEGGER_SYSVIEW_FreeRTOS.c
 )
+
+# Only include SystemView files if explicitly enabled
+if(USE_SEGGER_SYSTEMVIEW)
+    list(APPEND SEGGER_SOURCES
+        SEGGER/SEGGER_SYSVIEW.c
+        Config/SEGGER_SYSVIEW_Config_FreeRTOS.c
+        Patch/SEGGER_SYSVIEW_FreeRTOS.c
+    )
+endif()
+
+add_library(SEGGER_SystemView STATIC ${SEGGER_SOURCES})
 
 target_include_directories(SEGGER_SystemView PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/SEGGER
@@ -18,10 +30,4 @@ target_include_directories(SEGGER_SystemView PUBLIC
 
 target_compile_definitions(SEGGER_SystemView PUBLIC
     RTT_USE_ASM=0
-)
-
-# Suppress trace macro redefinition warnings when SystemView is disabled
-# (SEGGER RTT is still used for logging, but SystemView integration is off)
-target_compile_options(SEGGER_SystemView PRIVATE
-    -Wno-macro-redefined
 )
