@@ -232,7 +232,7 @@ https_download_status_t serv_https_download(const https_download_config_t *confi
         ctx.bytes_downloaded += read_len;
 
         // Report progress
-        int progress_pct = (ctx.bytes_downloaded * 100) / config->expected_size;
+        int progress_pct = (int)((ctx.bytes_downloaded * 100) / config->expected_size);
         if (progress_pct >= ctx.last_progress_pct + PROGRESS_REPORT_PCT) {
             LOG_I(TAG, "Download progress: %d%% (%lu/%lu bytes)",
                      progress_pct, ctx.bytes_downloaded, config->expected_size);
@@ -387,7 +387,7 @@ https_download_status_t serv_https_download_stream(const https_download_config_t
 
         bytes_downloaded += read_len;
 
-        int progress_pct = (bytes_downloaded * 100) / config->expected_size;
+        int progress_pct = (int)((bytes_downloaded * 100) / config->expected_size);
         if (progress_pct >= last_progress_pct + PROGRESS_REPORT_PCT) {
             LOG_I(TAG, "Download progress: %d%% (%lu/%lu bytes)",
                      progress_pct, bytes_downloaded, config->expected_size);

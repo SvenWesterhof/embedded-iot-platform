@@ -279,8 +279,10 @@ static bool stream_to_stm32_cb(const uint8_t *data, uint32_t len, void *user_dat
 static bool stm32_start_and_wait_erase(void)
 {
     uint8_t ver_major = 0, ver_minor = 0, ver_patch = 0;
-    sscanf(s_ctx.current_update.version, "%hhu.%hhu.%hhu",
-           &ver_major, &ver_minor, &ver_patch);
+    if (sscanf(s_ctx.current_update.version, "%hhu.%hhu.%hhu",
+               &ver_major, &ver_minor, &ver_patch) != 3) {
+        LOG_W(TAG, "Failed to parse version string: %s, using 0.0.0", s_ctx.current_update.version);
+    }
 
     cmd_fw_update_start_t start_cmd = {
         .total_size    = s_ctx.current_update.size,

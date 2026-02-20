@@ -502,7 +502,7 @@ static void event_bus_handler(event_type_t type, void *data)
         // Forward raw data to MQTT using device-specific telemetry topic
         // In real implementation, you'd parse the STM32 data structure here
         char topic[TOPIC_BUFFER_SIZE];
-        snprintf(topic, sizeof(topic), "devices/%s/telemetry/stm32", ctx.device_id);
+        (void)snprintf(topic, sizeof(topic), "devices/%s/telemetry/stm32", ctx.device_id);
         serv_mqtt_publish_string(topic, (const char *)data, 0, false);
 
         LOG_D(TAG, "Forwarded STM32 data to MQTT");

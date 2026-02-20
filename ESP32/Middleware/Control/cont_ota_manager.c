@@ -46,12 +46,12 @@ static void report_ota_status(const char *target, const char *status, const char
     }
 
     char topic[128];
-    snprintf(topic, sizeof(topic), MQTT_TOPIC_DEVICE_OTA_STATUS_FMT, device_id);
+    (void)snprintf(topic, sizeof(topic), MQTT_TOPIC_DEVICE_OTA_STATUS_FMT, device_id);
 
     char payload[256];
-    snprintf(payload, sizeof(payload),
-             "{\"target\":\"%s\",\"status\":\"%s\",\"message\":\"%s\"}",
-             target, status, message);
+    (void)snprintf(payload, sizeof(payload),
+                   "{\"target\":\"%s\",\"status\":\"%s\",\"message\":\"%s\"}",
+                   target, status, message);
 
     serv_mqtt_publish(topic, payload, strlen(payload), 1, false);
     LOG_I(TAG, "[%s] OTA Status: %s - %s", target, status, message);
@@ -65,10 +65,10 @@ static void report_ota_progress(const char *target, uint8_t progress)
     }
 
     char topic[128];
-    snprintf(topic, sizeof(topic), MQTT_TOPIC_DEVICE_OTA_PROGRESS_FMT, device_id);
+    (void)snprintf(topic, sizeof(topic), MQTT_TOPIC_DEVICE_OTA_PROGRESS_FMT, device_id);
 
     char payload[64];
-    snprintf(payload, sizeof(payload), "{\"target\":\"%s\",\"progress\":%u}", target, progress);
+    (void)snprintf(payload, sizeof(payload), "{\"target\":\"%s\",\"progress\":%u}", target, progress);
 
     serv_mqtt_publish(topic, payload, strlen(payload), 0, false);
 }
@@ -358,7 +358,7 @@ ota_mgr_status_t cont_ota_get_partition_info(char *buffer, size_t buffer_size)
 
     const esp_partition_t *running = esp_ota_get_running_partition();
     if (!running) {
-        snprintf(buffer, buffer_size, "Unknown partition");
+        (void)snprintf(buffer, buffer_size, "Unknown partition");
         return OTA_MGR_ERR_INTERNAL;
     }
 
@@ -371,6 +371,6 @@ ota_mgr_status_t cont_ota_get_partition_info(char *buffer, size_t buffer_size)
         type_str = "ota_1";
     }
 
-    snprintf(buffer, buffer_size, "%s @ 0x%08lx", type_str, running->address);
+    (void)snprintf(buffer, buffer_size, "%s @ 0x%08lx", type_str, running->address);
     return OTA_MGR_OK;
 }
