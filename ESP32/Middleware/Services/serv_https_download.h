@@ -52,6 +52,29 @@ https_download_status_t serv_https_download(const https_download_config_t *confi
                                             uint32_t *out_size);
 
 /**
+ * @brief Callback type for streaming downloads
+ *
+ * Called once per received HTTP chunk (up to 4KB). Return false to abort.
+ */
+typedef bool (*https_chunk_cb_t)(const uint8_t *data, uint32_t len, void *user_data);
+
+/**
+ * @brief Stream a file from HTTPS URL, delivering data chunk-by-chunk via callback
+ *
+ * No large firmware buffer is allocated — data is passed to chunk_cb as it arrives.
+ * Uses a single 4KB internal working buffer on the heap. Suitable when the caller
+ * cannot allocate a contiguous buffer for the full file (e.g. heap fragmentation).
+ *
+ * @param config  Download configuration (url, expected_size, timeout_ms, progress_cb)
+ * @param chunk_cb  Called for each received chunk; return false to abort
+ * @param user_data Passed unchanged to chunk_cb
+ * @return HTTPS_DOWNLOAD_OK on success
+ */
+https_download_status_t serv_https_download_stream(const https_download_config_t *config,
+                                                    https_chunk_cb_t chunk_cb,
+                                                    void *user_data);
+
+/**
  * @brief Get status code as human-readable string
  *
  * @param status Status code

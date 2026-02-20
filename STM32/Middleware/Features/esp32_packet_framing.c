@@ -418,10 +418,10 @@ uart_driver_status_t stm32_uart_send_packet(const uint8_t *data, size_t length, 
     }
     
     if (length > STM32_UART_MAX_PACKET_SIZE - PACKET_OVERHEAD) {
-        LOG_E(TAG, "Packet too large: %u bytes", length);
+        LOG_E(TAG, "Packet too large: %u bytes", (unsigned)length);
         return UART_DRV_ERR_PACKET_TOO_LARGE;
     }
-    
+
     // Acquire TX mutex
     if (os_mutex_take(state.tx_mutex, TX_MUTEX_TIMEOUT_MS) != OS_SUCCESS) {
         LOG_E(TAG, "Failed to acquire TX mutex");
@@ -460,7 +460,7 @@ uart_driver_status_t stm32_uart_send_packet(const uint8_t *data, size_t length, 
     os_mutex_give(state.tx_mutex);
     
     if (sent != (int)tx_index) {
-        LOG_E(TAG, "Failed to send packet: sent %d of %u bytes", sent, tx_index);
+        LOG_E(TAG, "Failed to send packet: sent %d of %u bytes", sent, (unsigned)tx_index);
         return UART_DRV_ERR_TX_FAILED;
     }
     
@@ -480,7 +480,7 @@ uart_driver_status_t stm32_uart_send_packet_async(const uint8_t *data, size_t le
     }
 
     if (length > STM32_UART_MAX_PACKET_SIZE - PACKET_OVERHEAD) {
-        LOG_E(TAG, "Packet too large: %u bytes", length);
+        LOG_E(TAG, "Packet too large: %u bytes", (unsigned)length);
         return UART_DRV_ERR_PACKET_TOO_LARGE;
     }
 

@@ -165,7 +165,7 @@ void serv_uart_test_send_pattern_async(void)
     // Start async transmission
     if (hal_uart_write_async(HAL_UART_PORT_1, async_tx_buffer, offset)) {
         async_tx_ready = false;
-        LOG_I(TAG, "Async TX started (%d bytes) - waiting for completion", offset);
+        LOG_I(TAG, "Async TX started (%u bytes) - waiting for completion", (unsigned)offset);
     } else {
         LOG_E(TAG, "Failed to start async TX");
     }

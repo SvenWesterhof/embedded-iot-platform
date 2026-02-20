@@ -286,11 +286,13 @@ static void uart_event_callback(stm32_framing_event_t *event, void *user_data)
 
         case STM32_FRAMING_EVENT_CRC_ERROR:
             LOG_W(TAG, "UART CRC error");
+            // cppcheck-suppress intToPointerCast
             event_bus_publish(EVENT_STM32_ERROR, (void*)1);
             break;
 
         case STM32_FRAMING_EVENT_RX_ERROR:
             LOG_W(TAG, "UART RX error");
+            // cppcheck-suppress intToPointerCast
             event_bus_publish(EVENT_STM32_ERROR, (void*)2);
             break;
 

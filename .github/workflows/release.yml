@@ -1,0 +1,307 @@
+name: Firmware Release
+
+# Triggered by version tags (e.g. v1.2.0).
+# Builds both ESP32 and STM32 firmware, signs them, uploads both to AWS S3,
+# then publishes a GitHub Release with all artifacts attached.
+#
+# Requires the following GitHub repository secrets:
+#   AWS_REGION               — e.g. eu-west-1
+#   AWS_ACCESS_KEY_ID        — IAM key with S3 PutObject permission
+#   AWS_SECRET_ACCESS_KEY    — IAM secret
+#   S3_BUCKET                — target bucket name
+#   MQTT_BROKER              — MQTT broker hostname
+#   MQTT_PORT                — MQTT broker port (default 1883 or 8883)
+#   ESP32_OTA_SIGNING_KEY    — RSA-3072 private key PEM (move out of repo!)
+#   STM32_PRIVATE_KEY        — RSA-2048 private key PEM (move out of repo!)
+#   STM32_PUBLIC_KEY         — RSA-2048 public key PEM
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  ARM_TOOLCHAIN_VERSION: "14.3.rel1"
+  ARM_TOOLCHAIN_INSTALL_DIR: "/opt/arm-toolchain"
+  ARM_TOOLCHAIN_URL: "https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi.tar.xz"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Build ESP32 release firmware
+  # ---------------------------------------------------------------------------
+  build-esp32:
+    name: Build ESP32 (Release)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0   # Full history needed for changelog generation
+
+      - name: Cache ESP-IDF toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.espressif
+          key: esp-idf-v5.5-${{ runner.os }}-${{ hashFiles('ESP32/sdkconfig.defaults') }}
+          restore-keys: |
+            esp-idf-v5.5-${{ runner.os }}-
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-esp32-${{ github.sha }}
+          restore-keys: |
+            ccache-esp32-
+
+      - name: Setup ESP-IDF v5.5
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5
+          target: esp32s3
+
+      - name: Build firmware
+        working-directory: ESP32
+        env:
+          CCACHE_DIR: ~/.ccache
+          IDF_CCACHE_ENABLE: "1"
+        run: idf.py build
+
+      - name: Upload ESP32 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32-release
+          if-no-files-found: error
+          path: |
+            ESP32/build/iot_gateway.bin
+            ESP32/build/iot_gateway.elf
+            ESP32/build/iot_gateway.map
+
+  # ---------------------------------------------------------------------------
+  # Job 2: Build STM32 release firmware
+  # ---------------------------------------------------------------------------
+  build-stm32:
+    name: Build STM32 (Release)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Ninja
+        run: sudo apt-get install -y --no-install-recommends ninja-build
+
+      - name: Cache ARM GCC toolchain
+        id: cache-arm-gcc
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ARM_TOOLCHAIN_INSTALL_DIR }}
+          key: arm-none-eabi-gcc-${{ env.ARM_TOOLCHAIN_VERSION }}-linux-x86_64
+
+      - name: Download ARM GCC toolchain
+        if: steps.cache-arm-gcc.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$ARM_TOOLCHAIN_INSTALL_DIR"
+          curl -fsSL "$ARM_TOOLCHAIN_URL" -o /tmp/arm-gcc.tar.xz
+          tar -xf /tmp/arm-gcc.tar.xz -C "$ARM_TOOLCHAIN_INSTALL_DIR" --strip-components=1
+          rm /tmp/arm-gcc.tar.xz
+
+      - name: Add ARM GCC to PATH
+        run: echo "$ARM_TOOLCHAIN_INSTALL_DIR/bin" >> "$GITHUB_PATH"
+
+      - name: Configure (CI preset)
+        working-directory: STM32
+        run: |
+          cmake --preset CI \
+            -DARM_TOOLCHAIN_DIR="$ARM_TOOLCHAIN_INSTALL_DIR/bin"
+
+      - name: Build firmware
+        working-directory: STM32
+        run: cmake --build --preset CI --parallel "$(nproc)"
+
+      - name: Upload STM32 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: stm32-release
+          if-no-files-found: error
+          path: |
+            STM32/build/CI/sensor_node.bin
+            STM32/build/CI/sensor_node.hex
+            STM32/build/CI/sensor_node.elf
+            STM32/build/CI/Bootloader/bootloader.bin
+            STM32/build/CI/Bootloader/bootloader.hex
+
+  # ---------------------------------------------------------------------------
+  # Job 3: Sign, upload to AWS, and publish GitHub Release
+  # Requires manual approval via the 'production' environment gate.
+  # ---------------------------------------------------------------------------
+  sign-and-release:
+    name: Sign + Upload + Publish Release
+    runs-on: ubuntu-latest
+    needs: [build-esp32, build-stm32]
+    environment: production   # Configure approval gate in repo Settings → Environments
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download ESP32 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: esp32-release
+          path: artifacts/esp32
+
+      - name: Download STM32 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: stm32-release
+          path: artifacts/stm32
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Calculate checksums
+        id: checksums
+        run: |
+          ESP32_SHA=$(sha256sum artifacts/esp32/iot_gateway.bin | cut -d' ' -f1)
+          STM32_SHA=$(sha256sum artifacts/stm32/sensor_node.bin | cut -d' ' -f1)
+          BOOT_SHA=$(sha256sum artifacts/stm32/bootloader.bin | cut -d' ' -f1)
+          echo "ESP32_SHA=${ESP32_SHA}" >> "$GITHUB_OUTPUT"
+          echo "STM32_SHA=${STM32_SHA}" >> "$GITHUB_OUTPUT"
+          echo "BOOT_SHA=${BOOT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "ESP32 SHA256: ${ESP32_SHA}"
+          echo "STM32 SHA256: ${STM32_SHA}"
+          echo "Bootloader SHA256: ${BOOT_SHA}"
+
+      - name: Generate categorized changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"%s" HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"%s" "${PREV_TAG}..HEAD")
+          fi
+
+          FEATURES="" BUGFIXES="" DOCS="" REFACTOR="" OTHER=""
+          while IFS= read -r commit; do
+            if [[ $commit =~ ^feat(\(.*\))?:\ (.*) ]];     then FEATURES="${FEATURES}- ${BASH_REMATCH[2]}\n"
+            elif [[ $commit =~ ^fix(\(.*\))?:\ (.*) ]];    then BUGFIXES="${BUGFIXES}- ${BASH_REMATCH[2]}\n"
+            elif [[ $commit =~ ^docs(\(.*\))?:\ (.*) ]];   then DOCS="${DOCS}- ${BASH_REMATCH[2]}\n"
+            elif [[ $commit =~ ^refactor(\(.*\))?:\ (.*) ]]; then REFACTOR="${REFACTOR}- ${BASH_REMATCH[2]}\n"
+            else OTHER="${OTHER}- ${commit}\n"
+            fi
+          done <<< "$COMMITS"
+
+          CHANGELOG=""
+          [ -n "$FEATURES" ] && CHANGELOG="${CHANGELOG}### Features\n${FEATURES}\n"
+          [ -n "$BUGFIXES" ] && CHANGELOG="${CHANGELOG}### Bug Fixes\n${BUGFIXES}\n"
+          [ -n "$REFACTOR" ] && CHANGELOG="${CHANGELOG}### Refactoring\n${REFACTOR}\n"
+          [ -n "$DOCS" ]     && CHANGELOG="${CHANGELOG}### Documentation\n${DOCS}\n"
+          [ -n "$OTHER" ]    && CHANGELOG="${CHANGELOG}### Other Changes\n${OTHER}\n"
+
+          echo -e "$CHANGELOG" > CHANGELOG.md
+          echo "CHANGELOG<<EOF" >> "$GITHUB_OUTPUT"
+          echo -e "$CHANGELOG" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Write signing and IoT keys from secrets
+        run: |
+          mkdir -p ESP32/keys ESP32/keys/iot
+          printf '%s' "${{ secrets.ESP32_OTA_SIGNING_KEY }}" > ESP32/keys/ota_signing_key.pem
+          printf '%s' "${{ secrets.STM32_PRIVATE_KEY }}"     > ESP32/keys/stm32_private_key.pem
+          printf '%s' "${{ secrets.STM32_PUBLIC_KEY }}"      > ESP32/keys/stm32_public_key.pem
+          printf '%s' "${{ secrets.IOT_CA_CERT }}"           > ESP32/keys/iot/AmazonRootCA1.pem
+          printf '%s' "${{ secrets.IOT_DEVICE_CERT }}"       > ESP32/keys/iot/device-cert.pem
+          printf '%s' "${{ secrets.IOT_DEVICE_KEY }}"        > ESP32/keys/iot/device-private-key.pem
+
+      - name: Install Python dependencies
+        run: pip install -r tools/requirements.txt
+
+      - name: Upload ESP32 firmware to AWS S3
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          MQTT_BROKER: ${{ secrets.MQTT_BROKER }}
+          MQTT_PORT: "8883"
+          IOT_CA_CERT: ESP32/keys/iot/AmazonRootCA1.pem
+          IOT_CERT: ESP32/keys/iot/device-cert.pem
+          IOT_KEY: ESP32/keys/iot/device-private-key.pem
+        run: |
+          python3 ESP32/tools/upload_firmware.py \
+            artifacts/esp32/iot_gateway.bin \
+            --version "${{ steps.version.outputs.VERSION }}" \
+            --changelog "$(cat CHANGELOG.md)" \
+            --no-notify
+
+      - name: Upload STM32 firmware to AWS S3
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          MQTT_BROKER: ${{ secrets.MQTT_BROKER }}
+          MQTT_PORT: "8883"
+          IOT_CA_CERT: ESP32/keys/iot/AmazonRootCA1.pem
+          IOT_CERT: ESP32/keys/iot/device-cert.pem
+          IOT_KEY: ESP32/keys/iot/device-private-key.pem
+        run: |
+          python3 ESP32/tools/upload_firmware.py \
+            artifacts/stm32/sensor_node.bin \
+            --platform stm32 \
+            --version "${{ steps.version.outputs.VERSION }}" \
+            --changelog "$(cat CHANGELOG.md)" \
+            --no-notify
+
+      - name: Shred private keys
+        if: always()   # Run even if earlier steps fail
+        run: |
+          shred -u \
+            ESP32/keys/ota_signing_key.pem \
+            ESP32/keys/stm32_private_key.pem \
+            ESP32/keys/iot/device-private-key.pem \
+            2>/dev/null || true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/esp32/iot_gateway.bin
+            artifacts/esp32/iot_gateway.elf
+            artifacts/stm32/sensor_node.bin
+            artifacts/stm32/sensor_node.hex
+            artifacts/stm32/sensor_node.elf
+            artifacts/stm32/bootloader.bin
+            artifacts/stm32/bootloader.hex
+            tools/firmware_manifest.json
+          body: |
+            ## Firmware Release v${{ steps.version.outputs.VERSION }}
+
+            | Target | File | SHA256 |
+            |--------|------|--------|
+            | ESP32-S3 | `iot_gateway.bin` | `${{ steps.checksums.outputs.ESP32_SHA }}` |
+            | STM32F767 | `sensor_node.bin` | `${{ steps.checksums.outputs.STM32_SHA }}` |
+            | STM32 Bootloader | `bootloader.bin` | `${{ steps.checksums.outputs.BOOT_SHA }}` |
+
+            ---
+
+            ${{ steps.changelog.outputs.CHANGELOG }}
+
+            ---
+
+            **Firmware uploaded to AWS S3 automatically.**
+            To send OTA notification to devices:
+            ```bash
+            python3 ESP32/tools/upload_firmware.py \
+              <firmware.bin> \
+              --version ${{ steps.version.outputs.VERSION }}
+            ```
+          draft: false
+          prerelease: false

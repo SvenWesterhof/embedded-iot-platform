@@ -54,13 +54,13 @@ fw_update_svc_status_t serv_firmware_update_start(const cmd_fw_update_start_t *c
     }
 
     if (s_fw.state != FW_UPDATE_IDLE) {
-        LOG_W(TAG, "Cannot start: state=%u (not IDLE)", s_fw.state);
+        LOG_W(TAG, "Cannot start: state=%d (not IDLE)", s_fw.state);
         return FW_UPDATE_SVC_ERR_BUSY;
     }
 
     // Validate parameters
     if (cmd->total_size == 0 || cmd->total_size > HAL_FLASH_BANK_SIZE) {
-        LOG_E(TAG, "Invalid firmware size: %lu (max %lu)",
+        LOG_E(TAG, "Invalid firmware size: %u (max %u)",
               cmd->total_size, (uint32_t)HAL_FLASH_BANK_SIZE);
         return FW_UPDATE_SVC_ERR_SIZE;
     }
@@ -86,7 +86,7 @@ fw_update_svc_status_t serv_firmware_update_start(const cmd_fw_update_start_t *c
     s_fw.target_bank = hal_flash_get_inactive_bank();
     s_fw.write_address = hal_flash_get_bank_base(s_fw.target_bank);
 
-    LOG_I(TAG, "FW update start: v%u.%u.%u, %lu bytes, %u chunks → bank %u",
+    LOG_I(TAG, "FW update start: v%u.%u.%u, %u bytes, %u chunks → bank %u",
           s_fw.version_major, s_fw.version_minor, s_fw.version_patch,
           s_fw.total_size, s_fw.total_chunks_expected, s_fw.target_bank);
 
@@ -98,7 +98,7 @@ fw_update_svc_status_t serv_firmware_update_start(const cmd_fw_update_start_t *c
 fw_update_svc_status_t serv_firmware_update_erase(void)
 {
     if (s_fw.state != FW_UPDATE_ERASING) {
-        LOG_W(TAG, "Cannot erase: state=%u (not ERASING)", s_fw.state);
+        LOG_W(TAG, "Cannot erase: state=%d (not ERASING)", s_fw.state);
         return FW_UPDATE_SVC_ERR_STATE;
     }
 
@@ -125,7 +125,7 @@ fw_update_svc_status_t serv_firmware_update_chunk(const cmd_fw_update_chunk_t *c
     }
 
     if (s_fw.state != FW_UPDATE_RECEIVING) {
-        LOG_W(TAG, "Cannot receive chunk: state=%u", s_fw.state);
+        LOG_W(TAG, "Cannot receive chunk: state=%d", s_fw.state);
         return FW_UPDATE_SVC_ERR_STATE;
     }
 
@@ -146,7 +146,7 @@ fw_update_svc_status_t serv_firmware_update_chunk(const cmd_fw_update_chunk_t *c
 
     // Don't exceed total size
     if (s_fw.bytes_received + cmd->chunk_length > s_fw.total_size) {
-        LOG_E(TAG, "Chunk would exceed total size (%lu + %u > %lu)",
+        LOG_E(TAG, "Chunk would exceed total size (%u + %u > %u)",
               s_fw.bytes_received, cmd->chunk_length, s_fw.total_size);
         return FW_UPDATE_SVC_ERR_SIZE;
     }
@@ -155,7 +155,7 @@ fw_update_svc_status_t serv_firmware_update_chunk(const cmd_fw_update_chunk_t *c
     hal_flash_status_t fl_status = hal_flash_write(
         s_fw.write_address, cmd->data, cmd->chunk_length);
     if (fl_status != HAL_FL_OK) {
-        LOG_E(TAG, "Flash write failed at 0x%08lX: %d",
+        LOG_E(TAG, "Flash write failed at 0x%08X: %d",
               s_fw.write_address, fl_status);
         s_fw.state = FW_UPDATE_ERROR;
         s_fw.error_code = (uint8_t)fl_status;
@@ -170,7 +170,7 @@ fw_update_svc_status_t serv_firmware_update_chunk(const cmd_fw_update_chunk_t *c
     if (s_fw.chunks_received % (s_fw.total_chunks_expected / 10 + 1) == 0 ||
         s_fw.chunks_received == s_fw.total_chunks_expected) {
         uint8_t pct = (uint8_t)((uint32_t)s_fw.chunks_received * 100 / s_fw.total_chunks_expected);
-        LOG_I(TAG, "Progress: %u%% (%u/%u chunks, %lu bytes)",
+        LOG_I(TAG, "Progress: %u%% (%u/%u chunks, %u bytes)",
               pct, s_fw.chunks_received, s_fw.total_chunks_expected, s_fw.bytes_received);
     }
 
@@ -184,13 +184,13 @@ fw_update_svc_status_t serv_firmware_update_end(const cmd_fw_update_end_t *cmd)
     }
 
     if (s_fw.state != FW_UPDATE_RECEIVING) {
-        LOG_W(TAG, "Cannot finalize: state=%u", s_fw.state);
+        LOG_W(TAG, "Cannot finalize: state=%d", s_fw.state);
         return FW_UPDATE_SVC_ERR_STATE;
     }
 
     // Verify all bytes received
     if (s_fw.bytes_received != s_fw.total_size) {
-        LOG_E(TAG, "Size mismatch: received %lu, expected %lu",
+        LOG_E(TAG, "Size mismatch: received %u, expected %u",
               s_fw.bytes_received, s_fw.total_size);
         s_fw.state = FW_UPDATE_ERROR;
         return FW_UPDATE_SVC_ERR_SIZE;
@@ -198,24 +198,24 @@ fw_update_svc_status_t serv_firmware_update_end(const cmd_fw_update_end_t *cmd)
 
     // Validate CRC32 over written flash region
     s_fw.state = FW_UPDATE_VALIDATING;
-    LOG_I(TAG, "Validating CRC32 over %lu bytes at bank %u...",
+    LOG_I(TAG, "Validating CRC32 over %u bytes at bank %u...",
           s_fw.total_size, s_fw.target_bank);
 
     uint32_t bank_base = hal_flash_get_bank_base(s_fw.target_bank);
     uint32_t computed_crc = hal_flash_compute_crc32(bank_base, s_fw.total_size);
 
     if (computed_crc != s_fw.crc32_expected) {
-        LOG_E(TAG, "CRC32 mismatch: computed=0x%08lX, expected=0x%08lX",
+        LOG_E(TAG, "CRC32 mismatch: computed=0x%08X, expected=0x%08X",
               computed_crc, s_fw.crc32_expected);
         s_fw.state = FW_UPDATE_ERROR;
         s_fw.error_code = 0xFF;  // CRC error
         return FW_UPDATE_SVC_ERR_CRC;
     }
 
-    LOG_I(TAG, "CRC32 valid (0x%08lX)", computed_crc);
+    LOG_I(TAG, "CRC32 valid (0x%08X)", computed_crc);
     s_fw.state = FW_UPDATE_READY;
 
-    LOG_I(TAG, "Firmware v%u.%u.%u validated: %lu bytes, CRC OK",
+    LOG_I(TAG, "Firmware v%u.%u.%u validated: %u bytes, CRC OK",
           s_fw.version_major, s_fw.version_minor, s_fw.version_patch,
           s_fw.total_size);
 
@@ -226,12 +226,12 @@ fw_update_svc_status_t serv_firmware_update_end(const cmd_fw_update_end_t *cmd)
 void serv_firmware_update_apply(void)
 {
     if (s_fw.state != FW_UPDATE_READY) {
-        LOG_W(TAG, "Cannot apply: state=%u (not READY)", s_fw.state);
+        LOG_W(TAG, "Cannot apply: state=%d (not READY)", s_fw.state);
         return;
     }
 
     LOG_I(TAG, "Applying: setting update flag and resetting...");
-    LOG_I(TAG, "New firmware: v%u.%u.%u, %lu bytes",
+    LOG_I(TAG, "New firmware: v%u.%u.%u, %u bytes",
           s_fw.version_major, s_fw.version_minor, s_fw.version_patch, s_fw.total_size);
     LOG_I(TAG, "Bootloader will copy from Bank 2 to app area on next boot");
 
@@ -243,7 +243,7 @@ void serv_firmware_update_apply(void)
 
 fw_update_svc_status_t serv_firmware_update_abort(void)
 {
-    LOG_W(TAG, "Firmware update aborted (was in state %u)", s_fw.state);
+    LOG_W(TAG, "Firmware update aborted (was in state %d)", s_fw.state);
     memset(&s_fw, 0, sizeof(s_fw));
     s_fw.state = FW_UPDATE_IDLE;
     return FW_UPDATE_SVC_OK;

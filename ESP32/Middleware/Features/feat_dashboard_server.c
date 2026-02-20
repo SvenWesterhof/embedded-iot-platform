@@ -348,7 +348,7 @@ static void process_message(int client_fd, const uint8_t *data, size_t len)
  */
 static esp_err_t index_html_handler(httpd_req_t *req)
 {
-    const char *html = 
+    const char *html =
         "<!DOCTYPE html><html><head><meta charset='UTF-8'>"
         "<title>ESP32 Gateway</title></head><body>"
         "<h1>ESP32 Gateway Dashboard</h1>"

@@ -18,10 +18,16 @@ import argparse
 import subprocess
 import base64
 import binascii
+import ssl
+import time
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Install dependencies: pip install boto3 paho-mqtt cryptography
+# Install dependencies: pip install -r tools/requirements.txt
+from dotenv import load_dotenv, find_dotenv
+load_dotenv(find_dotenv())   # Loads .env from repo root (searched upward from this file)
+
 import boto3
 from botocore.client import Config
 import paho.mqtt.client as mqtt
@@ -41,6 +47,13 @@ S3_ENDPOINT = os.getenv('S3_ENDPOINT', None)  # Set to MinIO URL for local testi
 MQTT_BROKER = os.getenv('MQTT_BROKER', 'broker.hivemq.com')
 MQTT_PORT = int(os.getenv('MQTT_PORT', '1883'))
 MQTT_TOPIC_OTA_NOTIFY = os.getenv('MQTT_TOPIC_ESP32_NOTIFY', 'gateway/ota/notify')
+
+# AWS IoT Core TLS certificates (optional — set all three to enable TLS)
+# For local use: point to files in ESP32/keys/iot/
+# For CI: written from GitHub Secrets to temp files before script runs
+IOT_CA_CERT   = os.getenv('IOT_CA_CERT')    # Path to AmazonRootCA1.pem
+IOT_CERT      = os.getenv('IOT_CERT')        # Path to device-cert.pem
+IOT_KEY       = os.getenv('IOT_KEY')         # Path to device-private-key.pem
 
 # Signing Keys Configuration
 # ESP32: RSA-3072 key (used by espsecure.py)
@@ -329,18 +342,15 @@ def upload_to_storage(file_path, version, platform):
         }
     )
 
-    # Generate public URL
-    if S3_ENDPOINT:
-        # MinIO/local endpoint
-        url = f"{S3_ENDPOINT}/{S3_BUCKET}/{object_key}"
-    else:
-        # AWS S3 public URL (us-east-1 uses different format)
-        if AWS_REGION == 'us-east-1':
-            url = f"https://{S3_BUCKET}.s3.amazonaws.com/{object_key}"
-        else:
-            url = f"https://{S3_BUCKET}.s3.{AWS_REGION}.amazonaws.com/{object_key}"
+    # Generate pre-signed URL (valid 1 hour — works with private buckets)
+    url = s3_client.generate_presigned_url(
+        'get_object',
+        Params={'Bucket': S3_BUCKET, 'Key': object_key},
+        ExpiresIn=3600,
+    )
 
-    print(f"Uploaded: {url}")
+    print(f"Uploaded: s3://{S3_BUCKET}/{object_key}")
+    print(f"Pre-signed URL (1 hour): {url[:80]}...")
     return url, object_key
 
 def update_manifest(version, url, file_size, platform, checksums, signature_info, changelog):
@@ -449,32 +459,58 @@ def send_mqtt_notification(version, url, file_size, platform, checksums, signatu
     payload = json.dumps(notification)
 
     # Connect and publish
-    client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
+    # client_id must match the IoT Core policy resource (arn:.../client/firmware-uploader)
+    client = mqtt.Client(
+        callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+        client_id="firmware-uploader",
+    )
+
+    done = threading.Event()
+    success = [False]
 
     def on_connect(client, userdata, flags, reason_code, properties):
         if reason_code == 0:
-            print(f"Connected to MQTT broker")
+            print(f"  Connected to MQTT broker")
             client.publish(topic, payload, qos=1)
-            print(f"Published to topic: {topic}")
-            print(f"   Payload: {payload}")
+            print(f"  Published to topic: {topic}")
         else:
-            print(f"MQTT connection failed: {reason_code}")
+            print(f"  MQTT connection failed (reason: {reason_code})")
+            done.set()
 
-    def on_publish(client, userdata, mid, reason_code, properties):
-        print(f"Message published successfully")
-        client.disconnect()
+    def on_publish(*_):
+        print(f"  Message published successfully")
+        success[0] = True
+        done.set()
 
     client.on_connect = on_connect
     client.on_publish = on_publish
 
+    # Enable TLS if IoT Core certificates are configured
+    if IOT_CA_CERT and IOT_CERT and IOT_KEY:
+        client.tls_set(
+            ca_certs=IOT_CA_CERT,
+            certfile=IOT_CERT,
+            keyfile=IOT_KEY,
+            tls_version=ssl.PROTOCOL_TLS_CLIENT,
+        )
+        print(f"  TLS enabled (AWS IoT Core)")
+    else:
+        print(f"  WARNING: No TLS certificates configured — using plaintext MQTT")
+
     try:
-        client.connect(MQTT_BROKER, MQTT_PORT, 60)
-        client.loop_forever(timeout=10)
+        client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
+        client.loop_start()
+        completed = done.wait(timeout=15)  # 15-second total timeout
+        client.loop_stop()
+        client.disconnect()
+        if not completed:
+            print(f"  MQTT timeout — broker did not respond within 15 seconds")
+            return False
     except Exception as e:
-        print(f"MQTT error: {e}")
+        print(f"  MQTT error: {e}")
         return False
 
-    return True
+    return success[0]
 
 def main():
     parser = argparse.ArgumentParser(

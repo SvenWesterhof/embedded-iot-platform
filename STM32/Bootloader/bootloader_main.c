@@ -224,7 +224,7 @@ static void bl_iwdg_init(uint32_t timeout_ms)
     IWDG->KR = IWDG_KEY_ENABLE;  /* Start watchdog */
     IWDG->KR = IWDG_KEY_REFRESH; /* Initial refresh */
 
-    printf("[BL] IWDG started: timeout=%lums (reload=%lu)\n", timeout_ms, reload);
+    printf("[BL] IWDG started: timeout=%ums (reload=%u)\n", timeout_ms, reload);
 }
 
 static inline void bl_iwdg_kick(void)
@@ -252,9 +252,9 @@ static void bl_ensure_boot_addr_bank1(void)
     FLASH_OBProgramInitTypeDef ob;
     HAL_FLASHEx_OBGetConfig(&ob);
 
-    printf("[BL] Current OB: BOOT_ADD0=0x%04lX, nDBANK=%lu, USERConfig=0x%08lX\n",
+    printf("[BL] Current OB: BOOT_ADD0=0x%04X, nDBANK=%u, USERConfig=0x%08X\n",
            (uint32_t)ob.BootAddr0,
-           (ob.USERConfig & FLASH_OPTCR_nDBANK) ? 1UL : 0UL,
+           (ob.USERConfig & FLASH_OPTCR_nDBANK) ? 1U : 0U,
            (uint32_t)ob.USERConfig);
 
     bool needs_update = false;
@@ -353,7 +353,7 @@ static bool bl_check_boot_attempts(void)
     uint32_t attempts = BKP_BOOT_ATTEMPTS;
     uint32_t confirmed = BKP_BOOT_CONFIRMED;
 
-    printf("[BL] Boot attempts: %lu, confirmed: 0x%08lX\n", attempts, confirmed);
+    printf("[BL] Boot attempts: %u, confirmed: 0x%08X\n", attempts, confirmed);
 
     /* If the last boot was confirmed by the application, reset counter */
     if (confirmed == BOOT_CONFIRMED_MAGIC) {
@@ -370,13 +370,13 @@ static bool bl_check_boot_attempts(void)
     BKP_BOOT_ATTEMPTS = attempts;
 
     if (attempts >= MAX_BOOT_ATTEMPTS) {
-        printf("[BL] WARNING: %lu consecutive unconfirmed boots (max %d)\n",
+        printf("[BL] WARNING: %u consecutive unconfirmed boots (max %d)\n",
                attempts, MAX_BOOT_ATTEMPTS);
         printf("[BL] Application may be faulty — boot will proceed but flag is set\n");
         return false;  /* Signal that we've exceeded max attempts */
     }
 
-    printf("[BL] Boot attempt %lu/%d\n", attempts, MAX_BOOT_ATTEMPTS);
+    printf("[BL] Boot attempt %u/%d\n", attempts, MAX_BOOT_ATTEMPTS);
     return true;
 }
 
@@ -411,7 +411,7 @@ static bool bl_erase_app_sectors(void)
     HAL_FLASH_Lock();
 
     if (status != HAL_OK) {
-        printf("[BL] Erase FAILED at sector %lu (HAL status %d)\n", error, status);
+        printf("[BL] Erase FAILED at sector %u (HAL status %d)\n", error, status);
         return false;
     }
 
@@ -421,7 +421,7 @@ static bool bl_erase_app_sectors(void)
 
 static bool bl_copy_firmware(uint32_t fw_size)
 {
-    printf("[BL] Copying %lu bytes: 0x%08lX -> 0x%08lX\n",
+    printf("[BL] Copying %u bytes: 0x%08X -> 0x%08X\n",
            fw_size, (uint32_t)BANK2_BASE, (uint32_t)APP_ADDRESS);
 
     HAL_FLASH_Unlock();
@@ -435,7 +435,7 @@ static bool bl_copy_firmware(uint32_t fw_size)
             FLASH_TYPEPROGRAM_WORD, dst_addr, src[i]);
 
         if (status != HAL_OK) {
-            printf("[BL] Write FAILED at 0x%08lX (HAL status %d)\n",
+            printf("[BL] Write FAILED at 0x%08X (HAL status %d)\n",
                    dst_addr, status);
             HAL_FLASH_Lock();
             return false;
@@ -451,7 +451,7 @@ static bool bl_copy_firmware(uint32_t fw_size)
         /* Progress every 64KB */
         if ((i & 0x3FFF) == 0 && i > 0) {
             uint32_t pct = (i * 4 * 100) / fw_size;
-            printf("[BL] Copy progress: %lu%%\n", pct);
+            printf("[BL] Copy progress: %u%%\n", pct);
         }
     }
 
@@ -462,12 +462,12 @@ static bool bl_copy_firmware(uint32_t fw_size)
 
 static bool bl_verify_crc(uint32_t fw_size, uint32_t expected_crc)
 {
-    printf("[BL] Verifying CRC32 over %lu bytes at 0x%08lX...\n",
+    printf("[BL] Verifying CRC32 over %u bytes at 0x%08X...\n",
            fw_size, (uint32_t)APP_ADDRESS);
 
     uint32_t computed = crc32_compute((const uint8_t *)APP_ADDRESS, fw_size);
 
-    printf("[BL] CRC32: computed=0x%08lX, expected=0x%08lX\n",
+    printf("[BL] CRC32: computed=0x%08X, expected=0x%08X\n",
            computed, expected_crc);
 
     return (computed == expected_crc);
@@ -483,7 +483,7 @@ static bool bl_apply_update(void)
     uint32_t expected_crc = BKP_FW_CRC;
     uint32_t retry_count = BKP_UPDATE_RETRIES;
 
-    printf("[BL] Update pending: size=%lu, CRC=0x%08lX, retries=%lu\n", 
+    printf("[BL] Update pending: size=%u, CRC=0x%08X, retries=%u\n", 
            fw_size, expected_crc, retry_count);
 
     /* Validate size */
@@ -506,8 +506,8 @@ static bool bl_apply_update(void)
     
     if (staged_crc != expected_crc) {
         printf("[BL] ERROR: Staged firmware CRC mismatch!\n");
-        printf("[BL]   Expected: 0x%08lX\n", expected_crc);
-        printf("[BL]   Computed: 0x%08lX\n", staged_crc);
+        printf("[BL]   Expected: 0x%08X\n", expected_crc);
+        printf("[BL]   Computed: 0x%08X\n", staged_crc);
         printf("[BL] Bank 1 (old firmware) NOT erased — system still bootable\n");
         /* Clear update flag - staged firmware is bad, don't retry */
         BKP_UPDATE_FLAG = 0x00000000;
@@ -541,13 +541,13 @@ static bool bl_apply_update(void)
         BKP_UPDATE_RETRIES = retry_count;
 
         if (retry_count >= MAX_UPDATE_RETRIES) {
-            printf("[BL] ERROR: Update failed after %lu attempts, giving up\n", retry_count);
+            printf("[BL] ERROR: Update failed after %u attempts, giving up\n", retry_count);
             /* Clear flags to stop retrying */
             BKP_UPDATE_FLAG = 0x00000000;
             BKP_UPDATE_RETRIES = 0;
             return false;
         } else {
-            printf("[BL] Update failed (attempt %lu/%d), will retry on next boot\n",
+            printf("[BL] Update failed (attempt %u/%d), will retry on next boot\n",
                    retry_count, MAX_UPDATE_RETRIES);
             printf("[BL] Bank 2 staging area still contains valid firmware\n");
             /* DON'T clear update flag - will retry next boot */
@@ -565,7 +565,7 @@ static bool bl_apply_update(void)
     /* Log version from BKP4R if set by the application */
     uint32_t ver = BKP_FW_VERSION;
     if (ver != 0) {
-        printf("[BL] New firmware version: v%lu.%lu.%lu\n",
+        printf("[BL] New firmware version: v%u.%u.%u\n",
                (ver >> 16) & 0xFF, (ver >> 8) & 0xFF, ver & 0xFF);
     }
 
@@ -582,7 +582,7 @@ static bool bl_validate_app(void)
     uint32_t app_sp = *(volatile uint32_t *)APP_ADDRESS;
     uint32_t app_pc = *(volatile uint32_t *)(APP_ADDRESS + 4);
 
-    printf("[BL] App vector table: SP=0x%08lX, PC=0x%08lX\n", app_sp, app_pc);
+    printf("[BL] App vector table: SP=0x%08X, PC=0x%08X\n", app_sp, app_pc);
 
     /* SP must point to RAM (0x20000000 - 0x20080000) */
     if (app_sp < 0x20000000 || app_sp > 0x20080000) {
@@ -602,7 +602,7 @@ static bool bl_validate_app(void)
 static void bl_jump_to_app(void) __attribute__((noreturn));
 static void bl_jump_to_app(void)
 {
-    printf("[BL] Jumping to application at 0x%08lX\n\n", (uint32_t)APP_ADDRESS);
+    printf("[BL] Jumping to application at 0x%08X\n\n", (uint32_t)APP_ADDRESS);
 
     /* Flush UART before jumping */
     HAL_Delay(10);
@@ -821,7 +821,7 @@ int main(void)
             bl_error_blink();
         }
     } else {
-        printf("[BL] No update pending (flag=0x%08lX)\n", update_flag);
+        printf("[BL] No update pending (flag=0x%08X)\n", update_flag);
 #if BOOTLOADER_IWDG_ALWAYS_ON
         bl_iwdg_kick();  /* Kick before validation in always-on mode */
 #endif

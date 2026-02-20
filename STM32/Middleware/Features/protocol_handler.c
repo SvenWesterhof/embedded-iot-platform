@@ -247,7 +247,7 @@ proto_handler_status_t protocol_handler_start_stream(
     }
 
     state.streaming_active = true;
-    LOG_I(TAG, "Started streaming sensor %d @ %lu ms", sensor_type, interval_ms);
+    LOG_I(TAG, "Started streaming sensor %d @ %u ms", sensor_type, interval_ms);
 
     return PROTO_HANDLER_OK;
 }
@@ -295,7 +295,7 @@ static void packet_rx_callback(stm32_uart_event_t *event, void *user_data)
     }
 
     if (event->data == NULL || event->length < PROTOCOL_HEADER_SIZE) {
-        LOG_W(TAG, "Invalid packet: len=%u", event->length);
+        LOG_W(TAG, "Invalid packet: len=%u", (unsigned)event->length);
         return;
     }
 
@@ -411,7 +411,7 @@ static void handle_cmd_set_rtc(const protocol_packet_t *cmd)
         return;
     }
 
-    LOG_I(TAG, "RTC set to: %lu", rtc_cmd->unix_time);
+    LOG_I(TAG, "RTC set to: %u", rtc_cmd->unix_time);
 
     protocol_handler_send_response(
         cmd->cmd_id, cmd->seq, RESP_OK, NULL, 0);
@@ -619,7 +619,7 @@ static void stream_task(void *param)
 {
     (void)param;
 
-    LOG_I(TAG, "Stream task started: sensor=%d interval=%lu",
+    LOG_I(TAG, "Stream task started: sensor=%d interval=%u",
           state.stream_sensor, state.stream_interval_ms);
 
     while (!state.stream_stop_requested) {

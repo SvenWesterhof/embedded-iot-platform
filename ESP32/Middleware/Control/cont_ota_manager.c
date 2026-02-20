@@ -30,6 +30,7 @@ static const char *TAG = "OTA_MANAGER";
 
 static struct {
     bool initialized;
+    bool started;
 } s_mgr = {0};
 
 // ============================================================================
@@ -45,12 +46,12 @@ static void report_ota_status(const char *target, const char *status, const char
     }
 
     char topic[128];
-    snprintf(topic, sizeof(topic), MQTT_TOPIC_DEVICE_OTA_STATUS_FMT, device_id);
+    (void)snprintf(topic, sizeof(topic), MQTT_TOPIC_DEVICE_OTA_STATUS_FMT, device_id);
 
     char payload[256];
-    snprintf(payload, sizeof(payload),
-             "{\"target\":\"%s\",\"status\":\"%s\",\"message\":\"%s\"}",
-             target, status, message);
+    (void)snprintf(payload, sizeof(payload),
+                   "{\"target\":\"%s\",\"status\":\"%s\",\"message\":\"%s\"}",
+                   target, status, message);
 
     serv_mqtt_publish(topic, payload, strlen(payload), 1, false);
     LOG_I(TAG, "[%s] OTA Status: %s - %s", target, status, message);
@@ -64,10 +65,10 @@ static void report_ota_progress(const char *target, uint8_t progress)
     }
 
     char topic[128];
-    snprintf(topic, sizeof(topic), MQTT_TOPIC_DEVICE_OTA_PROGRESS_FMT, device_id);
+    (void)snprintf(topic, sizeof(topic), MQTT_TOPIC_DEVICE_OTA_PROGRESS_FMT, device_id);
 
     char payload[64];
-    snprintf(payload, sizeof(payload), "{\"target\":\"%s\",\"progress\":%u}", target, progress);
+    (void)snprintf(payload, sizeof(payload), "{\"target\":\"%s\",\"progress\":%u}", target, progress);
 
     serv_mqtt_publish(topic, payload, strlen(payload), 0, false);
 }
@@ -261,29 +262,29 @@ ota_mgr_status_t cont_ota_manager_start(void)
         return OTA_MGR_ERR_NOT_INITIALIZED;
     }
 
-    LOG_I(TAG, "Starting unified OTA manager...");
+    if (!s_mgr.started) {
+        // First start only: subscribe to event bus (survives across MQTT reconnects)
+        event_bus_subscribe(EVENT_MQTT_DATA_RECEIVED, on_mqtt_ota_notify);
+        event_bus_subscribe(EVENT_OTA_STARTED, on_esp32_ota_started);
+        event_bus_subscribe(EVENT_OTA_PROGRESS, on_esp32_ota_progress);
+        event_bus_subscribe(EVENT_OTA_COMPLETED, on_esp32_ota_completed);
+        event_bus_subscribe(EVENT_OTA_FAILED, on_esp32_ota_failed);
+        event_bus_subscribe(EVENT_STM32_OTA_STARTED, on_stm32_ota_started);
+        event_bus_subscribe(EVENT_STM32_OTA_COMPLETED, on_stm32_ota_completed);
+        event_bus_subscribe(EVENT_STM32_OTA_FAILED, on_stm32_ota_failed);
+        s_mgr.started = true;
+        LOG_I(TAG, "OTA manager started - listening for ESP32 and STM32 update notifications");
+    }
 
-    // Subscribe to MQTT OTA notification topic
+    // Re-subscribe to MQTT topic on every connect (broker clears subscriptions
+    // when clean_session=true, so this must be repeated after each reconnect)
     int msg_id = serv_mqtt_subscribe(MQTT_TOPIC_GLOBAL_OTA_NOTIFY, 1);
     if (msg_id >= 0) {
         LOG_I(TAG, "Subscribed to MQTT topic: %s (msg_id=%d)", MQTT_TOPIC_GLOBAL_OTA_NOTIFY, msg_id);
     } else {
-        LOG_W(TAG, "Failed to subscribe to MQTT OTA topic (broker may not be connected yet)");
+        LOG_W(TAG, "Failed to subscribe to MQTT OTA topic");
     }
 
-    // Subscribe to MQTT data for JSON routing
-    event_bus_subscribe(EVENT_MQTT_DATA_RECEIVED, on_mqtt_ota_notify);
-
-    // Subscribe to OTA events from services for MQTT status reporting
-    event_bus_subscribe(EVENT_OTA_STARTED, on_esp32_ota_started);
-    event_bus_subscribe(EVENT_OTA_PROGRESS, on_esp32_ota_progress);
-    event_bus_subscribe(EVENT_OTA_COMPLETED, on_esp32_ota_completed);
-    event_bus_subscribe(EVENT_OTA_FAILED, on_esp32_ota_failed);
-    event_bus_subscribe(EVENT_STM32_OTA_STARTED, on_stm32_ota_started);
-    event_bus_subscribe(EVENT_STM32_OTA_COMPLETED, on_stm32_ota_completed);
-    event_bus_subscribe(EVENT_STM32_OTA_FAILED, on_stm32_ota_failed);
-
-    LOG_I(TAG, "OTA manager started - listening for ESP32 and STM32 update notifications");
     return OTA_MGR_OK;
 }
 
@@ -357,7 +358,7 @@ ota_mgr_status_t cont_ota_get_partition_info(char *buffer, size_t buffer_size)
 
     const esp_partition_t *running = esp_ota_get_running_partition();
     if (!running) {
-        snprintf(buffer, buffer_size, "Unknown partition");
+        (void)snprintf(buffer, buffer_size, "Unknown partition");
         return OTA_MGR_ERR_INTERNAL;
     }
 
@@ -370,6 +371,6 @@ ota_mgr_status_t cont_ota_get_partition_info(char *buffer, size_t buffer_size)
         type_str = "ota_1";
     }
 
-    snprintf(buffer, buffer_size, "%s @ 0x%08lx", type_str, running->address);
+    (void)snprintf(buffer, buffer_size, "%s @ 0x%08lx", type_str, running->address);
     return OTA_MGR_OK;
 }

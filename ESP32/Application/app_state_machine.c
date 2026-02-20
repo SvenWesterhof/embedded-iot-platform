@@ -43,21 +43,9 @@ void app_state_machine_run(void)
 {
     switch (current_state) {
         case STATE_INIT:
-            // TODO: Initialization logic
-            // Transition to IDLE when ready
-            // current_state = STATE_IDLE;
-            break;
-            
         case STATE_IDLE:
-            // TODO: Idle state logic
-            break;
-            
         case STATE_RUNNING:
-            // TODO: Running state logic
-            break;
-            
         case STATE_ERROR:
-            // TODO: Error handling
             break;
             
         default:

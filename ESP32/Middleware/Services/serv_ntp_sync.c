@@ -215,9 +215,9 @@ time_t serv_ntp_get_time(void)
     if (state.status != NTP_STATUS_SYNCED) {
         return 0;
     }
-    
+
     time_t now;
-    time(&now);
+    (void)time(&now);
     return now;
 }
 
@@ -230,9 +230,9 @@ ntp_sync_status_t serv_ntp_get_time_info(struct tm *time_info)
     if (state.status != NTP_STATUS_SYNCED) {
         return NTP_SYNC_ERR_NOT_SYNCED;
     }
-    
+
     time_t now;
-    time(&now);
+    (void)time(&now);
     localtime_r(&now, time_info);
     
     return NTP_SYNC_OK;

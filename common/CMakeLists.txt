@@ -21,5 +21,7 @@ if(NOT ESP_PLATFORM)
         if(TARGET FreeRTOS)
             target_link_libraries(common_lib PRIVATE FreeRTOS)
         endif()
+        # Add STM32F7 definition for platform detection in portable_log.h
+        target_compile_definitions(common_lib PRIVATE STM32F7=1)
     endif()
 endif()

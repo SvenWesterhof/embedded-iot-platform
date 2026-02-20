@@ -1,0 +1,51 @@
+name: Unit Tests (Host Native)
+
+# Runs when shared code or the test suite itself changes.
+# Tests compile for x86-64 host — no embedded toolchain required.
+on:
+  push:
+    branches:
+      - master
+      - develop
+      - "feature/**"
+      - "fix/**"
+    paths:
+      - "common/**"
+      - "tests/**"
+      - ".github/workflows/unit-tests.yml"
+  pull_request:
+    branches:
+      - master
+      - develop
+    paths:
+      - "common/**"
+      - "tests/**"
+
+jobs:
+  unit-tests:
+    name: Run Unity + CMock Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive   # Fetches tests/vendor/Unity and tests/vendor/CMock
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build gcc ruby
+
+      - name: Configure host test build
+        run: |
+          cmake -S tests -B tests/build \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build tests
+        run: cmake --build tests/build --parallel "$(nproc)"
+
+      - name: Run tests
+        working-directory: tests/build
+        run: ctest --output-on-failure --parallel "$(nproc)"

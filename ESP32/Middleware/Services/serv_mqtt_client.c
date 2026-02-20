@@ -89,16 +89,54 @@ mqtt_status_t serv_mqtt_init(const mqtt_client_config_t *config)
     
     // Configure MQTT client
     esp_mqtt_client_config_t mqtt_cfg = {
-        .broker.address.uri = ctx.config.broker_uri,
-        .credentials.client_id = ctx.config.client_id,
-        .credentials.username = ctx.config.username,
-        .credentials.authentication.password = ctx.config.password,
-        .session.keepalive = ctx.config.keepalive_sec,
-        .session.disable_clean_session = !ctx.config.clean_session,
-        .network.reconnect_timeout_ms = 5000,
-        .buffer.size = 1024,
+        .broker = {
+            .address.uri = ctx.config.broker_uri,
+        },
+        .credentials = {
+            .client_id = ctx.config.client_id,
+            .username = ctx.config.username,
+            .authentication = {
+                .password = ctx.config.password,
+            },
+        },
+        .session = {
+            .keepalive = ctx.config.keepalive_sec,
+            .disable_clean_session = !ctx.config.clean_session,
+        },
+        .network = {
+            .reconnect_timeout_ms = 10000,
+        },
+        .buffer = {
+            // 4096 bytes: OTA notification payloads include pre-signed S3 URLs
+            // which can exceed 500 bytes alone. 1024 was too small and caused
+            // fragmented receive + malformed PUBACK → CLIENT_ERROR on AWS IoT Core.
+            .size = 4096,
+        },
     };
     
+    // Apply TLS if CA cert provided
+    // NOTE: ESP-IDF treats *_len == 0 as a file path, not an in-memory buffer.
+    //       Always set the length (strlen + 1 includes the null terminator
+    //       required by mbedTLS's PEM parser).
+    if (ctx.config.tls_ca_cert != NULL) {
+        size_t ca_len   = strlen(ctx.config.tls_ca_cert) + 1;
+        mqtt_cfg.broker.verification.certificate     = ctx.config.tls_ca_cert;
+        mqtt_cfg.broker.verification.certificate_len = ca_len;
+        LOG_I(TAG, "TLS: CA cert len=%d", (int)ca_len);
+        if (ctx.config.tls_client_cert != NULL && ctx.config.tls_client_key != NULL) {
+            size_t cert_len = strlen(ctx.config.tls_client_cert) + 1;
+            size_t key_len  = strlen(ctx.config.tls_client_key) + 1;
+            mqtt_cfg.credentials.authentication.certificate     = ctx.config.tls_client_cert;
+            mqtt_cfg.credentials.authentication.certificate_len = cert_len;
+            mqtt_cfg.credentials.authentication.key             = ctx.config.tls_client_key;
+            mqtt_cfg.credentials.authentication.key_len         = key_len;
+            LOG_I(TAG, "TLS: client cert len=%d, key len=%d, key prefix=%.27s",
+                  (int)cert_len, (int)key_len, ctx.config.tls_client_key);
+        }
+        LOG_I(TAG, "TLS enabled (mTLS: %s)",
+              ctx.config.tls_client_cert != NULL ? "yes" : "no");
+    }
+
     // Create client
     ctx.client = esp_mqtt_client_init(&mqtt_cfg);
     if (ctx.client == NULL) {
@@ -370,12 +408,12 @@ static void handle_connected(void)
         xSemaphoreGive(ctx.mutex);
     }
 
-    // Publish online status (retained) - using device-specific topic
-    char topic[TOPIC_BUFFER_SIZE];
-    snprintf(topic, sizeof(topic), "devices/%s/status", ctx.device_id);
-    serv_mqtt_publish_string(topic, "online", 1, true);
-
-    // Publish to event bus (other components will subscribe to their topics)
+    // Publish to event bus — subscribers run in the event bus task, which is the
+    // correct context to call serv_mqtt_publish from. Do NOT publish MQTT messages
+    // here: this callback runs inside the MQTT client task, and calling
+    // esp_mqtt_client_publish mid-CONNACK transition sends the packet before the
+    // MQTT state machine re-enters its main loop, producing a CLIENT_ERROR on
+    // AWS IoT Core. Move any on-connect publishes to the EVENT_MQTT_CONNECTED handler.
     event_bus_publish(EVENT_MQTT_CONNECTED, NULL);
 
     // User callback
@@ -464,7 +502,7 @@ static void event_bus_handler(event_type_t type, void *data)
         // Forward raw data to MQTT using device-specific telemetry topic
         // In real implementation, you'd parse the STM32 data structure here
         char topic[TOPIC_BUFFER_SIZE];
-        snprintf(topic, sizeof(topic), "devices/%s/telemetry/stm32", ctx.device_id);
+        (void)snprintf(topic, sizeof(topic), "devices/%s/telemetry/stm32", ctx.device_id);
         serv_mqtt_publish_string(topic, (const char *)data, 0, false);
 
         LOG_D(TAG, "Forwarded STM32 data to MQTT");

@@ -49,7 +49,7 @@ typedef enum {
  * @brief MQTT broker configuration
  */
 typedef struct {
-    const char *broker_uri;         /**< Broker URI (e.g., "mqtt://broker.hivemq.com") */
+    const char *broker_uri;         /**< Broker URI (e.g., "mqtts://xxx-ats.iot.region.amazonaws.com:8883") */
     const char *device_id;          /**< Device identifier (e.g., "esp32_001") */
     const char *client_id;          /**< MQTT client ID (NULL for auto-generate) */
     const char *username;           /**< Username (NULL if not required) */
@@ -57,6 +57,11 @@ typedef struct {
     uint16_t keepalive_sec;         /**< Keepalive interval in seconds */
     uint8_t qos;                    /**< Default QoS level (0, 1, or 2) */
     bool clean_session;             /**< Clean session flag */
+
+    /* TLS — all three must be set together, or all NULL for plaintext */
+    const char *tls_ca_cert;        /**< PEM CA certificate (NULL = no TLS) */
+    const char *tls_client_cert;    /**< PEM client certificate (NULL = server-only TLS) */
+    const char *tls_client_key;     /**< PEM client private key (NULL = server-only TLS) */
 } mqtt_client_config_t;
 
 /**
@@ -70,7 +75,10 @@ typedef struct {
     .password = NULL,                                       \
     .keepalive_sec = 120,                                   \
     .qos = 1,                                               \
-    .clean_session = true                                   \
+    .clean_session = true,                                  \
+    .tls_ca_cert = NULL,                                    \
+    .tls_client_cert = NULL,                                \
+    .tls_client_key = NULL,                                 \
 }
 
 /**

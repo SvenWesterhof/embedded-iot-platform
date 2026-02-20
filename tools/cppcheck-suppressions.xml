@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+<!--
+  cppcheck-suppressions.xml
+  Referenced via: cppcheck - -suppressions-list=tools/cppcheck-suppressions.xml
+  Run via: scripts/lint.sh [esp32|stm32|common|all]
+-->
+<suppressions>
+
+  <!-- ===== STM32 HAL / CubeMX-generated code ===== -->
+  <!-- HAL uses C-style casts and legacy MISRA patterns by design -->
+  <suppress>
+    <id>cstyleCast</id>
+    <fileName>STM32/Drivers/*</fileName>
+  </suppress>
+  <suppress>
+    <id>missingInclude</id>
+    <fileName>STM32/Drivers/*</fileName>
+  </suppress>
+  <suppress>
+    <id>unusedFunction</id>
+    <fileName>STM32/Drivers/*</fileName>
+  </suppress>
+  <suppress>
+    <id>*</id>
+    <fileName>STM32/Drivers/STM32F7xx_HAL_Driver/*</fileName>
+  </suppress>
+
+  <!-- FreeRTOS portmacro internals -->
+  <suppress>
+    <id>*</id>
+    <fileName>STM32/Middlewares/*</fileName>
+  </suppress>
+
+  <!-- STM32CubeMX generated Core/ files -->
+  <suppress>
+    <id>unusedFunction</id>
+    <fileName>STM32/Core/*</fileName>
+  </suppress>
+  <suppress>
+    <id>missingInclude</id>
+    <fileName>STM32/Core/*</fileName>
+  </suppress>
+
+  <!-- ===== ESP-IDF generated / build artifacts ===== -->
+  <suppress>
+    <id>*</id>
+    <fileName>ESP32/build/*</fileName>
+  </suppress>
+
+  <!-- ESP-IDF component internals referenced in app code -->
+  <suppress>
+    <id>missingInclude</id>
+    <fileName>ESP32/main/*</fileName>
+  </suppress>
+
+  <!-- ===== SEGGER SystemView ===== -->
+  <suppress>
+    <id>*</id>
+    <fileName>STM32/Middleware/SEGGER/*</fileName>
+  </suppress>
+
+</suppressions>

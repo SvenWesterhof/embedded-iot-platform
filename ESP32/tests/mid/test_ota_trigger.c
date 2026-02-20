@@ -3,7 +3,7 @@
  * @brief OTA test trigger (for development only)
  */
 
-#include "../Middleware/Services/serv_esp32_ota.h"
+#include "serv_esp32_ota.h"
 #include "portable_log.h"
 #include <string.h>
 

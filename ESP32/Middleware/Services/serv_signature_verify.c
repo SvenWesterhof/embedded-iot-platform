@@ -90,7 +90,7 @@ sig_verify_status_t serv_signature_verify_firmware(const uint8_t *firmware_data,
         return SIG_VERIFY_ERR_INVALID_ARG;
     }
 
-    ESP_LOGI(TAG, "Verifying RSA signature for %lu bytes of firmware", firmware_size);
+    ESP_LOGI(TAG, "Verifying RSA signature for %u bytes of firmware", firmware_size);
 
     // Decode base64 signature
     // RSA-2048 produces 256 byte signatures, RSA-3072 produces 384 bytes
@@ -130,6 +130,52 @@ sig_verify_status_t serv_signature_verify_firmware(const uint8_t *firmware_data,
                            hash, sizeof(hash),
                            signature, signature_len);
 
+    if (ret != 0) {
+        char error_buf[100];
+        mbedtls_strerror(ret, error_buf, sizeof(error_buf));
+        ESP_LOGE(TAG, "RSA signature verification failed: %s (0x%04X)", error_buf, -ret);
+        return SIG_VERIFY_ERR_INVALID_SIGNATURE;
+    }
+
+    ESP_LOGI(TAG, "✓ RSA signature verification successful");
+    return SIG_VERIFY_OK;
+}
+
+sig_verify_status_t serv_signature_verify_hash(const uint8_t *sha256_hash,
+                                                const char *signature_b64)
+{
+    if (!s_sig_verify.initialized) {
+        ESP_LOGE(TAG, "Service not initialized");
+        return SIG_VERIFY_ERR_INVALID_ARG;
+    }
+
+    if (sha256_hash == NULL || signature_b64 == NULL) {
+        ESP_LOGE(TAG, "Invalid arguments");
+        return SIG_VERIFY_ERR_INVALID_ARG;
+    }
+
+    // Decode base64 signature
+    uint8_t signature[512];
+    size_t signature_len = 0;
+
+    int ret = mbedtls_base64_decode(signature, sizeof(signature), &signature_len,
+                                    (const unsigned char*)signature_b64,
+                                    strlen(signature_b64));
+    if (ret != 0) {
+        ESP_LOGE(TAG, "Failed to decode base64 signature: 0x%04X", -ret);
+        return SIG_VERIFY_ERR_INVALID_SIGNATURE;
+    }
+
+    if (signature_len != 256 && signature_len != 384) {
+        ESP_LOGE(TAG, "Invalid signature length: %zu", signature_len);
+        return SIG_VERIFY_ERR_INVALID_SIGNATURE;
+    }
+
+    // Verify RSA signature over the provided SHA256 digest
+    ret = mbedtls_pk_verify(&s_sig_verify.pk_ctx,
+                            MBEDTLS_MD_SHA256,
+                            sha256_hash, 32,
+                            signature, signature_len);
     if (ret != 0) {
         char error_buf[100];
         mbedtls_strerror(ret, error_buf, sizeof(error_buf));

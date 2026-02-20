@@ -1,0 +1,66 @@
+---
+# tools/.clang-tidy — shared configuration for ESP32 and STM32 targets
+# Referenced explicitly via: clang-tidy --config-file=tools/.clang-tidy
+# Run via: scripts/lint.sh [esp32|stm32|common|all]
+
+Checks: >
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  -clang-diagnostic-unused-command-line-argument,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-macro-parentheses,
+  -bugprone-branch-clone,
+  -bugprone-switch-missing-default-case,
+  cert-*,
+  -cert-err10-c,
+  -cert-err34-c,
+  performance-*,
+  portability-*,
+  readability-identifier-naming,
+  -readability-magic-numbers,
+  -readability-function-cognitive-complexity,
+  -readability-identifier-length
+
+# Only bugprone critical checks block the build; everything else is informational.
+# Update WarningsAsErrors to add more checks as the codebase matures.
+WarningsAsErrors: >
+  bugprone-use-after-move,
+  bugprone-dangling-handle,
+  bugprone-integer-division,
+  bugprone-suspicious-memset-usage,
+  clang-analyzer-security.insecureAPI.*
+
+CheckOptions:
+  # Enforce lower_case naming for functions and variables (project convention)
+  - key: readability-identifier-naming.FunctionCase
+    value: lower_case
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: readability-identifier-naming.ParameterCase
+    value: lower_case
+  # Types and typedefs use lower_case with _t suffix (HAL convention)
+  - key: readability-identifier-naming.TypedefCase
+    value: lower_case
+  # Constants and enum values use UPPER_CASE
+  - key: readability-identifier-naming.EnumConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+  # Exemptions for FreeRTOS conventions (pvParameters, task-related names)
+  - key: readability-identifier-naming.ParameterIgnoredRegexp
+    value: "^(pvParameters|pcName|pxCreatedTask|xCoreID|xTask|pcTaskName|uxPriority)$"
+  # Exemptions for log tags (project-wide static const TAG) and CMSIS globals
+  - key: readability-identifier-naming.VariableIgnoredRegexp
+    value: "^(TAG|SystemCoreClock|AHBPrescTable|APBPrescTable|PERF_CHECK_INTERVAL)$"
+  # Exemptions for HAL callbacks, interrupt handlers, CMSIS/HAL/BSP required names,
+  # and third-party display/sensor drivers (ST7735, BSP layer, SEGGER conventions)
+  - key: readability-identifier-naming.FunctionIgnoredRegexp
+    value: "^(HAL_|BSP_|ST7735_|INA226_|HardFault_Handler|SysTick_Handler|SystemInit|Error_Handler|__io_putchar|vApplicationStack|vApplicationIdle|vApplicationTick|vApplicationMalloc).*"
+
+# Only analyse headers inside project source directories.
+# Excludes STM32 HAL, FreeRTOS, ESP-IDF internals.
+HeaderFilterRegex: "(ESP32|STM32|common)/(Application|Middleware|OS|HAL|HAL_Wrapper|Drivers_BSP|common)/"
+
+# Do not fail on system header issues
+SystemHeaders: false

@@ -16,8 +16,8 @@ static const char *TAG = "HAL_FLASH";
 
 // Dual-bank mode: 12 sectors per bank
 // Bank 1: sectors 0-11,  Bank 2: sectors 12-23
-#define SECTORS_PER_BANK     12
-#define BANK2_FIRST_SECTOR   12
+#define SECTORS_PER_BANK     12U
+#define BANK2_FIRST_SECTOR   12U
 
 // BOOT_ADD0 value — always Bank 1 (bootloader handles the rest)
 #define BOOT_ADDR_BANK1  0x2000U  // 0x08000000 >> 14
@@ -71,7 +71,7 @@ hal_flash_status_t hal_flash_init(void)
     }
 
     if (ob_config.BootAddr0 != BOOT_ADDR_BANK1) {
-        LOG_W(TAG, "BOOT_ADD0 is 0x%04lX — fixing to 0x%04X (Bank 1)",
+        LOG_W(TAG, "BOOT_ADD0 is 0x%04X — fixing to 0x%04X (Bank 1)",
               (uint32_t)ob_config.BootAddr0, BOOT_ADDR_BANK1);
         needs_update = true;
     }
@@ -118,7 +118,7 @@ hal_flash_status_t hal_flash_erase_bank(uint8_t bank)
     uint32_t first_sector = (bank == HAL_FLASH_BANK_2) ? BANK2_FIRST_SECTOR : 0;
     uint32_t stm32_bank = (bank == HAL_FLASH_BANK_2) ? FLASH_BANK_2 : FLASH_BANK_1;
 
-    LOG_I(TAG, "Erasing bank %u (physical sectors %lu-%lu)...",
+    LOG_I(TAG, "Erasing bank %u (physical sectors %u-%u)...",
           bank, first_sector, first_sector + SECTORS_PER_BANK - 1);
 
     HAL_StatusTypeDef status = HAL_FLASH_Unlock();
@@ -135,7 +135,7 @@ hal_flash_status_t hal_flash_erase_bank(uint8_t bank)
         .VoltageRange = FLASH_VOLTAGE_RANGE_3,
     };
 
-    LOG_I(TAG, "HAL_FLASHEx_Erase: Banks=0x%08lX, Sector=%lu, NbSectors=%lu",
+    LOG_I(TAG, "HAL_FLASHEx_Erase: Banks=0x%08X, Sector=%u, NbSectors=%u",
           erase_init.Banks, erase_init.Sector, erase_init.NbSectors);
 
     uint32_t sector_error = 0;
@@ -144,7 +144,7 @@ hal_flash_status_t hal_flash_erase_bank(uint8_t bank)
     HAL_FLASH_Lock();
 
     if (status != HAL_OK) {
-        LOG_E(TAG, "Bank %u erase failed at sector %lu (HAL status %d)",
+        LOG_E(TAG, "Bank %u erase failed at sector %u (HAL status %d)",
               bank, sector_error, status);
         return HAL_FL_ERR_ERASE;
     }
@@ -160,7 +160,7 @@ hal_flash_status_t hal_flash_write(uint32_t address, const uint8_t *data, uint32
     }
 
     if (address & 0x03) {
-        LOG_E(TAG, "Write address 0x%08lX not word-aligned", address);
+        LOG_E(TAG, "Write address 0x%08X not word-aligned", address);
         return HAL_FL_ERR_ALIGNMENT;
     }
 
@@ -181,7 +181,7 @@ hal_flash_status_t hal_flash_write(uint32_t address, const uint8_t *data, uint32
         status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD,
                                    address + (i * 4), word);
         if (status != HAL_OK) {
-            LOG_E(TAG, "Flash write failed at 0x%08lX (HAL status %d)",
+            LOG_E(TAG, "Flash write failed at 0x%08X (HAL status %d)",
                   address + (i * 4), status);
             result = HAL_FL_ERR_WRITE;
             break;
@@ -229,7 +229,7 @@ uint32_t hal_flash_get_bank_base(uint8_t bank)
 void hal_flash_set_update_flag(uint32_t fw_size, uint32_t crc32,
                                uint8_t version_major, uint8_t version_minor, uint8_t version_patch)
 {
-    LOG_I(TAG, "Setting update flag: v%u.%u.%u, size=%lu, CRC=0x%08lX",
+    LOG_I(TAG, "Setting update flag: v%u.%u.%u, size=%u, CRC=0x%08X",
           version_major, version_minor, version_patch, fw_size, crc32);
 
     // Enable backup domain access

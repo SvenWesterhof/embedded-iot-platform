@@ -1,11 +1,11 @@
 idf_component_register(
     SRCS
         "app_main.c"
-        "tests/ota_test.c"
-        "tests/test_ota_trigger.c"
+    EMBED_TXTFILES
+        "${CMAKE_SOURCE_DIR}/../ESP32/keys/iot/AmazonRootCA1.pem"
+        "${CMAKE_SOURCE_DIR}/../ESP32/keys/iot/device-cert.pem"
     INCLUDE_DIRS
         "."
-        "tests"
     REQUIRES
         OS
         Middleware
