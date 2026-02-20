@@ -293,7 +293,7 @@ static bool stm32_start_and_wait_erase(void)
         .version_patch = ver_patch,
     };
 
-    LOG_I(TAG, "Sending FW_UPDATE_START: %lu bytes, v%u.%u.%u",
+    LOG_I(TAG, "Sending FW_UPDATE_START: %u bytes, v%u.%u.%u",
           s_ctx.current_update.size, ver_major, ver_minor, ver_patch);
 
     int resp = stm32_protocol_send_command(CMD_FW_UPDATE_START,
@@ -341,7 +341,7 @@ static void stm32_ota_task(void *arg)
     (void)arg;
 
     LOG_I(TAG, "STM32 OTA task started");
-    LOG_I(TAG, "Version: %s | Size: %lu bytes", s_ctx.current_update.version,
+    LOG_I(TAG, "Version: %s | Size: %u bytes", s_ctx.current_update.version,
           s_ctx.current_update.size);
 
     stm32_ota_state_t final_state = STM32_OTA_STATE_FAILED;
@@ -410,7 +410,7 @@ static void stm32_ota_task(void *arg)
         }
     }
 
-    LOG_I(TAG, "Streaming complete: %lu bytes in %u UART chunks",
+    LOG_I(TAG, "Streaming complete: %u bytes in %u UART chunks",
           stream_ctx.bytes_forwarded, stream_ctx.chunk_index);
 
     // -----------------------------------------------------------------------

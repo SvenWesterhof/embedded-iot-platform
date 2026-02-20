@@ -122,7 +122,7 @@ void uart_test_run(void)
         // Print stats
         uint32_t cmd_sent, resp_recv, timeouts, retries;
         stm32_protocol_get_stats(&cmd_sent, &resp_recv, &timeouts, &retries);
-        LOG_I(TAG, "Stats: sent=%lu, recv=%lu, timeout=%lu, retry=%lu",
+        LOG_I(TAG, "Stats: sent=%u, recv=%u, timeout=%u, retry=%u",
               cmd_sent, resp_recv, timeouts, retries);
 
         os_delay_ms(3000);

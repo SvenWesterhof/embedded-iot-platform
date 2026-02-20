@@ -90,7 +90,7 @@ sig_verify_status_t serv_signature_verify_firmware(const uint8_t *firmware_data,
         return SIG_VERIFY_ERR_INVALID_ARG;
     }
 
-    ESP_LOGI(TAG, "Verifying RSA signature for %lu bytes of firmware", firmware_size);
+    ESP_LOGI(TAG, "Verifying RSA signature for %u bytes of firmware", firmware_size);
 
     // Decode base64 signature
     // RSA-2048 produces 256 byte signatures, RSA-3072 produces 384 bytes

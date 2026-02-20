@@ -93,7 +93,7 @@ https_download_status_t serv_https_download(const https_download_config_t *confi
     }
 
     LOG_I(TAG, "Starting download: %s", config->url);
-    LOG_I(TAG, "Expected size: %lu bytes", config->expected_size);
+    LOG_I(TAG, "Expected size: %u bytes", config->expected_size);
 
     https_download_status_t result = HTTPS_DOWNLOAD_OK;
     uint8_t *buffer = NULL;
@@ -169,10 +169,10 @@ https_download_status_t serv_https_download(const https_download_config_t *confi
     if (content_length < 0) {
         // status 200 but no Content-Length (S3 chunked transfer encoding).
         // Proceed using expected_size from the OTA manifest.
-        LOG_W(TAG, "No Content-Length in response, using expected size %lu",
+        LOG_W(TAG, "No Content-Length in response, using expected size %u",
                  config->expected_size);
     } else if ((uint32_t)content_length != config->expected_size) {
-        LOG_W(TAG, "Content length mismatch: expected %lu, got %d",
+        LOG_W(TAG, "Content length mismatch: expected %u, got %d",
                  config->expected_size, content_length);
     }
 
@@ -180,16 +180,16 @@ https_download_status_t serv_https_download(const https_download_config_t *confi
     // Allocating before the connection means ~100KB is taken from the heap while LWIP
     // still needs to allocate pbufs for the TLS records and TCP receive window, which
     // causes TCP zero-window → S3 stops sending body data → recv() times out.
-    LOG_I(TAG, "Free heap before firmware buffer alloc: %lu bytes",
+    LOG_I(TAG, "Free heap before firmware buffer alloc: %u bytes",
              (uint32_t)esp_get_free_heap_size());
     buffer = (uint8_t*)malloc(config->expected_size);
     if (buffer == NULL) {
-        LOG_E(TAG, "Failed to allocate %lu bytes (free heap: %lu)",
+        LOG_E(TAG, "Failed to allocate %u bytes (free heap: %u)",
                  config->expected_size, (uint32_t)esp_get_free_heap_size());
         result = HTTPS_DOWNLOAD_ERR_NO_MEM;
         goto cleanup;
     }
-    LOG_I(TAG, "Firmware buffer allocated, free heap now: %lu bytes",
+    LOG_I(TAG, "Firmware buffer allocated, free heap now: %u bytes",
              (uint32_t)esp_get_free_heap_size());
 
     // Download firmware in READ_CHUNK_SIZE chunks.
@@ -211,18 +211,18 @@ https_download_status_t serv_https_download(const https_download_config_t *confi
             // esp_http_client_read returns -1, errno is still EAGAIN (11).
             if (errno == EAGAIN && eagain_retries < MAX_EAGAIN_RETRIES) {
                 eagain_retries++;
-                LOG_W(TAG, "Receive timeout (EAGAIN), retry %d/%d — %lu/%lu bytes so far",
+                LOG_W(TAG, "Receive timeout (EAGAIN), retry %d/%d — %u/%u bytes so far",
                          eagain_retries, MAX_EAGAIN_RETRIES,
                          ctx.bytes_downloaded, config->expected_size);
                 vTaskDelay(pdMS_TO_TICKS(200));
                 continue;
             }
-            LOG_E(TAG, "HTTP read error after %lu/%lu bytes (errno=%d)",
+            LOG_E(TAG, "HTTP read error after %u/%u bytes (errno=%d)",
                      ctx.bytes_downloaded, config->expected_size, errno);
             result = HTTPS_DOWNLOAD_ERR_HTTP_ERROR;
             goto cleanup;
         } else if (read_len == 0) {
-            LOG_W(TAG, "Connection closed early, downloaded %lu/%lu bytes",
+            LOG_W(TAG, "Connection closed early, downloaded %u/%u bytes",
                      ctx.bytes_downloaded, config->expected_size);
             result = HTTPS_DOWNLOAD_ERR_SIZE_MISMATCH;
             goto cleanup;
@@ -234,7 +234,7 @@ https_download_status_t serv_https_download(const https_download_config_t *confi
         // Report progress
         int progress_pct = (int)((ctx.bytes_downloaded * 100) / config->expected_size);
         if (progress_pct >= ctx.last_progress_pct + PROGRESS_REPORT_PCT) {
-            LOG_I(TAG, "Download progress: %d%% (%lu/%lu bytes)",
+            LOG_I(TAG, "Download progress: %d%% (%u/%u bytes)",
                      progress_pct, ctx.bytes_downloaded, config->expected_size);
             ctx.last_progress_pct = progress_pct;
 
@@ -247,13 +247,13 @@ https_download_status_t serv_https_download(const https_download_config_t *confi
 
     // Verify final size
     if (ctx.bytes_downloaded != config->expected_size) {
-        LOG_E(TAG, "Incomplete download: %lu/%lu bytes",
+        LOG_E(TAG, "Incomplete download: %u/%u bytes",
                  ctx.bytes_downloaded, config->expected_size);
         result = HTTPS_DOWNLOAD_ERR_SIZE_MISMATCH;
         goto cleanup;
     }
 
-    LOG_I(TAG, "Download complete: %lu bytes", ctx.bytes_downloaded);
+    LOG_I(TAG, "Download complete: %u bytes", ctx.bytes_downloaded);
 
     // Success - return buffer to caller
     *out_buffer = buffer;
@@ -286,7 +286,7 @@ https_download_status_t serv_https_download_stream(const https_download_config_t
         return HTTPS_DOWNLOAD_ERR_INVALID_ARG;
     }
 
-    LOG_I(TAG, "Starting streaming download: %lu bytes", config->expected_size);
+    LOG_I(TAG, "Starting streaming download: %u bytes", config->expected_size);
 
     https_download_status_t result = HTTPS_DOWNLOAD_OK;
     esp_http_client_handle_t client = NULL;
@@ -342,9 +342,9 @@ https_download_status_t serv_https_download_stream(const https_download_config_t
     }
 
     if (content_length < 0) {
-        LOG_W(TAG, "No Content-Length in response, using expected size %lu", config->expected_size);
+        LOG_W(TAG, "No Content-Length in response, using expected size %u", config->expected_size);
     } else if ((uint32_t)content_length != config->expected_size) {
-        LOG_W(TAG, "Content length mismatch: expected %lu, got %d",
+        LOG_W(TAG, "Content length mismatch: expected %u, got %d",
                  config->expected_size, content_length);
     }
 
@@ -359,18 +359,18 @@ https_download_status_t serv_https_download_stream(const https_download_config_t
         if (read_len < 0) {
             if (errno == EAGAIN && eagain_retries < MAX_EAGAIN_RETRIES) {
                 eagain_retries++;
-                LOG_W(TAG, "Receive timeout (EAGAIN), retry %d/%d — %lu/%lu bytes",
+                LOG_W(TAG, "Receive timeout (EAGAIN), retry %d/%d — %u/%u bytes",
                          eagain_retries, MAX_EAGAIN_RETRIES,
                          bytes_downloaded, config->expected_size);
                 vTaskDelay(pdMS_TO_TICKS(200));
                 continue;
             }
-            LOG_E(TAG, "HTTP read error after %lu/%lu bytes (errno=%d)",
+            LOG_E(TAG, "HTTP read error after %u/%u bytes (errno=%d)",
                      bytes_downloaded, config->expected_size, errno);
             result = HTTPS_DOWNLOAD_ERR_HTTP_ERROR;
             goto cleanup;
         } else if (read_len == 0) {
-            LOG_W(TAG, "Connection closed early at %lu/%lu bytes",
+            LOG_W(TAG, "Connection closed early at %u/%u bytes",
                      bytes_downloaded, config->expected_size);
             result = HTTPS_DOWNLOAD_ERR_SIZE_MISMATCH;
             goto cleanup;
@@ -379,7 +379,7 @@ https_download_status_t serv_https_download_stream(const https_download_config_t
         eagain_retries = 0;
 
         if (!chunk_cb(chunk_buf, (uint32_t)read_len, user_data)) {
-            LOG_E(TAG, "Chunk callback aborted at %lu/%lu bytes",
+            LOG_E(TAG, "Chunk callback aborted at %u/%u bytes",
                      bytes_downloaded, config->expected_size);
             result = HTTPS_DOWNLOAD_ERR_HTTP_ERROR;
             goto cleanup;
@@ -389,7 +389,7 @@ https_download_status_t serv_https_download_stream(const https_download_config_t
 
         int progress_pct = (int)((bytes_downloaded * 100) / config->expected_size);
         if (progress_pct >= last_progress_pct + PROGRESS_REPORT_PCT) {
-            LOG_I(TAG, "Download progress: %d%% (%lu/%lu bytes)",
+            LOG_I(TAG, "Download progress: %d%% (%u/%u bytes)",
                      progress_pct, bytes_downloaded, config->expected_size);
             last_progress_pct = progress_pct;
             if (config->progress_cb != NULL) {
@@ -399,12 +399,12 @@ https_download_status_t serv_https_download_stream(const https_download_config_t
     }
 
     if (bytes_downloaded != config->expected_size) {
-        LOG_E(TAG, "Incomplete download: %lu/%lu bytes", bytes_downloaded, config->expected_size);
+        LOG_E(TAG, "Incomplete download: %u/%u bytes", bytes_downloaded, config->expected_size);
         result = HTTPS_DOWNLOAD_ERR_SIZE_MISMATCH;
         goto cleanup;
     }
 
-    LOG_I(TAG, "Streaming download complete: %lu bytes", bytes_downloaded);
+    LOG_I(TAG, "Streaming download complete: %u bytes", bytes_downloaded);
 
 cleanup:
     if (client != NULL)    esp_http_client_cleanup(client);

@@ -173,7 +173,7 @@ static void esp32_ota_task(void *arg)
             ctx_unlock();
         }
 
-        LOG_I(TAG, "ESP32 OTA completed successfully (duration: %lu ms)", duration_ms);
+        LOG_I(TAG, "ESP32 OTA completed successfully (duration: %u ms)", duration_ms);
 
         uint8_t done = 100;
         event_bus_publish(EVENT_OTA_PROGRESS, &done);
@@ -229,7 +229,7 @@ esp32_ota_status_t serv_esp32_ota_init(void)
         return ESP32_OTA_ERR_NO_PARTITION;
     }
 
-    LOG_I(TAG, "Running from partition: %s @ 0x%08lx",
+    LOG_I(TAG, "Running from partition: %s @ 0x%08x",
           s_ctx.running_partition->label,
           s_ctx.running_partition->address);
 

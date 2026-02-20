@@ -74,7 +74,7 @@ static void on_mqtt_connected(event_type_t type, void *data)
     // Must NOT be done from the MQTT event handler (MQTT client task) because calling
     // esp_mqtt_client_publish mid-CONNACK transition produces CLIENT_ERROR on AWS IoT Core.
     char status_topic[96];
-    snprintf(status_topic, sizeof(status_topic), "devices/%s/status",
+    (void)snprintf(status_topic, sizeof(status_topic), "devices/%s/status",
              serv_mqtt_get_device_id() ? serv_mqtt_get_device_id() : "unknown");
     LOG_I(TAG, "Publishing online status to topic: %s", status_topic);
     serv_mqtt_publish_string(status_topic, "online", 1, true);
@@ -222,8 +222,8 @@ void app_run(void)
         os_delay_ms(2000);  // 2 second update
         uptime += 2;
         // Build status JSON for dashboard
-        snprintf(status_json, sizeof(status_json),
-            "{\"uptime\":%lu,\"wifi\":\"%s\",\"mqtt\":\"%s\",\"ntp\":\"%s\",\"clients\":%d}",
+        (void)snprintf(status_json, sizeof(status_json),
+            "{\"uptime\":%u,\"wifi\":\"%s\",\"mqtt\":\"%s\",\"ntp\":\"%s\",\"clients\":%d}",
             uptime,
             wifi_manager_is_connected() ? "Connected" : "Disconnected",
             serv_mqtt_is_connected() ? "Connected" : "Disconnected",
@@ -238,7 +238,7 @@ void app_run(void)
         if (uptime % 30 == 0) {
             char partition_info[64];
             cont_ota_get_partition_info(partition_info, sizeof(partition_info));
-            LOG_I(TAG, "Uptime: %lu seconds | WiFi: %s | MQTT: %s | Partition: %s",
+            LOG_I(TAG, "Uptime: %u seconds | WiFi: %s | MQTT: %s | Partition: %s",
                      uptime,
                      wifi_manager_is_connected() ? "Connected" : "Disconnected",
                      serv_mqtt_is_connected() ? "Connected" : "Disconnected",

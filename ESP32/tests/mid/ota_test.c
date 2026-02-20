@@ -37,8 +37,8 @@ void test_partition_table(void)
         LOG_I(TAG, "  Label:   %s", part->label);
         LOG_I(TAG, "  Type:    %s (0x%02x)", type_str, part->type);
         LOG_I(TAG, "  Subtype: 0x%02x", part->subtype);
-        LOG_I(TAG, "  Offset:  0x%08lx (%lu KB)", part->address, part->address / 1024);
-        LOG_I(TAG, "  Size:    0x%08lx (%lu KB)", part->size, part->size / 1024);
+        LOG_I(TAG, "  Offset:  0x%08x (%u KB)", part->address, part->address / 1024);
+        LOG_I(TAG, "  Size:    0x%08x (%u KB)", part->size, part->size / 1024);
 
         it = esp_partition_next(it);
     }
@@ -68,8 +68,8 @@ void test_running_partition(void)
     LOG_I(TAG, "  Label:   %s", running->label);
     LOG_I(TAG, "  Type:    0x%02x", running->type);
     LOG_I(TAG, "  Subtype: 0x%02x", running->subtype);
-    LOG_I(TAG, "  Offset:  0x%08lx", running->address);
-    LOG_I(TAG, "  Size:    %lu KB", running->size / 1024);
+    LOG_I(TAG, "  Offset:  0x%08x", running->address);
+    LOG_I(TAG, "  Size:    %u KB", running->size / 1024);
 
     // Expected: factory partition (0x20000)
     if (running->address == 0x20000) {
@@ -107,8 +107,8 @@ void test_ota_data_partition(void)
 
     LOG_I(TAG, "OTA data partition:");
     LOG_I(TAG, "  Label:   %s", otadata->label);
-    LOG_I(TAG, "  Offset:  0x%08lx", otadata->address);
-    LOG_I(TAG, "  Size:    %lu bytes", otadata->size);
+    LOG_I(TAG, "  Offset:  0x%08x", otadata->address);
+    LOG_I(TAG, "  Size:    %u bytes", otadata->size);
 
     // Expected: 0xF000, 8KB
     if (otadata->address == 0xF000 && otadata->size == 0x2000) {
@@ -131,7 +131,7 @@ void test_boot_and_next_partition(void)
     // Get boot partition (which partition is set to boot next)
     const esp_partition_t *boot_partition = esp_ota_get_boot_partition();
     if (boot_partition) {
-        LOG_I(TAG, "Boot partition (next boot): %s @ 0x%08lx",
+        LOG_I(TAG, "Boot partition (next boot): %s @ 0x%08x",
               boot_partition->label, boot_partition->address);
     } else {
         LOG_W(TAG, "Boot partition not set (will use factory)");
@@ -144,7 +144,7 @@ void test_boot_and_next_partition(void)
         return;
     }
 
-    LOG_I(TAG, "Next update partition: %s @ 0x%08lx (%lu KB)",
+    LOG_I(TAG, "Next update partition: %s @ 0x%08x (%u KB)",
           next_update->label, next_update->address, next_update->size / 1024);
 
     // Expected: ota_0 if running factory
