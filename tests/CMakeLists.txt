@@ -46,8 +46,11 @@ target_compile_definitions(common_native PRIVATE HOST_TEST=1)
 find_program(RUBY_EXECUTABLE ruby)
 
 set(MOCK_HEADERS
-    ${CMAKE_CURRENT_SOURCE_DIR}/../common/include/hal_uart_interface.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/../common/include/hal_gpio_interface.h
+    # Note: hal_uart_interface.h and hal_gpio_interface.h use the Strategy pattern
+    # (function pointers inside a struct) so CMock cannot auto-generate mocks from them.
+    # Tests that need HAL stubs should define a concrete hal_uart_interface_t /
+    # hal_gpio_interface_t struct with custom function pointers and assign it to
+    # hal_uart / hal_gpio in setUp().
     ${CMAKE_CURRENT_SOURCE_DIR}/../common/include/os_wrapper.h
 )
 set(MOCK_OUTPUT_DIR ${CMAKE_BINARY_DIR}/mocks)
@@ -117,4 +120,4 @@ enable_testing()
 
 add_subdirectory(common)
 # add_subdirectory(esp32)   # Uncomment when ESP32-specific tests are added
-# add_subdirectory(stm32)   # Uncomment when STM32-specific tests are added
+add_subdirectory(stm32)
