@@ -353,6 +353,50 @@ def upload_to_storage(file_path, version, platform):
     print(f"Pre-signed URL (1 hour): {url[:80]}...")
     return url, object_key
 
+def get_s3_presigned_url(version, platform):
+    """Generate a pre-signed URL for firmware already in S3
+
+    Args:
+        version: Firmware version string
+        platform: 'esp32' or 'stm32'
+
+    Returns: (presigned_url, object_key, file_size)
+    """
+    client_config = {
+        'config': Config(signature_version='s3v4'),
+        'region_name': AWS_REGION
+    }
+    if AWS_ACCESS_KEY and AWS_SECRET_KEY:
+        client_config['aws_access_key_id'] = AWS_ACCESS_KEY
+        client_config['aws_secret_access_key'] = AWS_SECRET_KEY
+
+    s3_client = boto3.client('s3', **client_config)
+
+    if platform == 'esp32':
+        object_key = f'firmware/esp32/esp32-gateway-v{version}.bin'
+    elif platform == 'stm32':
+        object_key = f'firmware/stm32/stm32-sensor-v{version}.bin'
+    else:
+        raise ValueError(f"Unknown platform: {platform}")
+
+    # Verify the object exists
+    try:
+        head = s3_client.head_object(Bucket=S3_BUCKET, Key=object_key)
+        file_size = head['ContentLength']
+    except Exception as e:
+        print(f"Error: Firmware not found in S3: s3://{S3_BUCKET}/{object_key}")
+        print(f"  {e}")
+        sys.exit(1)
+
+    url = s3_client.generate_presigned_url(
+        'get_object',
+        Params={'Bucket': S3_BUCKET, 'Key': object_key},
+        ExpiresIn=3600,
+    )
+
+    print(f"Found: s3://{S3_BUCKET}/{object_key} ({file_size:,} bytes)")
+    return url, object_key, file_size
+
 def update_manifest(version, url, file_size, platform, checksums, signature_info, changelog):
     """Update firmware manifest JSON with v2.0 schema (local record-keeping only)
 
@@ -526,9 +570,12 @@ Examples:
 
   # Upload only without notification
   %(prog)s firmware.bin --platform esp32 --version 1.2.0 --no-notify
+
+  # Notify only (firmware already in S3)
+  %(prog)s --notify-only --platform esp32 --version 1.2.0
         """
     )
-    parser.add_argument('binary', help='Path to firmware binary (.bin file)')
+    parser.add_argument('binary', nargs='?', help='Path to firmware binary (.bin file)')
     parser.add_argument('--platform', choices=['esp32', 'stm32'],
                        help='Target platform (auto-detected from filename if not specified)')
     parser.add_argument('--version', help='Firmware version (e.g., 1.1.0). If not provided, extracts from CMakeLists.txt')
@@ -536,8 +583,52 @@ Examples:
     parser.add_argument('--auto-reboot', action='store_true',
                        help='Auto-reboot/apply after update (ESP32: reboot, STM32: auto-apply)')
     parser.add_argument('--no-notify', action='store_true', help='Skip MQTT notification (upload only)')
+    parser.add_argument('--notify-only', action='store_true',
+                       help='Send MQTT notification for firmware already in S3 (no upload)')
 
     args = parser.parse_args()
+
+    # --- Notify-only mode: send MQTT for firmware already in S3 ---
+    if args.notify_only:
+        if not args.platform:
+            print("Error: --platform is required with --notify-only")
+            sys.exit(1)
+        if not args.version:
+            print("Error: --version is required with --notify-only")
+            sys.exit(1)
+
+        platform = args.platform
+        version = args.version
+
+        print(f"\nOTA Notify-Only Mode")
+        print(f"Platform: {platform.upper()}")
+        print(f"Version:  {version}")
+        print()
+
+        # Look up existing firmware in S3 and generate pre-signed URL
+        url, object_key, file_size = get_s3_presigned_url(version, platform)
+
+        # Build minimal checksums from S3 metadata (SHA256 not available without binary)
+        checksums = {'sha256': 'see-release-notes'}
+        if platform == 'stm32':
+            checksums['crc32'] = 0
+
+        # Send notification
+        print()
+        success = send_mqtt_notification(version, url, file_size, platform, checksums,
+                                         None, args.auto_reboot)
+
+        if success:
+            print(f"\nNotification sent to topic: {MQTT_TOPIC_OTA_NOTIFY}")
+        else:
+            print("\nFailed to send notification")
+            sys.exit(1)
+        return
+
+    # --- Normal mode: upload + optional notify ---
+    if not args.binary:
+        print("Error: binary path is required (or use --notify-only)")
+        sys.exit(1)
 
     # Validate binary file
     if not os.path.exists(args.binary):
