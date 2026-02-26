@@ -110,7 +110,10 @@ void test_init_already_initialized_returns_error(void)
 
 void test_init_mutex_create_fail_returns_no_mem(void)
 {
-    /* Override setUp default: mutex_create returns NULL */
+    /* _IgnoreAndReturn queues values (FIFO), so setUp's FAKE_MUTEX would be
+     * consumed first. Reset mocks to get a clean queue, then register NULL. */
+    mock_os_wrapper_Destroy();
+    mock_os_wrapper_Init();
     os_mutex_create_IgnoreAndReturn(NULL);
 
     sensor_ring_buffer_config_t cfg = { .capacity = SMALL_CAP, .sensor_type = SENSOR_TEMPERATURE };
