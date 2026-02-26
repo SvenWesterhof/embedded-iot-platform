@@ -235,6 +235,7 @@ jobs:
         run: |
           python3 tools/upload_firmware.py \
             artifacts/esp32/iot_gateway.bin \
+            --platform esp32 \
             --version "${{ steps.version.outputs.VERSION }}" \
             --changelog "$(cat CHANGELOG.md)" \
             --no-notify
