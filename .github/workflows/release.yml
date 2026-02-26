@@ -140,6 +140,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-esp32, build-stm32]
     environment: production   # Configure approval gate in repo Settings → Environments
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -168,7 +170,7 @@ jobs:
         run: |
           ESP32_SHA=$(sha256sum artifacts/esp32/iot_gateway.bin | cut -d' ' -f1)
           STM32_SHA=$(sha256sum artifacts/stm32/sensor_node.bin | cut -d' ' -f1)
-          BOOT_SHA=$(sha256sum artifacts/stm32/bootloader.bin | cut -d' ' -f1)
+          BOOT_SHA=$(sha256sum artifacts/stm32/Bootloader/bootloader.bin | cut -d' ' -f1)
           echo "ESP32_SHA=${ESP32_SHA}" >> "$GITHUB_OUTPUT"
           echo "STM32_SHA=${STM32_SHA}" >> "$GITHUB_OUTPUT"
           echo "BOOT_SHA=${BOOT_SHA}" >> "$GITHUB_OUTPUT"
@@ -277,8 +279,8 @@ jobs:
             artifacts/stm32/sensor_node.bin
             artifacts/stm32/sensor_node.hex
             artifacts/stm32/sensor_node.elf
-            artifacts/stm32/bootloader.bin
-            artifacts/stm32/bootloader.hex
+            artifacts/stm32/Bootloader/bootloader.bin
+            artifacts/stm32/Bootloader/bootloader.hex
             tools/firmware_manifest.json
           body: |
             ## Firmware Release v${{ steps.version.outputs.VERSION }}
