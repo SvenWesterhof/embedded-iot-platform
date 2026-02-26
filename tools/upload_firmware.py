@@ -275,13 +275,15 @@ def verify_stm32_signature(file_path, signature_b64, public_key_path):
     except InvalidSignature:
         return False
 
-def upload_to_storage(file_path, version, platform):
+def upload_to_storage(file_path, version, platform, checksums=None, signature_b64=None):
     """Upload firmware to AWS S3 or S3-compatible storage
 
     Args:
         file_path: Path to firmware binary
         version: Firmware version string
         platform: 'esp32' or 'stm32'
+        checksums: Dict with 'sha256' and optionally 'crc32' (stored as S3 metadata)
+        signature_b64: Base64-encoded RSA signature (stored as S3 metadata for STM32)
 
     Returns: (download_url, object_key)
     """
@@ -338,13 +340,23 @@ def upload_to_storage(file_path, version, platform):
     else:
         raise ValueError(f"Unknown platform: {platform}")
 
+    # Store checksums and signature as S3 object metadata so that
+    # --notify-only can retrieve them later without the binary or signing key.
+    metadata = {}
+    if checksums:
+        metadata['sha256'] = checksums['sha256']
+        if 'crc32' in checksums:
+            metadata['crc32'] = str(checksums['crc32'])
+    if signature_b64:
+        metadata['signature-rsa'] = signature_b64
+
     s3_client.upload_file(
         file_path,
         S3_BUCKET,
         object_key,
         ExtraArgs={
-            'ContentType': 'application/octet-stream'
-            # Public access is controlled by bucket policy, not ACLs
+            'ContentType': 'application/octet-stream',
+            'Metadata': metadata,
         }
     )
 
@@ -365,11 +377,14 @@ def upload_to_storage(file_path, version, platform):
 def get_s3_presigned_url(version, platform):
     """Generate a pre-signed URL for firmware already in S3
 
+    Also retrieves custom metadata (checksums, signature) stored during upload.
+
     Args:
         version: Firmware version string
         platform: 'esp32' or 'stm32'
 
-    Returns: (presigned_url, object_key, file_size)
+    Returns: (presigned_url, object_key, file_size, metadata)
+        metadata: dict with keys like 'sha256', 'crc32', 'signature-rsa' (may be empty)
     """
     client_config = {
         'config': Config(signature_version='s3v4'),
@@ -388,10 +403,11 @@ def get_s3_presigned_url(version, platform):
     else:
         raise ValueError(f"Unknown platform: {platform}")
 
-    # Verify the object exists
+    # Verify the object exists and retrieve metadata
     try:
         head = s3_client.head_object(Bucket=S3_BUCKET, Key=object_key)
         file_size = head['ContentLength']
+        metadata = head.get('Metadata', {})
     except Exception as e:
         print(f"Error: Firmware not found in S3: s3://{S3_BUCKET}/{object_key}")
         print(f"  {e}")
@@ -404,7 +420,9 @@ def get_s3_presigned_url(version, platform):
     )
 
     print(f"Found: s3://{S3_BUCKET}/{object_key} ({file_size:,} bytes)")
-    return url, object_key, file_size
+    if metadata:
+        print(f"  S3 metadata: {', '.join(metadata.keys())}")
+    return url, object_key, file_size, metadata
 
 def update_manifest(version, url, file_size, platform, checksums, signature_info, changelog):
     """Update firmware manifest JSON with v2.0 schema (local record-keeping only)
@@ -618,17 +636,27 @@ Examples:
         print()
 
         # Look up existing firmware in S3 and generate pre-signed URL
-        url, object_key, file_size = get_s3_presigned_url(version, platform)
+        # Also retrieves checksums and signature stored as S3 metadata during upload
+        url, object_key, file_size, s3_metadata = get_s3_presigned_url(version, platform)
 
-        # Build minimal checksums from S3 metadata (SHA256 not available without binary)
-        checksums = {'sha256': 'see-release-notes'}
+        # Use checksums from S3 metadata (stored during upload), fall back to placeholders
+        checksums = {
+            'sha256': s3_metadata.get('sha256', 'see-release-notes'),
+        }
         if platform == 'stm32':
-            checksums['crc32'] = 0
+            checksums['crc32'] = int(s3_metadata.get('crc32', '0'))
+
+        # Retrieve RSA signature from S3 metadata (stored during upload)
+        signature_b64 = s3_metadata.get('signature-rsa')
+        if platform == 'stm32' and not signature_b64:
+            print("Warning: No RSA signature found in S3 metadata")
+            print("  The firmware was likely uploaded before signature metadata was supported.")
+            print("  Re-upload the firmware with the signing key to store the signature.")
 
         # Send notification
         print()
         success = send_mqtt_notification(version, url, file_size, platform, checksums,
-                                         None, args.auto_reboot)
+                                         signature_b64, args.auto_reboot)
 
         if success:
             print(f"\nNotification sent to topic: {MQTT_TOPIC_OTA_NOTIFY}")
@@ -739,9 +767,10 @@ Examples:
             print(f"  Generate keypair with: openssl genrsa -out {STM32_SIGNING_KEY} 2048")
             sys.exit(1)
 
-    # Step 3: Upload to storage
+    # Step 3: Upload to storage (include checksums + signature as S3 metadata)
     print()
-    url, object_key = upload_to_storage(args.binary, version, platform)
+    url, object_key = upload_to_storage(args.binary, version, platform,
+                                        checksums, signature_b64)
 
     # Step 4: Update manifest
     manifest_path = update_manifest(version, url, file_size, platform,
