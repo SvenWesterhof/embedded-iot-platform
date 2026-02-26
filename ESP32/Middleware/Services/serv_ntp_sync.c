@@ -51,7 +51,7 @@ static void time_sync_notification_cb(struct timeval *tv)
              timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
     
     // Publish event
-    event_bus_publish(EVENT_NTP_TIME_SYNCED, &tv->tv_sec);
+    event_bus_publish_copy(EVENT_NTP_TIME_SYNCED, &tv->tv_sec, sizeof(tv->tv_sec));
 }
 
 /**

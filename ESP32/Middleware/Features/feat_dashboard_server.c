@@ -314,7 +314,7 @@ static void process_message(int client_fd, const uint8_t *data, size_t len)
             
         case DASH_MSG_START_MEASUREMENT:
             LOG_I(TAG, "Start measurement request");
-            event_bus_publish(EVENT_DASHBOARD_START_MEASUREMENT, (void*)payload);
+            event_bus_publish_copy(EVENT_DASHBOARD_START_MEASUREMENT, payload, payload_len);
             break;
             
         case DASH_MSG_STOP_MEASUREMENT:
