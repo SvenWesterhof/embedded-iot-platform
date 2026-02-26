@@ -68,6 +68,7 @@ if(RUBY_EXECUTABLE)
                 ${CMAKE_CURRENT_SOURCE_DIR}/vendor/CMock/lib/cmock.rb
                 --mock_path=${MOCK_OUTPUT_DIR}
                 --mock_prefix=mock_
+                --plugins=ignore;
                 ${HEADER}
             DEPENDS ${HEADER}
             COMMENT "Generating mock for ${HEADER_NAME}"
