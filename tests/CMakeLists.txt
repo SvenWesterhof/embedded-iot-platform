@@ -72,6 +72,7 @@ if(RUBY_EXECUTABLE)
                 ${HEADER}
             DEPENDS ${HEADER}
             COMMENT "Generating mock for ${HEADER_NAME}"
+            VERBATIM
         )
         list(APPEND MOCK_SOURCES ${MOCK_SRC})
     endforeach()
