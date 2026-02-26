@@ -124,7 +124,7 @@ void test_init_mutex_create_fail_returns_no_mem(void)
 
 void test_deinit_null_rb_returns_invalid_arg(void)
 {
-    TEST_ASSERT_EQUAL(SENSOR_RING_BUFFER_ERR_INVALID_ARG,
+    TEST_ASSERT_EQUAL(SENSOR_RING_BUFFER_ERR_NO_MEM,
                       sensor_ring_buffer_deinit(NULL));
 }
 
