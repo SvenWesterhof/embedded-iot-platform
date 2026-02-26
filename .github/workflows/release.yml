@@ -56,18 +56,16 @@ jobs:
           restore-keys: |
             ccache-esp32-
 
-      - name: Setup ESP-IDF v5.5
+      - name: Setup dummy credentials and certificates for CI
+        run: cp ESP32/Application/credentials.h.template ESP32/Application/credentials.h
+
+      - name: Build firmware using ESP-IDF v5.5
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v5.5
           target: esp32s3
-
-      - name: Build firmware
-        working-directory: ESP32
-        env:
-          CCACHE_DIR: ~/.ccache
-          IDF_CCACHE_ENABLE: "1"
-        run: idf.py build
+          path: ESP32
+          extra_docker_args: -v ${{ github.workspace }}/.ccache:/root/.ccache -e CCACHE_DIR=/root/.ccache -e IDF_CCACHE_ENABLE=1
 
       - name: Upload ESP32 artifacts
         uses: actions/upload-artifact@v4
@@ -142,6 +140,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-esp32, build-stm32]
     environment: production   # Configure approval gate in repo Settings → Environments
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -170,7 +170,7 @@ jobs:
         run: |
           ESP32_SHA=$(sha256sum artifacts/esp32/iot_gateway.bin | cut -d' ' -f1)
           STM32_SHA=$(sha256sum artifacts/stm32/sensor_node.bin | cut -d' ' -f1)
-          BOOT_SHA=$(sha256sum artifacts/stm32/bootloader.bin | cut -d' ' -f1)
+          BOOT_SHA=$(sha256sum artifacts/stm32/Bootloader/bootloader.bin | cut -d' ' -f1)
           echo "ESP32_SHA=${ESP32_SHA}" >> "$GITHUB_OUTPUT"
           echo "STM32_SHA=${STM32_SHA}" >> "$GITHUB_OUTPUT"
           echo "BOOT_SHA=${BOOT_SHA}" >> "$GITHUB_OUTPUT"
@@ -213,12 +213,12 @@ jobs:
       - name: Write signing and IoT keys from secrets
         run: |
           mkdir -p ESP32/keys ESP32/keys/iot
-          printf '%s' "${{ secrets.ESP32_OTA_SIGNING_KEY }}" > ESP32/keys/ota_signing_key.pem
-          printf '%s' "${{ secrets.STM32_PRIVATE_KEY }}"     > ESP32/keys/stm32_private_key.pem
-          printf '%s' "${{ secrets.STM32_PUBLIC_KEY }}"      > ESP32/keys/stm32_public_key.pem
-          printf '%s' "${{ secrets.IOT_CA_CERT }}"           > ESP32/keys/iot/AmazonRootCA1.pem
-          printf '%s' "${{ secrets.IOT_DEVICE_CERT }}"       > ESP32/keys/iot/device-cert.pem
-          printf '%s' "${{ secrets.IOT_DEVICE_KEY }}"        > ESP32/keys/iot/device-private-key.pem
+          echo "${{ secrets.ESP32_OTA_SIGNING_KEY }}" > ESP32/keys/ota_signing_key.pem
+          echo "${{ secrets.STM32_PRIVATE_KEY }}"     > ESP32/keys/stm32_private_key.pem
+          echo "${{ secrets.STM32_PUBLIC_KEY }}"      > ESP32/keys/stm32_public_key.pem
+          echo "${{ secrets.IOT_CA_CERT }}"           > ESP32/keys/iot/AmazonRootCA1.pem
+          echo "${{ secrets.IOT_DEVICE_CERT }}"       > ESP32/keys/iot/device-cert.pem
+          echo "${{ secrets.IOT_DEVICE_KEY }}"        > ESP32/keys/iot/device-private-key.pem
 
       - name: Install Python dependencies
         run: pip install -r tools/requirements.txt
@@ -235,8 +235,9 @@ jobs:
           IOT_CERT: ESP32/keys/iot/device-cert.pem
           IOT_KEY: ESP32/keys/iot/device-private-key.pem
         run: |
-          python3 ESP32/tools/upload_firmware.py \
+          python3 tools/upload_firmware.py \
             artifacts/esp32/iot_gateway.bin \
+            --platform esp32 \
             --version "${{ steps.version.outputs.VERSION }}" \
             --changelog "$(cat CHANGELOG.md)" \
             --no-notify
@@ -253,7 +254,7 @@ jobs:
           IOT_CERT: ESP32/keys/iot/device-cert.pem
           IOT_KEY: ESP32/keys/iot/device-private-key.pem
         run: |
-          python3 ESP32/tools/upload_firmware.py \
+          python3 tools/upload_firmware.py \
             artifacts/stm32/sensor_node.bin \
             --platform stm32 \
             --version "${{ steps.version.outputs.VERSION }}" \
@@ -278,8 +279,8 @@ jobs:
             artifacts/stm32/sensor_node.bin
             artifacts/stm32/sensor_node.hex
             artifacts/stm32/sensor_node.elf
-            artifacts/stm32/bootloader.bin
-            artifacts/stm32/bootloader.hex
+            artifacts/stm32/Bootloader/bootloader.bin
+            artifacts/stm32/Bootloader/bootloader.hex
             tools/firmware_manifest.json
           body: |
             ## Firmware Release v${{ steps.version.outputs.VERSION }}
@@ -299,7 +300,7 @@ jobs:
             **Firmware uploaded to AWS S3 automatically.**
             To send OTA notification to devices:
             ```bash
-            python3 ESP32/tools/upload_firmware.py \
+            python3 tools/upload_firmware.py \
               <firmware.bin> \
               --version ${{ steps.version.outputs.VERSION }}
             ```

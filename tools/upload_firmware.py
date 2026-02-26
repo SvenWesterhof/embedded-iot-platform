@@ -28,6 +28,9 @@ from pathlib import Path
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())   # Loads .env from repo root (searched upward from this file)
 
+# Detect CI environment to avoid printing sensitive values in logs
+IS_CI = os.getenv('CI', '').lower() in ('true', '1', 'yes') or os.getenv('GITHUB_ACTIONS') == 'true'
+
 import boto3
 from botocore.client import Config
 import paho.mqtt.client as mqtt
@@ -88,15 +91,15 @@ def detect_platform_from_filename(file_path):
     """Detect platform from firmware filename
 
     Convention:
-    - esp32-*.bin -> ESP32
-    - stm32-*.bin -> STM32
+    - esp32-*.bin or iot_gateway*.bin -> ESP32
+    - stm32-*.bin or sensor_node*.bin -> STM32
 
     Returns: 'esp32', 'stm32', or None if cannot detect
     """
     filename = Path(file_path).name.lower()
-    if filename.startswith('esp32'):
+    if filename.startswith('esp32') or filename.startswith('iot_gateway'):
         return 'esp32'
-    elif filename.startswith('stm32'):
+    elif filename.startswith('stm32') or filename.startswith('sensor_node'):
         return 'stm32'
     return None
 
@@ -297,7 +300,10 @@ def upload_to_storage(file_path, version, platform):
         client_config['endpoint_url'] = S3_ENDPOINT
         client_config['aws_access_key_id'] = AWS_ACCESS_KEY
         client_config['aws_secret_access_key'] = AWS_SECRET_KEY
-        print(f"Using S3-compatible endpoint: {S3_ENDPOINT}")
+        if not IS_CI:
+            print(f"Using S3-compatible endpoint: {S3_ENDPOINT}")
+        else:
+            print("Using S3-compatible endpoint: ***")
     elif AWS_ACCESS_KEY and AWS_SECRET_KEY:
         # AWS S3 with explicit credentials
         client_config['aws_access_key_id'] = AWS_ACCESS_KEY
@@ -350,7 +356,10 @@ def upload_to_storage(file_path, version, platform):
     )
 
     print(f"Uploaded: s3://{S3_BUCKET}/{object_key}")
-    print(f"Pre-signed URL (1 hour): {url[:80]}...")
+    if not IS_CI:
+        print(f"Pre-signed URL (1 hour): {url[:80]}...")
+    else:
+        print("Pre-signed URL generated (hidden in CI)")
     return url, object_key
 
 def update_manifest(version, url, file_size, platform, checksums, signature_info, changelog):
@@ -425,7 +434,10 @@ def send_mqtt_notification(version, url, file_size, platform, checksums, signatu
 
     Returns: True if successful, False otherwise
     """
-    print(f"Sending MQTT notification to {MQTT_BROKER}...")
+    if not IS_CI:
+        print(f"Sending MQTT notification to {MQTT_BROKER}...")
+    else:
+        print("Sending MQTT notification...")
 
     # Platform-specific topic selection
     if platform == 'esp32':
@@ -658,7 +670,10 @@ Examples:
     print("=" * 60)
     print(f"Platform: {platform.upper()}")
     print(f"Version:  {version}")
-    print(f"URL:      {url}")
+    if not IS_CI:
+        print(f"URL:      {url}")
+    else:
+        print(f"URL:      (hidden in CI)")
     print(f"Manifest: {manifest_path}")
     print()
 
