@@ -463,6 +463,11 @@ wifi_status_t wifi_manager_get_status(void)
     return state.status;
 }
 
+bool wifi_manager_has_credentials(void)
+{
+    return strlen(state.config.ssid) > 0;
+}
+
 wifi_manager_status_t wifi_manager_get_info(wifi_info_t *info)
 {
     if (info == NULL) {

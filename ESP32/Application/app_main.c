@@ -127,9 +127,7 @@ bool app_init(void)
         LOG_I(TAG, "[OK] WiFi manager initialized");
         
         // Only set credentials from credentials.h if NVS had none stored
-        // (wifi_manager_init loads from NVS; don't overwrite with build-time defaults)
-        wifi_info_t wifi_info;
-        if (wifi_manager_get_info(&wifi_info) != WIFI_MGR_OK || strlen(wifi_info.ssid) == 0) {
+        if (!wifi_manager_has_credentials()) {
             wifi_manager_set_credentials(WIFI_SSID, WIFI_PASSWORD, true);
         }
     } else {
