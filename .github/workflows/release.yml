@@ -211,12 +211,12 @@ jobs:
       - name: Write signing and IoT keys from secrets
         run: |
           mkdir -p ESP32/keys ESP32/keys/iot
-          printf '%s' "${{ secrets.ESP32_OTA_SIGNING_KEY }}" > ESP32/keys/ota_signing_key.pem
-          printf '%s' "${{ secrets.STM32_PRIVATE_KEY }}"     > ESP32/keys/stm32_private_key.pem
-          printf '%s' "${{ secrets.STM32_PUBLIC_KEY }}"      > ESP32/keys/stm32_public_key.pem
-          printf '%s' "${{ secrets.IOT_CA_CERT }}"           > ESP32/keys/iot/AmazonRootCA1.pem
-          printf '%s' "${{ secrets.IOT_DEVICE_CERT }}"       > ESP32/keys/iot/device-cert.pem
-          printf '%s' "${{ secrets.IOT_DEVICE_KEY }}"        > ESP32/keys/iot/device-private-key.pem
+          echo "${{ secrets.ESP32_OTA_SIGNING_KEY }}" > ESP32/keys/ota_signing_key.pem
+          echo "${{ secrets.STM32_PRIVATE_KEY }}"     > ESP32/keys/stm32_private_key.pem
+          echo "${{ secrets.STM32_PUBLIC_KEY }}"      > ESP32/keys/stm32_public_key.pem
+          echo "${{ secrets.IOT_CA_CERT }}"           > ESP32/keys/iot/AmazonRootCA1.pem
+          echo "${{ secrets.IOT_DEVICE_CERT }}"       > ESP32/keys/iot/device-cert.pem
+          echo "${{ secrets.IOT_DEVICE_KEY }}"        > ESP32/keys/iot/device-private-key.pem
 
       - name: Install Python dependencies
         run: pip install -r tools/requirements.txt
