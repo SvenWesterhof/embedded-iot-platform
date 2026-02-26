@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 // Event types
 typedef enum {
@@ -90,11 +91,25 @@ bool event_bus_subscribe(event_type_t type, event_callback_t callback);
 bool event_bus_unsubscribe(event_type_t type, event_callback_t callback);
 
 /**
- * @brief Publish an event
+ * @brief Publish an event (caller must ensure data remains valid until dispatched)
  * @param type Event type to publish
- * @param data Optional event data
+ * @param data Optional event data (pointer stored as-is, not copied)
  * @return true if successful
  */
 bool event_bus_publish(event_type_t type, void *data);
+
+/**
+ * @brief Publish an event with a heap-copied data payload
+ *
+ * Use this instead of event_bus_publish() when the data pointer is transient
+ * (stack variable, callback parameter, or buffer that will be overwritten).
+ * The event bus takes ownership of the copy and frees it after dispatch.
+ *
+ * @param type Event type to publish
+ * @param data Pointer to data to copy (can be NULL if data_size is 0)
+ * @param data_size Size of data in bytes
+ * @return true if successful
+ */
+bool event_bus_publish_copy(event_type_t type, const void *data, size_t data_size);
 
 #endif // EVENT_BUS_H

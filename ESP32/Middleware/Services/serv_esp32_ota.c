@@ -148,7 +148,7 @@ static void esp32_ota_task(void *arg)
             LOG_I(TAG, "Download progress: %u%% (%d / %d bytes)",
                   progress, image_len_read, image_size);
             last_progress = progress;
-            event_bus_publish(EVENT_OTA_PROGRESS, &progress);
+            event_bus_publish_copy(EVENT_OTA_PROGRESS, &progress, sizeof(progress));
         }
 
         os_delay_ms(100);
@@ -184,7 +184,7 @@ static void esp32_ota_task(void *arg)
         LOG_I(TAG, "ESP32 OTA completed successfully (duration: %u ms)", duration_ms);
 
         uint8_t done = 100;
-        event_bus_publish(EVENT_OTA_PROGRESS, &done);
+        event_bus_publish_copy(EVENT_OTA_PROGRESS, &done, sizeof(done));
         event_bus_publish(EVENT_OTA_COMPLETED, NULL);
 
         // Auto-reboot if requested

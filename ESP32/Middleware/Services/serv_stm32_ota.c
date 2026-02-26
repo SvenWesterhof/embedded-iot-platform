@@ -252,7 +252,7 @@ static bool send_uart_chunk(stream_ctx_t *ctx, const uint8_t *data, uint16_t len
             uint8_t  progress = (total > 0)
                 ? (uint8_t)((ctx->bytes_forwarded * 100) / total) : 0;
             if (progress >= ctx->last_progress + 10 || ctx->bytes_forwarded == total) {
-                event_bus_publish(EVENT_STM32_OTA_PROGRESS, &progress);
+                event_bus_publish_copy(EVENT_STM32_OTA_PROGRESS, &progress, sizeof(progress));
                 ctx->last_progress = progress;
                 LOG_I(TAG, "Transfer progress: %u%%", progress);
             }

@@ -35,7 +35,11 @@ typedef struct {
     uint32_t send_time;
     uint32_t timeout_ms;
     uint8_t retries_left;
-    
+
+    // Stored payload for retries
+    uint8_t payload[STM32_PROTOCOL_MAX_PAYLOAD_SIZE];
+    size_t payload_len;
+
     // For synchronous calls
     bool waiting;
     os_semaphore_handle_t response_sem;
@@ -43,7 +47,7 @@ typedef struct {
     uint8_t *response_buffer;
     size_t *response_len;
     size_t response_max_len;
-    
+
     // For asynchronous calls
     stm32_response_callback_t callback;
     void *user_data;
@@ -261,8 +265,8 @@ static void handle_received_packet(const uint8_t *data, size_t length)
                                      state.notify_user_data);
             }
             
-            // Publish event
-            event_bus_publish(EVENT_STM32_DATA_READY, (void*)data);
+            // Publish event (copy data — rx_buffer is overwritten by next packet)
+            event_bus_publish_copy(EVENT_STM32_DATA_READY, data, length);
             break;
         }
         
@@ -331,18 +335,20 @@ static void protocol_task(void *arg)
             // Check if command has timed out
             if ((now - cmd->send_time) > cmd->timeout_ms) {
                 if (cmd->retries_left > 0) {
-                    // Retry command
+                    // Retry command — resend the stored payload
                     LOG_W(TAG, "Retrying CMD 0x%02X (seq=%u), retries left=%u",
                              cmd->cmd_id, cmd->seq, cmd->retries_left);
-                    
+
                     cmd->retries_left--;
                     cmd->send_time = now;
                     state.retries++;
-                    
-                    // Note: We should resend the packet here, but we don't have
-                    // the original payload stored. In a production implementation,
-                    // you'd need to store the payload for retries.
-                    
+
+                    proto_err_t retry_err = send_command_packet(
+                        cmd->cmd_id, cmd->seq, cmd->payload, cmd->payload_len);
+                    if (retry_err != PROTO_OK) {
+                        LOG_E(TAG, "Retry send failed for CMD 0x%02X", cmd->cmd_id);
+                    }
+
                 } else {
                     // Max retries exceeded
                     LOG_E(TAG, "CMD 0x%02X (seq=%u) timeout after %u retries",
@@ -522,11 +528,17 @@ int stm32_protocol_send_command(stm32_command_id_t cmd,
     pending->response_max_len = (response_len != NULL) ? *response_len : 0;
     pending->callback = NULL;
     pending->user_data = NULL;
-    
+
+    // Store payload for retries
+    if (payload != NULL && length > 0) {
+        memcpy(pending->payload, payload, length);
+    }
+    pending->payload_len = length;
+
     if (response_len != NULL) {
         *response_len = 0;
     }
-    
+
     // Send command
     proto_err_t err = send_command_packet(cmd, pending->seq, payload, length);
     if (err != PROTO_OK) {
@@ -584,7 +596,13 @@ proto_err_t stm32_protocol_send_command_async(stm32_command_id_t cmd,
     pending->waiting = false;
     pending->callback = callback;
     pending->user_data = user_data;
-    
+
+    // Store payload for retries
+    if (payload != NULL && length > 0) {
+        memcpy(pending->payload, payload, length);
+    }
+    pending->payload_len = length;
+
     // Send command
     proto_err_t err = send_command_packet(cmd, pending->seq, payload, length);
     if (err != PROTO_OK) {
