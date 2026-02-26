@@ -56,18 +56,16 @@ jobs:
           restore-keys: |
             ccache-esp32-
 
-      - name: Setup ESP-IDF v5.5
+      - name: Setup dummy credentials and certificates for CI
+        run: cp ESP32/Application/credentials.h.template ESP32/Application/credentials.h
+
+      - name: Build firmware using ESP-IDF v5.5
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v5.5
           target: esp32s3
-
-      - name: Build firmware
-        working-directory: ESP32
-        env:
-          CCACHE_DIR: ~/.ccache
-          IDF_CCACHE_ENABLE: "1"
-        run: idf.py build
+          path: ESP32
+          extra_docker_args: -v ${{ github.workspace }}/.ccache:/root/.ccache -e CCACHE_DIR=/root/.ccache -e IDF_CCACHE_ENABLE=1
 
       - name: Upload ESP32 artifacts
         uses: actions/upload-artifact@v4
