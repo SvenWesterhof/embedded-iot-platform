@@ -169,8 +169,15 @@ wifi_status_t wifi_manager_get_status(void);
 wifi_manager_status_t wifi_manager_get_info(wifi_info_t *info);
 
 /**
+ * @brief Check if WiFi credentials are configured (in memory, loaded from NVS or set via API)
+ *
+ * @return true if SSID is configured, false otherwise
+ */
+bool wifi_manager_has_credentials(void);
+
+/**
  * @brief Get WiFi signal strength (RSSI)
- * 
+ *
  * @return RSSI in dBm, or 0 if not connected
  */
 int8_t wifi_manager_get_rssi(void);

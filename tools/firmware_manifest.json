@@ -2,6 +2,40 @@
   "manifest_version": "2.0",
   "firmware_releases": [
     {
+      "platform": "esp32",
+      "version": "1.2.1",
+      "release_date": "2026-02-26T10:06:51Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/esp32/esp32-gateway-v1.2.1.bin?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA4J4B4ZKMWSIZTC4G%2F20260226%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260226T100651Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=1f7b8ef0ad52b41bb3d3a4b903b387c9d7e31c9f663d3e882d3213ca4549161f",
+      "file_size": 1015072,
+      "checksum": {
+        "sha256": "867cb120c7e74f2c536b5c3750bfc0196956b7f8cf6a8588d0312c39d379bd44"
+      },
+      "signature": {
+        "algorithm": "RSA-3072",
+        "value": "RSA-3072 signature embedded (signed file: iot_gateway_signed.bin)"
+      },
+      "changelog": [
+        "OTA demo"
+      ]
+    },
+    {
+      "platform": "esp32",
+      "version": "1.2.1",
+      "release_date": "2026-02-26T10:06:15Z",
+      "download_url": "https://sw-embedded-iot-platform-project-firmware.s3.amazonaws.com/firmware/esp32/esp32-gateway-v1.2.1.bin?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA4J4B4ZKMWSIZTC4G%2F20260226%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260226T100615Z&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=b69be29bd42e18e42b57dd4829c149b6aee334cc7779399c4b886a41305ab942",
+      "file_size": 1015072,
+      "checksum": {
+        "sha256": "867cb120c7e74f2c536b5c3750bfc0196956b7f8cf6a8588d0312c39d379bd44"
+      },
+      "signature": {
+        "algorithm": "RSA-3072",
+        "value": "RSA-3072 signature embedded (signed file: iot_gateway_signed.bin)"
+      },
+      "changelog": [
+        "OTA demo"
+      ]
+    },
+    {
       "platform": "stm32",
       "version": "1.2.6",
       "release_date": "2026-02-16T15:19:31Z",

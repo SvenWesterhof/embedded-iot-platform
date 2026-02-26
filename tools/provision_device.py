@@ -79,10 +79,10 @@ def find_idf_tool(script_name: str, idf_subpath: str) -> str:
     sys.exit(1)
 
 
-def generate_nvs_binary(key_pem_path: Path, output_path: Path) -> None:
+def generate_nvs_binary(key_pem_path: Path, output_path: Path, broker_uri: str | None = None) -> None:
     """
     Use nvs_partition_gen.py (bundled with ESP-IDF) to create an NVS partition
-    binary containing the device private key as a blob.
+    binary containing the device private key and optionally the MQTT broker URI.
     """
     key_pem = key_pem_path.read_bytes()
 
@@ -95,6 +95,8 @@ def generate_nvs_binary(key_pem_path: Path, output_path: Path) -> None:
         writer.writerow(['key', 'type', 'encoding', 'value'])
         writer.writerow(['iot_creds', 'namespace', '', ''])
         writer.writerow(['device_key', 'file', 'binary', str(key_pem_path.resolve())])
+        if broker_uri:
+            writer.writerow(['broker_uri', 'data', 'string', broker_uri])
 
     try:
         nvs_gen = find_idf_tool(
@@ -180,6 +182,8 @@ Examples:
                         help=f'Path to device private key PEM (default: {DEFAULT_KEY})')
     parser.add_argument('--output', type=Path, default=Path('nvs_iot_creds.bin'),
                         help='Output path for NVS binary (default: nvs_iot_creds.bin)')
+    parser.add_argument('--broker-uri', type=str,
+                        help='MQTT broker URI (e.g., "mqtts://xxx-ats.iot.eu-west-1.amazonaws.com:8883")')
     parser.add_argument('--generate-only', action='store_true',
                         help='Generate NVS binary without flashing')
     args = parser.parse_args()
@@ -197,7 +201,7 @@ Examples:
     print("=" * 40)
 
     # Step 1: Generate NVS binary
-    generate_nvs_binary(args.key, args.output)
+    generate_nvs_binary(args.key, args.output, args.broker_uri)
 
     if args.generate_only:
         print(f"\nGenerate-only mode. Flash manually with:")
