@@ -27,6 +27,7 @@ static const char *TAG = "ESP32_OTA_SVC";
 
 typedef struct {
     bool initialized;
+    volatile bool abort_requested;
     esp32_ota_state_t state;
     const esp_partition_t *running_partition;
     size_t expected_size;
@@ -120,6 +121,13 @@ static void esp32_ota_task(void *arg)
     uint8_t last_progress = 0;
 
     while (1) {
+        // Check for abort request before each chunk
+        if (s_ctx.abort_requested) {
+            LOG_W(TAG, "OTA abort requested, cleaning up OTA handle");
+            esp_https_ota_abort(ota_handle);
+            goto task_fail;
+        }
+
         err = esp_https_ota_perform(ota_handle);
         if (err != ESP_ERR_HTTPS_OTA_IN_PROGRESS) {
             break;
@@ -194,8 +202,8 @@ static void esp32_ota_task(void *arg)
 
 task_fail:
     if (ctx_lock()) {
-        s_ctx.state = ESP32_OTA_STATE_FAILED;
         s_ctx.stats.failed_updates++;
+        s_ctx.state = ESP32_OTA_STATE_IDLE;
         s_ctx.ota_task_handle = NULL;
         ctx_unlock();
     }
@@ -263,6 +271,7 @@ esp32_ota_status_t serv_esp32_ota_trigger(const esp32_ota_notification_t *notifi
     // Copy notification data
     memcpy(&s_ctx.current_update, notification, sizeof(esp32_ota_notification_t));
     s_ctx.state = ESP32_OTA_STATE_DOWNLOADING;
+    s_ctx.abort_requested = false;
     s_ctx.bytes_written = 0;
     s_ctx.expected_size = notification->expected_size;
     s_ctx.start_time_ms = os_get_time_ms();
@@ -350,18 +359,37 @@ esp32_ota_status_t serv_esp32_ota_abort(void)
         return ESP32_OTA_ERR_INTERNAL;
     }
 
-    os_task_handle_t task_to_delete = s_ctx.ota_task_handle;
-    s_ctx.ota_task_handle = NULL;
-    s_ctx.state = ESP32_OTA_STATE_IDLE;
-
+    bool was_active = (s_ctx.ota_task_handle != NULL);
     ctx_unlock();
 
-    if (task_to_delete != NULL) {
-        os_task_delete(task_to_delete);
+    if (!was_active) {
+        // No task running — just reset state
+        if (ctx_lock()) {
+            s_ctx.state = ESP32_OTA_STATE_IDLE;
+            ctx_unlock();
+        }
+        return ESP32_OTA_OK;
     }
 
-    event_bus_publish(EVENT_OTA_FAILED, NULL);
-    return ESP32_OTA_OK;
+    // Signal the task to abort cooperatively
+    s_ctx.abort_requested = true;
+
+    // Wait for task to clean up and exit (esp_https_ota_abort + task_fail path)
+    // The task sets ota_task_handle = NULL before calling os_task_delete(NULL)
+    for (int i = 0; i < 100; i++) {
+        os_delay_ms(100);
+        if (ctx_lock()) {
+            bool task_done = (s_ctx.ota_task_handle == NULL);
+            ctx_unlock();
+            if (task_done) {
+                LOG_I(TAG, "OTA task exited cleanly after abort");
+                return ESP32_OTA_OK;
+            }
+        }
+    }
+
+    LOG_E(TAG, "OTA task did not exit within 10s after abort request");
+    return ESP32_OTA_ERR_INTERNAL;
 }
 
 esp32_ota_status_t serv_esp32_ota_mark_app_valid(void)

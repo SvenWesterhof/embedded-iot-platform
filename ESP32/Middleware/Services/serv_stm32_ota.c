@@ -24,11 +24,13 @@ static struct {
     os_task_handle_t ota_task_handle;
     os_mutex_handle_t state_mutex;
     bool initialized;
+    volatile bool abort_requested;
 } s_ctx = {
     .state = STM32_OTA_STATE_IDLE,
     .ota_task_handle = NULL,
     .state_mutex = NULL,
     .initialized = false,
+    .abort_requested = false,
 };
 
 // Forward declaration
@@ -89,6 +91,7 @@ serv_stm32_ota_status_t serv_stm32_ota_trigger(const stm32_ota_notification_t *n
 
     memcpy(&s_ctx.current_update, notification, sizeof(stm32_ota_notification_t));
     s_ctx.state = STM32_OTA_STATE_DOWNLOADING;
+    s_ctx.abort_requested = false;
     os_mutex_give(s_ctx.state_mutex);
 
     // Create OTA task pinned to Core 1 (not WiFi core)
@@ -157,17 +160,35 @@ serv_stm32_ota_status_t serv_stm32_ota_abort(void)
         return STM32_OTA_ERR_TIMEOUT;
     }
 
-    os_task_handle_t task_to_delete = s_ctx.ota_task_handle;
-    s_ctx.ota_task_handle = NULL;
-    s_ctx.state = STM32_OTA_STATE_IDLE;
-
+    bool was_active = (s_ctx.ota_task_handle != NULL);
     os_mutex_give(s_ctx.state_mutex);
 
-    if (task_to_delete != NULL) {
-        os_task_delete(task_to_delete);
+    if (!was_active) {
+        if (os_mutex_take(s_ctx.state_mutex, 1000) == OS_SUCCESS) {
+            s_ctx.state = STM32_OTA_STATE_IDLE;
+            os_mutex_give(s_ctx.state_mutex);
+        }
+        return STM32_OTA_OK;
     }
 
-    return STM32_OTA_OK;
+    // Signal the task to abort cooperatively
+    s_ctx.abort_requested = true;
+
+    // Wait for task to clean up and exit
+    for (int i = 0; i < 150; i++) {
+        os_delay_ms(100);
+        if (os_mutex_take(s_ctx.state_mutex, 100) == OS_SUCCESS) {
+            bool task_done = (s_ctx.ota_task_handle == NULL);
+            os_mutex_give(s_ctx.state_mutex);
+            if (task_done) {
+                LOG_I(TAG, "STM32 OTA task exited cleanly after abort");
+                return STM32_OTA_OK;
+            }
+        }
+    }
+
+    LOG_E(TAG, "STM32 OTA task did not exit within 15s after abort request");
+    return STM32_OTA_ERR_TIMEOUT;
 }
 
 serv_stm32_ota_status_t serv_stm32_ota_deinit(void)
@@ -250,6 +271,12 @@ static bool send_uart_chunk(stream_ctx_t *ctx, const uint8_t *data, uint16_t len
 static bool stream_to_stm32_cb(const uint8_t *data, uint32_t len, void *user_data)
 {
     stream_ctx_t *ctx = (stream_ctx_t*)user_data;
+
+    // Check for abort between HTTP chunks
+    if (s_ctx.abort_requested) {
+        LOG_W(TAG, "Abort requested during streaming transfer");
+        return false;
+    }
 
     // Accumulate SHA256 hash incrementally
     mbedtls_md_update(&ctx->sha256_ctx, data, len);
@@ -365,6 +392,11 @@ static void stm32_ota_task(void *arg)
     // Phase 2: Stream firmware from HTTPS directly to STM32 + SHA256 hash.
     // No large firmware buffer — uses only 4KB at a time.
     // -----------------------------------------------------------------------
+    if (s_ctx.abort_requested) {
+        LOG_W(TAG, "Abort requested before streaming phase");
+        goto cleanup;
+    }
+
     LOG_I(TAG, "Phase 2: Streaming firmware to STM32...");
 
     if (os_mutex_take(s_ctx.state_mutex, 1000) == OS_SUCCESS) {
@@ -417,6 +449,11 @@ static void stm32_ota_task(void *arg)
     // Phase 3: Verify RSA signature over the accumulated SHA256 hash.
     // The 32-byte digest is all we need — full binary is not required.
     // -----------------------------------------------------------------------
+    if (s_ctx.abort_requested) {
+        LOG_W(TAG, "Abort requested before signature verification");
+        goto cleanup;
+    }
+
     LOG_I(TAG, "Phase 3: Verifying RSA signature...");
 
     if (os_mutex_take(s_ctx.state_mutex, 1000) == OS_SUCCESS) {
@@ -473,7 +510,7 @@ cleanup:
     }
 
     if (os_mutex_take(s_ctx.state_mutex, 1000) == OS_SUCCESS) {
-        s_ctx.state = final_state;
+        s_ctx.state = STM32_OTA_STATE_IDLE;
         s_ctx.ota_task_handle = NULL;
         os_mutex_give(s_ctx.state_mutex);
     } else {
@@ -486,12 +523,6 @@ cleanup:
     } else {
         LOG_E(TAG, "STM32 OTA failed");
         event_bus_publish(EVENT_STM32_OTA_FAILED, NULL);
-    }
-
-    // Reset to IDLE so the next trigger can proceed
-    if (os_mutex_take(s_ctx.state_mutex, 1000) == OS_SUCCESS) {
-        s_ctx.state = STM32_OTA_STATE_IDLE;
-        os_mutex_give(s_ctx.state_mutex);
     }
 
     os_task_delete(NULL);
