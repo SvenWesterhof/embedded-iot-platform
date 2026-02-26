@@ -19,6 +19,9 @@ static const char *TAG = "APP_MAIN";
 // Must persist for the lifetime of the MQTT connection
 static char s_device_key_pem[2048];
 
+// Buffer for MQTT broker URI loaded from NVS at boot
+static char s_mqtt_broker_uri[256];
+
 // ============================================================================
 // Event Handlers
 // ============================================================================
@@ -123,8 +126,12 @@ bool app_init(void)
     if (cont_wifi_manager_init() == WIFI_MGR_OK) {
         LOG_I(TAG, "[OK] WiFi manager initialized");
         
-        // Set WiFi credentials from credentials.h
-        wifi_manager_set_credentials(WIFI_SSID, WIFI_PASSWORD, false);
+        // Only set credentials from credentials.h if NVS had none stored
+        // (wifi_manager_init loads from NVS; don't overwrite with build-time defaults)
+        wifi_info_t wifi_info;
+        if (wifi_manager_get_info(&wifi_info) != WIFI_MGR_OK || strlen(wifi_info.ssid) == 0) {
+            wifi_manager_set_credentials(WIFI_SSID, WIFI_PASSWORD, true);
+        }
     } else {
         LOG_E(TAG, "[FAIL] WiFi manager init failed");
         return false;
@@ -157,9 +164,25 @@ bool app_init(void)
         }
     }
 
+    // Load MQTT broker URI from NVS (fallback to credentials.h)
+    const char *broker_uri = MQTT_BROKER_URI;
+    {
+        nvs_handle_t nvs;
+        esp_err_t err = nvs_open("iot_creds", NVS_READONLY, &nvs);
+        if (err == ESP_OK) {
+            size_t uri_len = sizeof(s_mqtt_broker_uri) - 1;
+            err = nvs_get_str(nvs, "broker_uri", s_mqtt_broker_uri, &uri_len);
+            nvs_close(nvs);
+            if (err == ESP_OK) {
+                broker_uri = s_mqtt_broker_uri;
+                LOG_I(TAG, "[OK] MQTT broker URI loaded from NVS");
+            }
+        }
+    }
+
     // Initialize MQTT client with credentials
     mqtt_client_config_t mqtt_config = {
-        .broker_uri = MQTT_BROKER_URI,
+        .broker_uri = broker_uri,
         .device_id = MQTT_TOPIC_PREFIX,
         .client_id = MQTT_CLIENT_ID,
         .username = MQTT_USERNAME,
