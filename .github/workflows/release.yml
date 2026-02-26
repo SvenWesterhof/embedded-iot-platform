@@ -233,7 +233,7 @@ jobs:
           IOT_CERT: ESP32/keys/iot/device-cert.pem
           IOT_KEY: ESP32/keys/iot/device-private-key.pem
         run: |
-          python3 ESP32/tools/upload_firmware.py \
+          python3 tools/upload_firmware.py \
             artifacts/esp32/iot_gateway.bin \
             --version "${{ steps.version.outputs.VERSION }}" \
             --changelog "$(cat CHANGELOG.md)" \
@@ -251,7 +251,7 @@ jobs:
           IOT_CERT: ESP32/keys/iot/device-cert.pem
           IOT_KEY: ESP32/keys/iot/device-private-key.pem
         run: |
-          python3 ESP32/tools/upload_firmware.py \
+          python3 tools/upload_firmware.py \
             artifacts/stm32/sensor_node.bin \
             --platform stm32 \
             --version "${{ steps.version.outputs.VERSION }}" \
@@ -297,7 +297,7 @@ jobs:
             **Firmware uploaded to AWS S3 automatically.**
             To send OTA notification to devices:
             ```bash
-            python3 ESP32/tools/upload_firmware.py \
+            python3 tools/upload_firmware.py \
               <firmware.bin> \
               --version ${{ steps.version.outputs.VERSION }}
             ```
