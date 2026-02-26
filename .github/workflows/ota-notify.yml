@@ -1,0 +1,87 @@
+name: OTA Notify Devices
+
+# Manually trigger to send OTA notification for firmware already in S3.
+# Use this after a successful release to notify devices.
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Target platform"
+        required: true
+        type: choice
+        options:
+          - esp32
+          - stm32
+          - both
+      version:
+        description: "Firmware version (e.g. 1.0.0)"
+        required: true
+        type: string
+      auto_reboot:
+        description: "Auto-reboot/apply after OTA"
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  notify:
+    name: Send OTA Notification
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Python dependencies
+        run: pip install -r tools/requirements.txt
+
+      - name: Write IoT certificates
+        run: |
+          mkdir -p ESP32/keys/iot
+          echo "${{ secrets.IOT_CA_CERT }}"      > ESP32/keys/iot/AmazonRootCA1.pem
+          echo "${{ secrets.IOT_DEVICE_CERT }}"   > ESP32/keys/iot/device-cert.pem
+          echo "${{ secrets.IOT_DEVICE_KEY }}"    > ESP32/keys/iot/device-private-key.pem
+
+      - name: Notify ESP32 devices
+        if: inputs.platform == 'esp32' || inputs.platform == 'both'
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          MQTT_BROKER: ${{ secrets.MQTT_BROKER }}
+          MQTT_PORT: "8883"
+          IOT_CA_CERT: ESP32/keys/iot/AmazonRootCA1.pem
+          IOT_CERT: ESP32/keys/iot/device-cert.pem
+          IOT_KEY: ESP32/keys/iot/device-private-key.pem
+        run: |
+          python3 tools/upload_firmware.py \
+            --notify-only \
+            --platform esp32 \
+            --version "${{ inputs.version }}" \
+            ${{ inputs.auto_reboot == true && '--auto-reboot' || '' }}
+
+      - name: Notify STM32 devices
+        if: inputs.platform == 'stm32' || inputs.platform == 'both'
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          MQTT_BROKER: ${{ secrets.MQTT_BROKER }}
+          MQTT_PORT: "8883"
+          IOT_CA_CERT: ESP32/keys/iot/AmazonRootCA1.pem
+          IOT_CERT: ESP32/keys/iot/device-cert.pem
+          IOT_KEY: ESP32/keys/iot/device-private-key.pem
+        run: |
+          python3 tools/upload_firmware.py \
+            --notify-only \
+            --platform stm32 \
+            --version "${{ inputs.version }}" \
+            ${{ inputs.auto_reboot == true && '--auto-reboot' || '' }}
+
+      - name: Shred private keys
+        if: always()
+        run: shred -u ESP32/keys/iot/device-private-key.pem 2>/dev/null || true
