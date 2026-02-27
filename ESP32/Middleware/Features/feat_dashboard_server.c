@@ -31,9 +31,6 @@ typedef struct {
     dashboard_stats_t stats;
 
     os_task_handle_t heartbeat_task;
-
-    // STM32 command forwarding state
-    int stm32_requesting_client_fd;     // Client that sent the STM32 command
 } dashboard_state_t;
 
 static dashboard_state_t state = {0};
@@ -359,18 +356,6 @@ static esp_err_t index_html_handler(httpd_req_t *req)
     
     httpd_resp_set_type(req, "text/html");
     return httpd_resp_sendstr(req, html);
-}
-
-/**
- * @brief WebSocket open handler
- */
-static esp_err_t ws_open_handler(httpd_req_t *req)
-{
-    if (req->method == HTTP_GET) {
-        LOG_I(TAG, "WebSocket handshake");
-        return ESP_OK;
-    }
-    return ESP_OK;
 }
 
 /**
