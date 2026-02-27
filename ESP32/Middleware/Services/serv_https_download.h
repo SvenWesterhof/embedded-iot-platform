@@ -38,20 +38,6 @@ typedef struct {
 } https_download_config_t;
 
 /**
- * @brief Download file from HTTPS URL into memory
- *
- * Allocates buffer internally and returns pointer. Caller must free() the buffer.
- *
- * @param config Download configuration
- * @param out_buffer Pointer to receive allocated buffer (caller must free)
- * @param out_size Pointer to receive actual downloaded size
- * @return HTTPS_DOWNLOAD_OK on success, error code otherwise
- */
-https_download_status_t serv_https_download(const https_download_config_t *config,
-                                            uint8_t **out_buffer,
-                                            uint32_t *out_size);
-
-/**
  * @brief Callback type for streaming downloads
  *
  * Called once per received HTTP chunk (up to 4KB). Return false to abort.

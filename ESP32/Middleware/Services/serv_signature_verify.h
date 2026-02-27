@@ -37,21 +37,6 @@ typedef enum {
 sig_verify_status_t serv_signature_verify_init(void);
 
 /**
- * @brief Verify RSA-2048 signature for firmware
- *
- * Computes SHA256 hash of firmware and verifies RSA signature.
- * Works for both STM32 and ESP32 firmware verification.
- *
- * @param firmware_data Pointer to firmware binary
- * @param firmware_size Size of firmware in bytes
- * @param signature_b64 Base64-encoded RSA signature (256 bytes for RSA-2048)
- * @return SIG_VERIFY_OK if signature is valid, error code otherwise
- */
-sig_verify_status_t serv_signature_verify_firmware(const uint8_t *firmware_data,
-                                                    uint32_t firmware_size,
-                                                    const char *signature_b64);
-
-/**
  * @brief Verify RSA-2048 signature against a pre-computed SHA256 hash
  *
  * Use when SHA256 was computed incrementally during a streaming download,

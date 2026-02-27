@@ -134,11 +134,20 @@ static void on_mqtt_ota_notify(event_type_t type, void *data)
         return;
     }
 
-    const char *json_payload = (const char *)data;
-    LOG_I(TAG, "OTA notification received via MQTT");
-    LOG_D(TAG, "Payload: %s", json_payload);
+    // Extract topic and payload from mqtt_event_data_t
+    mqtt_event_data_t *evt = (mqtt_event_data_t *)data;
+    const char *topic = evt->buf;
+    const char *json_payload = evt->buf + evt->topic_len + 1;
 
-    cJSON *root = cJSON_Parse(json_payload);
+    // Only process OTA notification topic
+    if (strncmp(topic, MQTT_TOPIC_GLOBAL_OTA_NOTIFY, evt->topic_len) != 0) {
+        return;
+    }
+
+    LOG_I(TAG, "OTA notification received via MQTT");
+    LOG_D(TAG, "Payload: %.*s", evt->data_len, json_payload);
+
+    cJSON *root = cJSON_ParseWithLength(json_payload, evt->data_len);
     if (!root) {
         LOG_E(TAG, "JSON parse error: %s", cJSON_GetErrorPtr());
         return;
@@ -347,7 +356,11 @@ bool cont_ota_is_update_in_progress(void)
 
 uint8_t cont_ota_get_progress(void)
 {
-    return serv_esp32_ota_get_progress();
+    if (serv_esp32_ota_is_in_progress()) {
+        return serv_esp32_ota_get_progress();
+    }
+    // STM32 OTA progress is reported via event bus, not queryable here
+    return 0;
 }
 
 ota_mgr_status_t cont_ota_get_partition_info(char *buffer, size_t buffer_size)

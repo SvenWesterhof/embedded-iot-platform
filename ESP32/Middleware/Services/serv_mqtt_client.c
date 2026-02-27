@@ -461,8 +461,17 @@ static void handle_data(esp_mqtt_event_handle_t event)
         ctx.user_callback(FEAT_MQTT_EVT_DATA_RECEIVED, &message);
     }
 
-    // Publish to event bus for other components (copy data — MQTT frees it after this handler)
-    event_bus_publish_copy(EVENT_MQTT_DATA_RECEIVED, event->data, event->data_len);
+    // Publish to event bus with topic + data (self-contained for async dispatch)
+    // Build mqtt_event_data_t on stack, publish_copy handles the heap allocation
+    size_t evt_size = sizeof(mqtt_event_data_t) + event->topic_len + 1 + event->data_len;
+    uint8_t evt_buf[evt_size];
+    mqtt_event_data_t *evt_data = (mqtt_event_data_t *)evt_buf;
+    evt_data->topic_len = event->topic_len;
+    evt_data->data_len = event->data_len;
+    memcpy(evt_data->buf, event->topic, event->topic_len);
+    evt_data->buf[event->topic_len] = '\0';
+    memcpy(evt_data->buf + event->topic_len + 1, event->data, event->data_len);
+    event_bus_publish_copy(EVENT_MQTT_DATA_RECEIVED, evt_buf, evt_size);
 }
 
 static void handle_error(esp_mqtt_event_handle_t event)
@@ -477,7 +486,7 @@ static void handle_error(esp_mqtt_event_handle_t event)
     ctx.state = MQTT_STATE_ERROR;
     
     if (ctx.user_callback) {
-        ctx.user_callback(MQTT_EVENT_ERROR, NULL);
+        ctx.user_callback(FEAT_MQTT_EVT_ERROR, NULL);
     }
 }
 

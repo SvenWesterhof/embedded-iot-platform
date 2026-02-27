@@ -103,7 +103,7 @@ typedef enum {
 } feat_mqtt_event_t;
 
 /**
- * @brief Received message structure
+ * @brief Received message structure (pointers into ESP-IDF event, valid only during callback)
  */
 typedef struct {
     const char *topic;              /**< Topic string (null-terminated) */
@@ -113,6 +113,18 @@ typedef struct {
     uint8_t qos;                    /**< QoS of received message */
     bool retained;                  /**< Retained flag */
 } mqtt_message_t;
+
+/**
+ * @brief Self-contained MQTT event for event bus publishing
+ *
+ * Holds topic and data inline so it survives async dispatch.
+ * Published via event_bus_publish_copy().
+ */
+typedef struct {
+    uint16_t topic_len;
+    uint16_t data_len;
+    char buf[];                     /**< topic (null-terminated) followed by data */
+} mqtt_event_data_t;
 
 /**
  * @brief Callback for MQTT events
