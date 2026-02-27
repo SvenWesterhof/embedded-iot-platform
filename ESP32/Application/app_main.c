@@ -237,11 +237,11 @@ void app_run(void)
     feat_stm32_protocol_start();
     
     // Main application loop - broadcast status to dashboard
-    uint32_t uptime = 0;
+    uint32_t boot_time_ms = os_get_time_ms();
     char status_json[256];
     while (1) {
         os_delay_ms(2000);  // 2 second update
-        uptime += 2;
+        uint32_t uptime = (os_get_time_ms() - boot_time_ms) / 1000;
         // Build status JSON for dashboard
         (void)snprintf(status_json, sizeof(status_json),
             "{\"uptime\":%lu,\"wifi\":\"%s\",\"mqtt\":\"%s\",\"ntp\":\"%s\",\"clients\":%d}",
