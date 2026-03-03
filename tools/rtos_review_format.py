@@ -20,6 +20,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="repla
 
 
 SEVERITY_ICON = {"CRITICAL": "🔴", "WARNING": "⚠️", "INFO": "ℹ️"}
+VERIFY_ICON = {"CONFIRMED": "✅", "AGENT_ONLY": "—", "DROPPED": "❌"}
 
 
 def format_result(result: dict) -> list[str]:
@@ -37,35 +38,72 @@ def format_result(result: dict) -> list[str]:
         lines.append("No findings.")
         return lines
 
-    c = summary.get("critical", 0)
-    w = summary.get("warning", 0)
-    i = summary.get("info", 0)
+    # Separate active findings from dropped ones
+    active = [f for f in findings if f.get("verification_status") != "DROPPED"]
+    dropped = [f for f in findings if f.get("verification_status") == "DROPPED"]
+
+    c = sum(1 for f in active if f.get("severity") == "CRITICAL")
+    w = sum(1 for f in active if f.get("severity") == "WARNING")
+    i = sum(1 for f in active if f.get("severity") == "INFO")
     lines.append(f"**{c} critical &nbsp;·&nbsp; {w} warning &nbsp;·&nbsp; {i} info**\n")
 
-    # Summary table
-    lines.append("| Severity | Confidence | Line | Rule | Title |")
-    lines.append("|---|---|---|---|---|")
-    for f in findings:
-        sev = f.get("severity", "INFO")
-        icon = SEVERITY_ICON.get(sev, "")
-        conf = f.get("confidence", "—")
-        lines.append(
-            f"| {icon}&nbsp;{sev} | {conf} | {f.get('line', '?')} "
-            f"| `{f.get('rule', '?')}` | {f.get('title', '')} |"
-        )
+    # Check if any finding has verification data
+    has_verification = any(f.get("verification_status") for f in findings)
 
-    # Detailed findings
-    lines.append("")
-    for f in findings:
+    # Summary table
+    if has_verification:
+        lines.append("| Severity | Confidence | Verified | Line | Rule | Title |")
+        lines.append("|---|---|---|---|---|---|")
+    else:
+        lines.append("| Severity | Confidence | Line | Rule | Title |")
+        lines.append("|---|---|---|---|---|")
+
+    for f in active:
         sev = f.get("severity", "INFO")
         icon = SEVERITY_ICON.get(sev, "")
         conf = f.get("confidence", "—")
+        vstatus = f.get("verification_status", "")
+        vicon = VERIFY_ICON.get(vstatus, "—")
+        if has_verification:
+            lines.append(
+                f"| {icon}&nbsp;{sev} | {conf} | {vicon} | {f.get('line', '?')} "
+                f"| `{f.get('rule', '?')}` | {f.get('title', '')} |"
+            )
+        else:
+            lines.append(
+                f"| {icon}&nbsp;{sev} | {conf} | {f.get('line', '?')} "
+                f"| `{f.get('rule', '?')}` | {f.get('title', '')} |"
+            )
+
+    # Detailed findings (active only)
+    lines.append("")
+    for f in active:
+        sev = f.get("severity", "INFO")
+        icon = SEVERITY_ICON.get(sev, "")
+        conf = f.get("confidence", "—")
+        vstatus = f.get("verification_status", "")
+        vicon = VERIFY_ICON.get(vstatus, "")
+        vsuffix = f" · {vicon}&nbsp;{vstatus}" if vstatus else ""
         lines.append(
             f"#### {icon} {f.get('title', '')} "
-            f"<sup>line&nbsp;{f.get('line', '?')} · `{f.get('rule', '?')}` · confidence:&nbsp;{conf}</sup>"
+            f"<sup>line&nbsp;{f.get('line', '?')} · `{f.get('rule', '?')}` · confidence:&nbsp;{conf}{vsuffix}</sup>"
         )
         lines.append(f"{f.get('detail', '')}\n")
         lines.append(f"> **Suggested fix:** {f.get('suggestion', '')}\n")
+
+    # Collapsed section for dropped findings (transparency/audit)
+    if dropped:
+        lines.append("")
+        lines.append("<details>")
+        lines.append(f"<summary>🔍 {len(dropped)} finding(s) disproved by CodeQL (click to expand)</summary>\n")
+        for f in dropped:
+            sev = f.get("severity", "INFO")
+            source = f.get("verification_source", "CodeQL")
+            lines.append(
+                f"- ~~**{sev}** `{f.get('rule', '?')}` line {f.get('line', '?')}: "
+                f"{f.get('title', '')}~~ — *{source}*"
+            )
+        lines.append("\n</details>")
 
     return lines
 
@@ -90,9 +128,12 @@ def main() -> int:
     for result in results:
         output_lines.extend(format_result(result))
         output_lines.append("")
-        s = result.get("summary", {})
-        for k in total:
-            total[k] += s.get(k, 0)
+        # Count only active findings (not DROPPED)
+        active = [f for f in result.get("findings", [])
+                  if f.get("verification_status") != "DROPPED"]
+        total["critical"] += sum(1 for f in active if f.get("severity") == "CRITICAL")
+        total["warning"] += sum(1 for f in active if f.get("severity") == "WARNING")
+        total["info"] += sum(1 for f in active if f.get("severity") == "INFO")
 
     c, w, i = total["critical"], total["warning"], total["info"]
     if len(results) > 1:

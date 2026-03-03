@@ -164,6 +164,42 @@ Respond with ONLY a JSON object. No markdown fences, no explanation text before 
 - **MEDIUM** — The bug depends on assumptions about external code (e.g., callback behavior, caller context). State the assumption in the detail field.
 - **LOW** — The pattern is commonly acceptable but could be problematic under specific conditions. Only use for informational findings.
 
+## CodeQL Verification Parameters
+
+For certain rules, the CI pipeline will run a CodeQL query to deterministically verify your finding. To enable this, include a `"codeql_params"` object in each finding where applicable. If you are unsure about a parameter, omit the entire `codeql_params` object for that finding.
+
+| Rule | Required codeql_params fields |
+|------|-------------------------------|
+| `MEMORY_LEAK` | `alloc_function` (e.g. "malloc"), `variable_name` (the local holding the pointer) |
+| `SHARED_STATE` | `variable_name`, `accessing_functions` (array of function names that access it) |
+| `RACE_CONDITION` | `variable_name`, `pattern` ("TOCTOU" or "RMW") |
+| `UNBOUNDED_WAIT` | `wait_function` (e.g. "os_mutex_take"), `target_handle` (variable name of mutex/queue) |
+| `EVENT_BUS_MISUSE` | `caller_function`, `callee_function` |
+| `LOCK_ORDER` | `mutex_names` (array of mutex variable names), `conflicting_functions` (array of function names) |
+| `PRIORITY_INVERSION` | `high_priority_task` (entry function name), `low_priority_task` (entry function name), `shared_mutex` (variable name) |
+| `CALLBACK_UNDER_LOCK` | `callback_variable` (function pointer name), `mutex_name` (variable name) |
+| `STACK_OVERFLOW` | `task_entry_function`, `declared_stack_size` (integer) |
+| `CORE_AFFINITY` | `wifi_function` (API name), `calling_task` (entry function name) |
+
+Rules NOT in this table (`WRAPPER_BYPASS`, `ISR_UNSAFE_API`, `BLOCKING_IN_CRITICAL`, `WATCHDOG_STARVATION`) have standalone CodeQL queries that run without parameters — no `codeql_params` needed.
+
+Example finding with codeql_params:
+```json
+{{
+  "severity": "CRITICAL",
+  "confidence": "HIGH",
+  "line": 42,
+  "rule": "SHARED_STATE",
+  "title": "Unprotected access to g_sensor_count",
+  "detail": "...",
+  "suggestion": "...",
+  "codeql_params": {{
+    "variable_name": "g_sensor_count",
+    "accessing_functions": ["sensor_read_task", "mqtt_publish_handler"]
+  }}
+}}
+```
+
 If the file has no findings, return an empty findings array. Do not fabricate issues.
 Only report issues visible in the provided code. If you need to make assumptions about external code, state them in the detail field.
 """
