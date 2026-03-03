@@ -207,6 +207,7 @@ For each finding, apply these DROP checks:
 - DROP if it flags a bounded wait (fixed timeout + return value checked) as UNBOUNDED_WAIT
 - DROP if the detail contains factual errors about the code (e.g. claiming a leak where free() exists on all paths)
 - DROP if it flags a standard RTOS pattern (queue/semaphore OS_WAIT_FOREVER in a consumer task)
+- DROP CALLBACK_UNDER_LOCK if no os_mutex_take/os_mutex_give pair is visible in the code around the callback call — do not speculate about internal library locks
 
 Return ONLY a JSON array of findings to KEEP (same schema). Empty array `[]` if none survive.
 No new findings. No markdown fences."""

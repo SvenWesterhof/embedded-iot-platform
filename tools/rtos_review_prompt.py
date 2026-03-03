@@ -105,7 +105,7 @@ Analyze the code for the following categories. Only report findings you are conf
 | `SHARED_STATE` | CRITICAL | Unprotected read/write of shared variable across tasks or task+ISR |
 | `RACE_CONDITION` | CRITICAL | TOCTOU, non-atomic read-modify-write on shared state, or check-then-act without lock |
 | `BLOCKING_IN_CRITICAL` | CRITICAL | Blocking call (mutex take, queue receive, delay) inside `taskENTER_CRITICAL`/`portENTER_CRITICAL` or with interrupts explicitly disabled. Note: holding a normal mutex is NOT a critical section — see `CALLBACK_UNDER_LOCK` instead. |
-| `CALLBACK_UNDER_LOCK` | WARNING | User-supplied or event callbacks invoked while holding a mutex — can cause unbounded lock hold time, priority inversion, or deadlock if the callback re-enters the lock |
+| `CALLBACK_UNDER_LOCK` | WARNING | User-supplied or event callbacks invoked between a `os_mutex_take`/`os_mutex_give` pair **visible in this file** — can cause unbounded lock hold time, priority inversion, or deadlock if the callback re-enters the lock. Do NOT speculate about locks held internally by libraries (lwIP, esp_http_client, etc.). |
 | `UNBOUNDED_WAIT` | WARNING | `OS_WAIT_FOREVER` on a **mutex** (not queue/semaphore signal-wait), or any wait where the return value is unchecked |
 | `STACK_OVERFLOW` | WARNING | Stack allocation appears too small for call depth (deep recursion, large locals, printf/snprintf) |
 | `CORE_AFFINITY` | WARNING | WiFi/BLE operation on wrong core, or missing core pinning for time-critical task (ESP32 only) |
@@ -131,7 +131,7 @@ For the following rules you MUST trace the control flow before reporting. If the
 
 **SHARED_STATE** — Before reporting, identify which tasks access the variable and confirm that at least one access is unprotected (outside a mutex hold, not atomic). Do not report if all accesses are protected.
 
-**CALLBACK_UNDER_LOCK** — Before reporting, confirm that (1) user-supplied or event callbacks are invoked while a mutex is held, AND (2) the callbacks could reasonably block, take other locks, or run for unbounded time. If the callbacks are trivial internal functions with bounded execution time, do not report.
+**CALLBACK_UNDER_LOCK** — Before reporting, identify the specific `os_mutex_take` and `os_mutex_give` calls in this file that bracket the callback invocation. If no mutex acquire/release is visible in the reviewed code, do not report — do not speculate about locks held internally by third-party libraries.
 
 **UNBOUNDED_WAIT** — Before reporting, check whether the task is a dedicated consumer/dispatch task (sole job is to block on a queue). If so, `OS_WAIT_FOREVER` on queue receive is the correct pattern — do not report it. Only report if the wait could starve other responsibilities of the same task.
 
