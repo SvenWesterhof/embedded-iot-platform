@@ -106,7 +106,7 @@ Analyze the code for the following categories. Only report findings you are conf
 | `RACE_CONDITION` | CRITICAL | TOCTOU, non-atomic read-modify-write on shared state, or check-then-act without lock |
 | `BLOCKING_IN_CRITICAL` | CRITICAL | Blocking call (mutex take, queue receive, delay) inside `taskENTER_CRITICAL`/`portENTER_CRITICAL` or with interrupts explicitly disabled. Note: holding a normal mutex is NOT a critical section — see `CALLBACK_UNDER_LOCK` instead. |
 | `CALLBACK_UNDER_LOCK` | WARNING | User-supplied or event callbacks invoked while holding a mutex — can cause unbounded lock hold time, priority inversion, or deadlock if the callback re-enters the lock |
-| `UNBOUNDED_WAIT` | WARNING | `OS_WAIT_FOREVER` / `portMAX_DELAY` in production code — task can hang permanently |
+| `UNBOUNDED_WAIT` | WARNING | `OS_WAIT_FOREVER` on a **mutex** (not queue/semaphore signal-wait), or any wait where the return value is unchecked |
 | `STACK_OVERFLOW` | WARNING | Stack allocation appears too small for call depth (deep recursion, large locals, printf/snprintf) |
 | `CORE_AFFINITY` | WARNING | WiFi/BLE operation on wrong core, or missing core pinning for time-critical task (ESP32 only) |
 | `MEMORY_LEAK` | WARNING | Allocated memory (malloc/calloc/pvPortMalloc) not freed on all code paths |
@@ -114,20 +114,12 @@ Analyze the code for the following categories. Only report findings you are conf
 | `WATCHDOG_STARVATION` | WARNING | Tight loop without yield/delay — will trigger task watchdog or starve lower-priority tasks |
 | `WRAPPER_BYPASS` | WARNING | Direct FreeRTOS API call that should use os_wrapper equivalent |
 
-**IMPORTANT — The `severity` field in your output MUST match the severity column in the table above. Never escalate a WARNING rule to CRITICAL or downgrade a CRITICAL rule to WARNING.**
+**Severity is fixed by the rule table. A finding's severity MUST match the table. Any mismatch will be automatically discarded by the CI pipeline.**
 
 ### Accepted Patterns — Do NOT Report
 
-The following are standard, correct RTOS patterns. Do NOT flag them:
-
-- **`os_queue_receive(..., OS_WAIT_FOREVER)`** in a dedicated dispatch/consumer task — a task whose sole purpose is to block on a queue and process incoming messages. This is the canonical FreeRTOS consumer pattern, not a bug.
-- **`os_semaphore_take(..., OS_WAIT_FOREVER)`** used as a signal-wait pattern where a task blocks until signaled by a producer/ISR.
-- **Fixed timeouts on mutex acquisition** (e.g., 1000ms) in subscribe/unsubscribe functions that are called infrequently during initialization. These are acceptable unless the code path is latency-critical.
-
-Only report `UNBOUNDED_WAIT` when:
-1. The wait is on a **mutex** in a hot path or dispatch loop, OR
-2. The task has **other time-sensitive responsibilities** that would be starved by the block, OR
-3. The timeout prevents the system from detecting a fault condition that should be handled.
+- `OS_WAIT_FOREVER` on a queue/semaphore in a dedicated consumer task — this is the standard FreeRTOS pattern
+- Fixed timeouts on mutex acquisition where the return value is checked — a bounded wait with error handling is not `UNBOUNDED_WAIT`
 
 ## Control Flow Tracing Requirements
 

@@ -78,6 +78,39 @@ def _parse_json_response(raw_text: str) -> dict | None:
         return None
 
 
+# Authoritative severity for each rule — model output is overridden if it disagrees.
+RULE_SEVERITY = {
+    "ISR_UNSAFE_API": "CRITICAL",
+    "LOCK_ORDER": "CRITICAL",
+    "PRIORITY_INVERSION": "CRITICAL",
+    "SHARED_STATE": "CRITICAL",
+    "RACE_CONDITION": "CRITICAL",
+    "BLOCKING_IN_CRITICAL": "CRITICAL",
+    "CALLBACK_UNDER_LOCK": "WARNING",
+    "UNBOUNDED_WAIT": "WARNING",
+    "STACK_OVERFLOW": "WARNING",
+    "CORE_AFFINITY": "WARNING",
+    "MEMORY_LEAK": "WARNING",
+    "EVENT_BUS_MISUSE": "WARNING",
+    "WATCHDOG_STARVATION": "WARNING",
+    "WRAPPER_BYPASS": "WARNING",
+}
+
+
+def _enforce_severity(findings: list[dict]) -> list[dict]:
+    """Override severity to match the rule table. Logs corrections."""
+    for f in findings:
+        rule = f.get("rule", "")
+        expected = RULE_SEVERITY.get(rule)
+        if expected and f.get("severity") != expected:
+            print(
+                f"  Severity override: {rule} {f.get('severity')} → {expected}",
+                file=sys.stderr,
+            )
+            f["severity"] = expected
+    return findings
+
+
 def _recount_summary(findings: list[dict]) -> dict:
     """Recompute summary counts from a findings list."""
     return {
@@ -140,6 +173,11 @@ Full path: {file_path}
         )
         result = _verify_findings(client, model, source, filename, result)
 
+    # Enforce severity from rule table (hard override, not model-dependent)
+    if result.get("findings"):
+        result["findings"] = _enforce_severity(result["findings"])
+        result["summary"] = _recount_summary(result["findings"])
+
     return result
 
 
@@ -159,28 +197,25 @@ def _verify_findings(
 {findings_json}
 ```
 
-Here is the source code again for reference:
-
+Source code:
 ```c
 {source}
 ```
 
-Re-examine each finding independently. For each one, answer:
-1. Is the bug actually present in the code, or is this a standard/acceptable RTOS pattern?
-2. Does the severity match the rule table (CRITICAL rules must be CRITICAL, WARNING rules must be WARNING)?
-3. Is the confidence level accurate — can you point to specific lines that prove the issue?
+For each finding, apply these DROP checks:
+- DROP if severity does not match rule table (e.g. CALLBACK_UNDER_LOCK must be WARNING, never CRITICAL)
+- DROP if it flags a bounded wait (fixed timeout + return value checked) as UNBOUNDED_WAIT
+- DROP if the detail contains factual errors about the code (e.g. claiming a leak where free() exists on all paths)
+- DROP if it flags a standard RTOS pattern (queue/semaphore OS_WAIT_FOREVER in a consumer task)
 
-Then decide: **KEEP** or **DROP**.
-
-Respond with ONLY a JSON array of the findings you want to KEEP (same schema as the input).
-If all findings should be dropped, return an empty array `[]`.
-Do not add new findings. Do not wrap in markdown fences."""
+Return ONLY a JSON array of findings to KEEP (same schema). Empty array `[]` if none survive.
+No new findings. No markdown fences."""
 
     response = client.messages.create(
         model=model,
         max_tokens=4096,
         temperature=0,
-        system="You are a precise FreeRTOS code reviewer performing a second-pass verification. Your job is to eliminate false positives. Be skeptical of each finding — only keep it if you can point to specific lines in the code that prove the bug exists. Drop findings that flag standard RTOS patterns (e.g., OS_WAIT_FOREVER on a queue receive in a dedicated consumer task).",
+        system="You are verifying RTOS review findings. Be skeptical — your job is to eliminate false positives. Only keep findings where the bug is provably present in the code.",
         messages=[{"role": "user", "content": verify_message}],
     )
 
