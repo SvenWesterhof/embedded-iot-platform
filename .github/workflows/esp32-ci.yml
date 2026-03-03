@@ -198,8 +198,20 @@ jobs:
         if: steps.prereqs.outputs.skip == 'false'
         run: python tools/rtos_review_format.py /tmp/rtos_review.json >> "$GITHUB_STEP_SUMMARY" || true
 
-      - name: Fail on critical findings
-        if: steps.review.outcome == 'failure'
+      - name: Fail on high-confidence critical findings
+        if: steps.prereqs.outputs.skip == 'false'
         run: |
-          echo "::error::RTOS review found CRITICAL vulnerabilities. See the Actions summary for details."
-          exit 1
+          # Only fail the build for CRITICAL + HIGH confidence findings
+          python -c "
+          import json, sys
+          data = json.load(open('/tmp/rtos_review.json'))
+          results = data if isinstance(data, list) else [data]
+          blockers = [
+              f for r in results for f in r.get('findings', [])
+              if f.get('severity') == 'CRITICAL' and f.get('confidence') == 'HIGH'
+          ]
+          if blockers:
+              for b in blockers:
+                  print(f\"::error file={b.get('file','?')},line={b.get('line','?')}::{b.get('rule','?')}: {b.get('title','')}\")
+              sys.exit(1)
+          "

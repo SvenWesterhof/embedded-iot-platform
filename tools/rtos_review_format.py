@@ -43,13 +43,14 @@ def format_result(result: dict) -> list[str]:
     lines.append(f"**{c} critical &nbsp;·&nbsp; {w} warning &nbsp;·&nbsp; {i} info**\n")
 
     # Summary table
-    lines.append("| Severity | Line | Rule | Title |")
-    lines.append("|---|---|---|---|")
+    lines.append("| Severity | Confidence | Line | Rule | Title |")
+    lines.append("|---|---|---|---|---|")
     for f in findings:
         sev = f.get("severity", "INFO")
         icon = SEVERITY_ICON.get(sev, "")
+        conf = f.get("confidence", "—")
         lines.append(
-            f"| {icon}&nbsp;{sev} | {f.get('line', '?')} "
+            f"| {icon}&nbsp;{sev} | {conf} | {f.get('line', '?')} "
             f"| `{f.get('rule', '?')}` | {f.get('title', '')} |"
         )
 
@@ -58,9 +59,10 @@ def format_result(result: dict) -> list[str]:
     for f in findings:
         sev = f.get("severity", "INFO")
         icon = SEVERITY_ICON.get(sev, "")
+        conf = f.get("confidence", "—")
         lines.append(
             f"#### {icon} {f.get('title', '')} "
-            f"<sup>line&nbsp;{f.get('line', '?')} · `{f.get('rule', '?')}`</sup>"
+            f"<sup>line&nbsp;{f.get('line', '?')} · `{f.get('rule', '?')}` · confidence:&nbsp;{conf}</sup>"
         )
         lines.append(f"{f.get('detail', '')}\n")
         lines.append(f"> **Suggested fix:** {f.get('suggestion', '')}\n")

@@ -104,7 +104,8 @@ Analyze the code for the following categories. Only report findings you are conf
 | `PRIORITY_INVERSION` | CRITICAL | Low-priority task holds resource needed by high-priority task without priority inheritance |
 | `SHARED_STATE` | CRITICAL | Unprotected read/write of shared variable across tasks or task+ISR |
 | `RACE_CONDITION` | CRITICAL | TOCTOU, non-atomic read-modify-write on shared state, or check-then-act without lock |
-| `BLOCKING_IN_CRITICAL` | CRITICAL | Blocking call inside critical section or with interrupts disabled |
+| `BLOCKING_IN_CRITICAL` | CRITICAL | Blocking call (mutex take, queue receive, delay) inside `taskENTER_CRITICAL`/`portENTER_CRITICAL` or with interrupts explicitly disabled. Note: holding a normal mutex is NOT a critical section — see `CALLBACK_UNDER_LOCK` instead. |
+| `CALLBACK_UNDER_LOCK` | WARNING | User-supplied or event callbacks invoked while holding a mutex — can cause unbounded lock hold time, priority inversion, or deadlock if the callback re-enters the lock |
 | `UNBOUNDED_WAIT` | WARNING | `OS_WAIT_FOREVER` / `portMAX_DELAY` in production code — task can hang permanently |
 | `STACK_OVERFLOW` | WARNING | Stack allocation appears too small for call depth (deep recursion, large locals, printf/snprintf) |
 | `CORE_AFFINITY` | WARNING | WiFi/BLE operation on wrong core, or missing core pinning for time-critical task (ESP32 only) |
@@ -112,6 +113,21 @@ Analyze the code for the following categories. Only report findings you are conf
 | `EVENT_BUS_MISUSE` | WARNING | Lower-layer code directly calling higher-layer functions instead of using event bus |
 | `WATCHDOG_STARVATION` | WARNING | Tight loop without yield/delay — will trigger task watchdog or starve lower-priority tasks |
 | `WRAPPER_BYPASS` | WARNING | Direct FreeRTOS API call that should use os_wrapper equivalent |
+
+**IMPORTANT — The `severity` field in your output MUST match the severity column in the table above. Never escalate a WARNING rule to CRITICAL or downgrade a CRITICAL rule to WARNING.**
+
+### Accepted Patterns — Do NOT Report
+
+The following are standard, correct RTOS patterns. Do NOT flag them:
+
+- **`os_queue_receive(..., OS_WAIT_FOREVER)`** in a dedicated dispatch/consumer task — a task whose sole purpose is to block on a queue and process incoming messages. This is the canonical FreeRTOS consumer pattern, not a bug.
+- **`os_semaphore_take(..., OS_WAIT_FOREVER)`** used as a signal-wait pattern where a task blocks until signaled by a producer/ISR.
+- **Fixed timeouts on mutex acquisition** (e.g., 1000ms) in subscribe/unsubscribe functions that are called infrequently during initialization. These are acceptable unless the code path is latency-critical.
+
+Only report `UNBOUNDED_WAIT` when:
+1. The wait is on a **mutex** in a hot path or dispatch loop, OR
+2. The task has **other time-sensitive responsibilities** that would be starved by the block, OR
+3. The timeout prevents the system from detecting a fault condition that should be handled.
 
 ## Control Flow Tracing Requirements
 
@@ -123,6 +139,10 @@ For the following rules you MUST trace the control flow before reporting. If the
 
 **SHARED_STATE** — Before reporting, identify which tasks access the variable and confirm that at least one access is unprotected (outside a mutex hold, not atomic). Do not report if all accesses are protected.
 
+**CALLBACK_UNDER_LOCK** — Before reporting, confirm that (1) user-supplied or event callbacks are invoked while a mutex is held, AND (2) the callbacks could reasonably block, take other locks, or run for unbounded time. If the callbacks are trivial internal functions with bounded execution time, do not report.
+
+**UNBOUNDED_WAIT** — Before reporting, check whether the task is a dedicated consumer/dispatch task (sole job is to block on a queue). If so, `OS_WAIT_FOREVER` on queue receive is the correct pattern — do not report it. Only report if the wait could starve other responsibilities of the same task.
+
 ## Output Format
 
 Respond with ONLY a JSON object. No markdown fences, no explanation text before or after. The JSON must match this schema exactly:
@@ -132,6 +152,7 @@ Respond with ONLY a JSON object. No markdown fences, no explanation text before 
   "findings": [
     {{
       "severity": "CRITICAL | WARNING | INFO",
+      "confidence": "HIGH | MEDIUM | LOW",
       "line": <line_number>,
       "rule": "<RULE_ID>",
       "title": "<short one-line title>",
@@ -145,6 +166,11 @@ Respond with ONLY a JSON object. No markdown fences, no explanation text before 
     "info": <count>
   }}
 }}
+
+**Confidence levels:**
+- **HIGH** — The bug is fully visible in the provided code. You can point to specific lines that prove the issue.
+- **MEDIUM** — The bug depends on assumptions about external code (e.g., callback behavior, caller context). State the assumption in the detail field.
+- **LOW** — The pattern is commonly acceptable but could be problematic under specific conditions. Only use for informational findings.
 
 If the file has no findings, return an empty findings array. Do not fabricate issues.
 Only report issues visible in the provided code. If you need to make assumptions about external code, state them in the detail field.

@@ -65,8 +65,35 @@ def read_source_file(file_path: str) -> str:
     return numbered
 
 
-def review_file(client: anthropic.Anthropic, model: str, file_path: str) -> dict:
-    """Send a file to Claude for RTOS review and return parsed findings."""
+def _parse_json_response(raw_text: str) -> dict | None:
+    """Strip markdown fences and parse JSON. Returns None on failure."""
+    text = raw_text.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        text = "\n".join(lines)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
+
+
+def _recount_summary(findings: list[dict]) -> dict:
+    """Recompute summary counts from a findings list."""
+    return {
+        "critical": sum(1 for f in findings if f.get("severity") == "CRITICAL"),
+        "warning": sum(1 for f in findings if f.get("severity") == "WARNING"),
+        "info": sum(1 for f in findings if f.get("severity") == "INFO"),
+    }
+
+
+def review_file(
+    client: anthropic.Anthropic,
+    model: str,
+    file_path: str,
+    verify: bool = True,
+) -> dict:
+    """Send a file to Claude for RTOS review, optionally verify, return findings."""
     platform = detect_platform(file_path)
     system_prompt = get_system_prompt(platform)
     source = read_source_file(file_path)
@@ -82,35 +109,98 @@ Full path: {file_path}
 {source}
 ```"""
 
+    # --- Pass 1: Initial review ---
     response = client.messages.create(
         model=model,
         max_tokens=4096,
-        temperature=0,  # Deterministic output for consistent CI results
+        temperature=0,
         system=system_prompt,
         messages=[{"role": "user", "content": user_message}],
     )
 
     raw_text = response.content[0].text.strip()
+    result = _parse_json_response(raw_text)
 
-    # Strip markdown fences if the model wrapped the JSON
-    if raw_text.startswith("```"):
-        lines = raw_text.splitlines()
-        # Remove first line (```json or ```) and last line (```)
-        lines = [l for l in lines if not l.strip().startswith("```")]
-        raw_text = "\n".join(lines)
-
-    try:
-        result = json.loads(raw_text)
-    except json.JSONDecodeError as e:
-        print(f"Warning: failed to parse JSON for {file_path}: {e}", file=sys.stderr)
+    if result is None:
+        print(f"Warning: failed to parse JSON for {file_path}", file=sys.stderr)
         print(f"Raw response:\n{raw_text}", file=sys.stderr)
         return {
             "file": filename,
             "findings": [],
             "summary": {"critical": 0, "warning": 0, "info": 0},
-            "parse_error": str(e),
+            "parse_error": "JSON parse failed on initial review",
         }
 
+    # --- Pass 2: Self-verification ---
+    if verify and result.get("findings"):
+        _print_color(
+            f"    Verifying {len(result['findings'])} finding(s)...",
+            "cyan",
+            True,
+        )
+        result = _verify_findings(client, model, source, filename, result)
+
+    return result
+
+
+def _verify_findings(
+    client: anthropic.Anthropic,
+    model: str,
+    source: str,
+    filename: str,
+    result: dict,
+) -> dict:
+    """Ask the model to self-review its findings and drop false positives."""
+    findings_json = json.dumps(result["findings"], indent=2)
+
+    verify_message = f"""You previously reviewed `{filename}` and produced these findings:
+
+```json
+{findings_json}
+```
+
+Here is the source code again for reference:
+
+```c
+{source}
+```
+
+Re-examine each finding independently. For each one, answer:
+1. Is the bug actually present in the code, or is this a standard/acceptable RTOS pattern?
+2. Does the severity match the rule table (CRITICAL rules must be CRITICAL, WARNING rules must be WARNING)?
+3. Is the confidence level accurate — can you point to specific lines that prove the issue?
+
+Then decide: **KEEP** or **DROP**.
+
+Respond with ONLY a JSON array of the findings you want to KEEP (same schema as the input).
+If all findings should be dropped, return an empty array `[]`.
+Do not add new findings. Do not wrap in markdown fences."""
+
+    response = client.messages.create(
+        model=model,
+        max_tokens=4096,
+        temperature=0,
+        system="You are a precise FreeRTOS code reviewer performing a second-pass verification. Your job is to eliminate false positives. Be skeptical of each finding — only keep it if you can point to specific lines in the code that prove the bug exists. Drop findings that flag standard RTOS patterns (e.g., OS_WAIT_FOREVER on a queue receive in a dedicated consumer task).",
+        messages=[{"role": "user", "content": verify_message}],
+    )
+
+    raw_text = response.content[0].text.strip()
+    verified = _parse_json_response(raw_text)
+
+    if verified is None:
+        print(f"  Warning: verification parse failed, keeping original findings", file=sys.stderr)
+        return result
+
+    # Handle both bare array and wrapped {"findings": [...]} responses
+    if isinstance(verified, dict):
+        verified = verified.get("findings", [])
+
+    dropped = len(result.get("findings", [])) - len(verified)
+    if dropped > 0:
+        _print_color(f"    Verification dropped {dropped} finding(s)", "yellow", True)
+
+    result["findings"] = verified
+    result["summary"] = _recount_summary(verified)
     return result
 
 
@@ -178,6 +268,10 @@ def main():
         "--model", default=None,
         help="Claude model to use (default: env RTOS_REVIEW_MODEL or claude-sonnet-4-20250514)"
     )
+    parser.add_argument(
+        "--no-verify", action="store_true", default=False,
+        help="Skip the self-verification pass (faster but more false positives)"
+    )
     args = parser.parse_args()
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -193,7 +287,7 @@ def main():
 
     for file_path in args.files:
         _print_color(f"\n  Reviewing: {file_path} ...", "cyan", True)
-        result = review_file(client, model, file_path)
+        result = review_file(client, model, file_path, verify=not args.no_verify)
         all_results.append(result)
 
         if not args.json:
