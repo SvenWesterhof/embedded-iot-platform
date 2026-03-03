@@ -113,3 +113,93 @@ jobs:
 
       - name: Run static analysis
         run: bash scripts/lint.sh esp32
+
+  # ---------------------------------------------------------------------------
+  # Job 3: RTOS vulnerability review (Claude AI agent)
+  # Runs independently — no build artifacts needed, can run in parallel.
+  # Fails the workflow on CRITICAL findings. Skips gracefully if the
+  # ANTHROPIC_API_KEY secret is not set (e.g. fork PRs).
+  # ---------------------------------------------------------------------------
+  rtos-review:
+    name: RTOS Vulnerability Review (ESP32)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed for git diff
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install anthropic python-dotenv
+
+      # Determine which C/H files changed and whether we have an API key.
+      # Outputs: skip (reason string or 'false'), files (space-separated paths)
+      - name: Resolve changed files and check prerequisites
+        id: prereqs
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          elif [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            BASE=$(git merge-base HEAD "origin/${{ github.event.repository.default_branch }}" 2>/dev/null || echo "")
+          else
+            BASE="${{ github.event.before }}"
+          fi
+
+          if [ -z "$BASE" ]; then
+            # New branch with no merge base: review all ESP32/common C files (capped).
+            FILES=$(find ESP32 common -name "*.c" -o -name "*.h" 2>/dev/null \
+              | grep -v '/build/' | head -20 | tr '\n' ' ')
+          else
+            FILES=$(git diff --name-only "$BASE" "${{ github.sha }}" \
+              | grep -E '^(ESP32|common)/' \
+              | grep -E '\.(c|h)$' \
+              | grep -v '/build/' \
+              | tr '\n' ' ')
+          fi
+
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
+
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "skip=no_api_key" >> "$GITHUB_OUTPUT"
+          elif [ -z "$(echo "$FILES" | tr -d ' ')" ]; then
+            echo "skip=no_c_files" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip notice
+        if: steps.prereqs.outputs.skip != 'false'
+        run: |
+          if [ "${{ steps.prereqs.outputs.skip }}" = "no_api_key" ]; then
+            echo "::notice::ANTHROPIC_API_KEY secret not configured — skipping RTOS review. Add it to repository secrets to enable."
+          else
+            echo "No C/H files changed in ESP32/ or common/ — skipping RTOS review."
+          fi
+
+      - name: Run RTOS vulnerability review
+        if: steps.prereqs.outputs.skip == 'false'
+        id: review
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python tools/rtos_review_agent.py ${{ steps.prereqs.outputs.files }} \
+            > /tmp/rtos_review.json
+
+      - name: Write job summary
+        if: steps.prereqs.outputs.skip == 'false'
+        run: python tools/rtos_review_format.py /tmp/rtos_review.json >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Fail on critical findings
+        if: steps.review.outcome == 'failure'
+        run: |
+          echo "::error::RTOS review found CRITICAL vulnerabilities. See the Actions summary for details."
+          exit 1

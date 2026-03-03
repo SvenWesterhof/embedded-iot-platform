@@ -11,3 +11,6 @@ cryptography>=41.0.0
 
 # Loads .env file from repo root for local development
 python-dotenv>=1.0.0
+
+# Anthropic SDK for RTOS review agent
+anthropic>=0.40.0
