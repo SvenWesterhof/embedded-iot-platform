@@ -527,3 +527,4 @@ cleanup:
 
     os_task_delete(NULL);
 }
+
