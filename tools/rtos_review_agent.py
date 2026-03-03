@@ -85,6 +85,7 @@ Full path: {file_path}
     response = client.messages.create(
         model=model,
         max_tokens=4096,
+        temperature=0,  # Deterministic output for consistent CI results
         system=system_prompt,
         messages=[{"role": "user", "content": user_message}],
     )

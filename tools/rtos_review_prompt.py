@@ -113,6 +113,16 @@ Analyze the code for the following categories. Only report findings you are conf
 | `WATCHDOG_STARVATION` | WARNING | Tight loop without yield/delay — will trigger task watchdog or starve lower-priority tasks |
 | `WRAPPER_BYPASS` | WARNING | Direct FreeRTOS API call that should use os_wrapper equivalent |
 
+## Control Flow Tracing Requirements
+
+For the following rules you MUST trace the control flow before reporting. If the trace disproves the finding, do not report it.
+
+**MEMORY_LEAK** — Before reporting, trace every path from the `malloc`/`pvPortMalloc` call to the end of the enclosing function. Count brace nesting carefully. Only report if there exists at least one path where the pointer is not freed.
+
+**LOCK_ORDER** — Before reporting, list each mutex acquire site across all functions in the file, then verify the ordering is genuinely inconsistent. Do not report if the same mutex is always acquired in the same order.
+
+**SHARED_STATE** — Before reporting, identify which tasks access the variable and confirm that at least one access is unprotected (outside a mutex hold, not atomic). Do not report if all accesses are protected.
+
 ## Output Format
 
 Respond with ONLY a JSON object. No markdown fences, no explanation text before or after. The JSON must match this schema exactly:
