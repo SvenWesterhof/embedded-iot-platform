@@ -131,6 +131,30 @@ def _recount_summary(findings: list[dict]) -> dict:
 # Regex helpers to extract identifiers the model claims are involved.
 _C_IDENT = re.compile(r"\b([a-zA-Z_]\w*)\b")
 
+# Common English words that look like C identifiers due to capitalization
+# (appear at start of sentences in finding descriptions).
+_ENGLISH_NOISE = {
+    "the", "this", "that", "these", "those", "from", "with", "without",
+    "which", "where", "when", "while", "between", "before", "after",
+    "into", "onto", "upon", "above", "below", "since", "until",
+    "global", "local", "static", "struct", "volatile", "const",
+    "could", "would", "should", "might", "will", "can", "may",
+    "not", "but", "and", "for", "are", "has", "had", "was", "were",
+    "does", "did", "been", "being", "also", "both", "each", "any",
+    "all", "same", "other", "another", "such", "only", "either",
+    "however", "therefore", "because", "although", "concurrent",
+    "simultaneously", "multiple", "several", "different", "specific",
+    "particular", "potential", "possible", "dangerous", "unsafe",
+    "function", "functions", "called", "calling", "runs", "running",
+    "creates", "causes", "leads", "results", "means", "uses",
+    "accesses", "modifies", "updates", "changes", "sets", "gets",
+    "incremented", "decremented", "modified", "updated", "accessed",
+    "protected", "unprotected", "synchronized", "unsynchronized",
+    "context", "handler", "callback", "interrupt", "operation",
+    "fields", "members", "values", "types", "data", "buffer",
+    "same", "time", "two", "one", "first", "second", "third",
+}
+
 # Per-rule extractors: pull key identifiers from "detail" + "title" that MUST
 # appear somewhere near the claimed line.
 _RULE_KEYWORDS = {
@@ -140,7 +164,7 @@ _RULE_KEYWORDS = {
             "task", "isr", "mutex", "shared", "state", "variable", "protect",
             "unprotected", "access", "read", "write", "critical", "section",
         }),
-        "window": 5,  # lines above/below to search
+        "window": 15,  # wider: struct defs can span many lines before the var name
     },
     "RACE_CONDITION": {
         "extract": lambda f: _extract_identifiers(f, ignore={
@@ -200,17 +224,27 @@ def _extract_identifiers(
     """Extract C identifiers from title+detail, filtering noise words."""
     text = f"{finding.get('title', '')} {finding.get('detail', '')}"
     idents = _C_IDENT.findall(text)
-    # Keep identifiers that look like code (contain underscore, or are mixed case),
-    # skip pure English words and short noise.
+    # Keep identifiers that look like code (contain underscore, or are camelCase),
+    # skip English words and short noise.
+    combined_ignore = _ENGLISH_NOISE | ignore
     result = []
     for ident in idents:
         low = ident.lower()
-        if low in ignore or len(ident) < 3:
+        if low in combined_ignore or len(ident) < 3:
             continue
-        # Heuristic: real C identifiers have underscores, or are camelCase,
-        # or match os_*/hal_*/xTask*/etc patterns.
-        if "_" in ident or not ident.islower() or ident.startswith(("os_", "hal_", "x", "v")):
+        # Strong signal: underscores are almost always C identifiers
+        if "_" in ident:
             result.append(ident)
+            continue
+        # Weak signal: capitalized single word without underscore.
+        # Only keep if it looks like a type/macro (ALL_CAPS) or camelCase.
+        if re.match(r"^[A-Z][A-Z0-9]+$", ident):
+            # ALL_CAPS like PROTOCOL_MAX or ISR — likely a macro
+            result.append(ident)
+        elif re.match(r"^[a-z]+[A-Z]", ident):
+            # camelCase like txBuffer, seqCounter
+            result.append(ident)
+        # Skip: plain capitalized English words (Global, Concurrent, etc.)
     return list(dict.fromkeys(result))  # dedupe preserving order
 
 
