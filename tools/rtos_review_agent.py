@@ -221,8 +221,8 @@ _RULE_KEYWORDS = {
 def _extract_identifiers(
     finding: dict, ignore: set[str]
 ) -> list[str]:
-    """Extract C identifiers from title+detail, filtering noise words."""
-    text = f"{finding.get('title', '')} {finding.get('detail', '')}"
+    """Extract C identifiers from title+detail+bug_flow, filtering noise words."""
+    text = f"{finding.get('title', '')} {finding.get('detail', '')} {finding.get('bug_flow', '')}"
     idents = _C_IDENT.findall(text)
     # Keep identifiers that look like code (contain underscore, or are camelCase),
     # skip English words and short noise.
@@ -448,7 +448,13 @@ For each finding, apply these DROP checks:
 - DROP if it flags a standard RTOS pattern (queue/semaphore OS_WAIT_FOREVER in a consumer task)
 - DROP CALLBACK_UNDER_LOCK if no os_mutex_take/os_mutex_give pair is visible in the code around the callback call — do not speculate about internal library locks
 
-Return ONLY a JSON array of findings to KEEP (same schema). Empty array `[]` if none survive.
+For each finding you KEEP, you MUST add a "bug_flow" field that describes the concrete execution sequence that triggers the bug. Format:
+
+"bug_flow": "1. Task A calls func_x() and reads var at line N\\n2. Preemption/interrupt occurs here\\n3. Task B / ISR calls func_y() and writes var at line M\\n4. Task A resumes with stale value → consequence"
+
+The bug_flow must reference specific task names (or ISR/callback names), function names, line numbers, and variable names from the code. If you cannot construct a concrete flow with real identifiers from this file, DROP the finding.
+
+Return ONLY a JSON array of findings to KEEP (same schema, plus "bug_flow"). Empty array `[]` if none survive.
 No new findings. No markdown fences."""
 
     response = client.messages.create(

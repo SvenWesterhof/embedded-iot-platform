@@ -54,6 +54,13 @@ def format_finding_details(findings: list[dict]) -> list[str]:
             f"· confidence:&nbsp;{conf}</sup>"
         )
         lines.append(f"{f.get('detail', '')}\n")
+        if f.get("bug_flow"):
+            lines.append("**Bug flow:**")
+            for step in f["bug_flow"].split("\\n"):
+                step = step.strip()
+                if step:
+                    lines.append(f"> {step}")
+            lines.append("")
         lines.append(f"> **Suggested fix:** {f.get('suggestion', '')}\n")
     return lines
 
