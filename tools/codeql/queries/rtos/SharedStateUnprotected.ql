@@ -23,11 +23,17 @@ class SharedVariable extends Variable {
     not this.isConst() and
     // Exclude string literals and constants
     not this.getType().isConst() and
-    // Must be in application code
+    // Must be in application code — exclude vendor/generated/library code
     not this.getFile().getRelativePath().matches("%Middlewares%") and
     not this.getFile().getRelativePath().matches("%/build/%") and
     not this.getFile().getRelativePath().matches("%freertos%") and
-    not this.getFile().getRelativePath().matches("%FreeRTOS%")
+    not this.getFile().getRelativePath().matches("%FreeRTOS%") and
+    not this.getFile().getRelativePath().matches("%/Drivers/%") and
+    not this.getFile().getRelativePath().matches("%SEGGER%") and
+    not this.getFile().getRelativePath().matches("%Bootloader%") and
+    // Exclude CubeMX-generated peripheral init code
+    not this.getFile().getRelativePath().matches("%Core/Src/stm32%") and
+    not this.getFile().getRelativePath().matches("%Core/Src/system_%")
   }
 }
 
@@ -68,11 +74,47 @@ predicate hasUnprotectedCrossTaskAccess(SharedVariable v, VariableAccess unprote
   isUnprotectedAccess(unprotected)
 }
 
+/**
+ * Holds if function `f` is a CubeMX-generated init or an IRQ handler that
+ * runs before the RTOS scheduler, making mutex protection unnecessary.
+ */
+predicate isPreSchedulerOrVendorFunction(Function f) {
+  f.getName().matches("MX_%_Init") or
+  f.getName() = "SystemClock_Config" or
+  f.getName() = "main" or
+  f.getName().matches("HAL_%MspInit%") or
+  f.getName().matches("HAL_%MspDeInit%") or
+  // IRQ handlers access peripheral handles directly — this is expected
+  f.getName().matches("%_IRQHandler") or
+  // Bootloader functions
+  f.getName().matches("bl_%") or
+  // SEGGER RTT internals
+  f.getName().matches("SEGGER_%") or
+  f.getName().matches("_DoInit%") or
+  f.getName().matches("_PostTerminal%")
+}
+
 from SharedVariable v, VariableAccess unprotected
 where
   hasUnprotectedCrossTaskAccess(v, unprotected) and
+  // Exclude vendor/generated/library code at the access site
   not unprotected.getFile().getRelativePath().matches("%Middlewares%") and
-  not unprotected.getFile().getRelativePath().matches("%/Drivers/%")
+  not unprotected.getFile().getRelativePath().matches("%/Drivers/%") and
+  not unprotected.getFile().getRelativePath().matches("%SEGGER%") and
+  not unprotected.getFile().getRelativePath().matches("%Bootloader%") and
+  not unprotected.getFile().getRelativePath().matches("%Core/Src/stm32%") and
+  not unprotected.getFile().getRelativePath().matches("%Core/Src/system_%") and
+  // Exclude pre-scheduler init functions and IRQ handlers
+  not isPreSchedulerOrVendorFunction(unprotected.getEnclosingFunction()) and
+  // Exclude variables that are only HAL peripheral handles (huart*, hspi*, hi2c*, hrtc*, htim*)
+  not v.getName().matches("huart%") and
+  not v.getName().matches("hspi%") and
+  not v.getName().matches("hi2c%") and
+  not v.getName().matches("hrtc%") and
+  not v.getName().matches("htim%") and
+  not v.getName().matches("hdma_%") and
+  not v.getName().matches("SystemCoreClock") and
+  not v.getName().matches("uwTick%")
 select unprotected,
   "Unprotected access to shared variable '" + v.getName() +
   "' in function '" + unprotected.getEnclosingFunction().getName() +

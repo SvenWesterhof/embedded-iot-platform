@@ -221,7 +221,17 @@ def add_codeql_only_findings(
     agent_results: list[dict],
     codeql_results: list[dict],
 ) -> list[dict]:
-    """Add CodeQL findings that the agent missed (CodeQL-only discoveries)."""
+    """Add CodeQL findings that the agent missed, but ONLY for files
+    that were already reviewed by the agent.
+
+    This prevents standalone queries (which scan the entire codebase)
+    from flooding the output with hundreds of findings in unrelated files.
+    """
+    # Collect the set of files the agent reviewed (normalized)
+    reviewed_files = set()
+    for result in agent_results:
+        reviewed_files.add(normalize_path(result.get("file", "")))
+
     # Build a set of (file, line, rule) already covered by agent
     agent_covered = set()
     for result in agent_results:
@@ -233,7 +243,7 @@ def add_codeql_only_findings(
                 finding.get("rule", ""),
             ))
 
-    # Check each CodeQL result
+    # Check each CodeQL result — only add if in a reviewed file
     for cq in codeql_results:
         cq_rule = map_codeql_rule_to_agent_rule(cq["rule_id"])
         if not cq_rule:
@@ -241,6 +251,16 @@ def add_codeql_only_findings(
 
         cq_file = normalize_path(cq["file"])
         cq_line = cq["line"]
+
+        # Only consider findings in files the agent already reviewed
+        in_reviewed_file = False
+        for rf in reviewed_files:
+            if cq_file.endswith(rf) or rf.endswith(cq_file) or \
+               Path(cq_file).name == Path(rf).name:
+                in_reviewed_file = True
+                break
+        if not in_reviewed_file:
+            continue
 
         # Check if any agent finding is close
         already_matched = False
@@ -251,23 +271,18 @@ def add_codeql_only_findings(
                     break
 
         if not already_matched:
-            # This is a CodeQL-only finding — add it to results
+            # This is a CodeQL-only finding in a reviewed file — add it
             target_file = Path(cq_file).name
-            # Find or create the result entry for this file
+            # Find the result entry for this file
             target_result = None
             for result in agent_results:
                 if normalize_path(result.get("file", "")) == cq_file or \
-                   result.get("file", "") == target_file:
+                   Path(normalize_path(result.get("file", ""))).name == target_file:
                     target_result = result
                     break
 
             if target_result is None:
-                target_result = {
-                    "file": target_file,
-                    "findings": [],
-                    "summary": {"critical": 0, "warning": 0, "info": 0},
-                }
-                agent_results.append(target_result)
+                continue  # Don't create new file entries
 
             from rtos_review_agent import RULE_SEVERITY
             severity = RULE_SEVERITY.get(cq_rule, "WARNING")
