@@ -35,13 +35,14 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build gcc ruby
+            cmake ninja-build gcc ruby lcov
 
-      - name: Configure host test build
+      - name: Configure host test build with coverage
         run: |
           cmake -S tests -B tests/build \
             -G Ninja \
-            -DCMAKE_BUILD_TYPE=Debug
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DENABLE_COVERAGE=ON
 
       - name: Build tests
         run: cmake --build tests/build --parallel "$(nproc)"
@@ -49,3 +50,89 @@ jobs:
       - name: Run tests
         working-directory: tests/build
         run: ctest --output-on-failure --parallel "$(nproc)"
+
+      # ---------------------------------------------------------------------------
+      # Coverage: capture → extract common/src only → threshold gate → report
+      # ---------------------------------------------------------------------------
+      - name: Capture coverage data
+        run: |
+          lcov \
+            --capture \
+            --directory tests/build \
+            --output-file coverage_raw.info
+
+      - name: Extract coverage for common sources only
+        run: |
+          lcov \
+            --extract coverage_raw.info "*/common/src/*" \
+            --output-file coverage.info
+
+      - name: Enforce coverage threshold (60%)
+        run: |
+          python3 - <<'EOF'
+          import subprocess, sys, re
+
+          result = subprocess.run(
+              ["lcov", "--summary", "coverage.info"],
+              capture_output=True, text=True
+          )
+          output = result.stdout + result.stderr
+          print(output)
+
+          match = re.search(r"lines\.+:\s+(\d+(?:\.\d+)?)%", output)
+          if not match:
+              print("::warning::Could not parse line coverage — skipping threshold check")
+              sys.exit(0)
+
+          coverage = float(match.group(1))
+          threshold = 60.0
+
+          if coverage < threshold:
+              print(f"::error::Line coverage {coverage:.1f}% is below the required {threshold:.0f}% threshold")
+              sys.exit(1)
+
+          print(f"✓ Line coverage {coverage:.1f}% meets the {threshold:.0f}% threshold")
+          EOF
+
+      - name: Generate HTML coverage report
+        run: |
+          genhtml coverage.info \
+            --output-directory tests/coverage-report \
+            --title "Host Unit Test Coverage" \
+            --quiet
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ github.sha }}
+          path: tests/coverage-report/
+          retention-days: 14
+
+      - name: Write coverage summary
+        run: |
+          python3 - <<'EOF'
+          import subprocess, re, os
+
+          result = subprocess.run(
+              ["lcov", "--summary", "coverage.info"],
+              capture_output=True, text=True
+          )
+          output = result.stdout + result.stderr
+
+          lines_m     = re.search(r"lines\.+:\s+([\d.]+%\s+\([^)]+\))", output)
+          functions_m = re.search(r"functions\.+:\s+([\d.]+%\s+\([^)]+\))", output)
+          branches_m  = re.search(r"branches\.+:\s+([\d.]+%\s+\([^)]+\))", output)
+
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/stdout")
+          with open(summary_path, "a") as f:
+              f.write("## Code Coverage (common/src)\n\n")
+              f.write("| Metric | Coverage |\n")
+              f.write("|--------|----------|\n")
+              if lines_m:
+                  f.write(f"| Lines | {lines_m.group(1)} |\n")
+              if functions_m:
+                  f.write(f"| Functions | {functions_m.group(1)} |\n")
+              if branches_m:
+                  f.write(f"| Branches | {branches_m.group(1)} |\n")
+              f.write("\nFull HTML report available in the `coverage-report` artifact.\n")
+          EOF

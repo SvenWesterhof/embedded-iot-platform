@@ -1,0 +1,36 @@
+title = "embedded-iot-platform gitleaks configuration"
+
+# ---------------------------------------------------------------------------
+# Global allowlist: paths and patterns that are intentionally safe.
+# All regexes use Go RE2 syntax.
+# ---------------------------------------------------------------------------
+[allowlist]
+  description = "Project-specific false positive suppressions"
+
+  # Files that legitimately contain key-like content.
+  paths = [
+    # RSA public key embedded as a C string literal — public by design.
+    '''ESP32/Middleware/Services/stm32_public_key\.h''',
+
+    # Documentation showing example PEM snippets and command output.
+    '''tools/RSA_SIGNATURE_SETUP\.md''',
+
+    # Key generation scripts — contain shell commands, not actual key material.
+    '''tools/generate_rsa_keys\.(sh|bat)''',
+
+    # Credential template — contains only placeholder strings, never real values.
+    '''ESP32/Application/credentials\.h\.template''',
+
+    # Firmware manifest — contains S3 URLs and SHA256 hashes, not secrets.
+    '''tools/firmware_manifest\.json''',
+  ]
+
+  # Regex patterns that are safe in this repo (applied globally).
+  regexes = [
+    # CMake version strings like "PROJECT_VER 1.1.0" look like nothing sensitive.
+    # SHA256 checksums in firmware manifests are file hashes, not passwords.
+    # Base64 RSA signatures in the manifest are firmware signatures, not credentials.
+    # Suppress signature values that appear only in firmware_manifest.json
+    # (already covered by the path allowlist above, but belt-and-suspenders).
+    '''\"signature\":\s*\{[^}]+\"value\":\s*\"[A-Za-z0-9+/=]{20,}\"''',
+  ]

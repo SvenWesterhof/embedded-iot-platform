@@ -9,7 +9,7 @@ static const char *TAG = "EVENT_BUS";
 #define MAX_SUBSCRIBERS 16
 #define EVENT_QUEUE_SIZE 20
 #define EVENT_BUS_TASK_PRIORITY 6
-#define EVENT_BUS_TASK_STACK 3072
+#define EVENT_BUS_TASK_STACK 4096
 
 // Event message structure
 typedef struct {
@@ -71,7 +71,7 @@ bool event_bus_init(void)
     os_result_t result = os_task_create_pinned(
         event_dispatch_task,
         "event_dispatch",
-        4096,
+        EVENT_BUS_TASK_STACK,
         NULL,
         EVENT_BUS_TASK_PRIORITY,
         &event_bus.dispatch_task_handle,
@@ -241,3 +241,4 @@ static void event_dispatch_task(void *pvParameters)
         }
     }
 }
+

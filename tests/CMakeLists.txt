@@ -5,6 +5,21 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # ---------------------------------------------------------------------------
+# Optional: code coverage instrumentation (GCC --coverage)
+# Enable with: cmake -DENABLE_COVERAGE=ON
+# ---------------------------------------------------------------------------
+option(ENABLE_COVERAGE "Enable gcov code coverage instrumentation" OFF)
+if(ENABLE_COVERAGE)
+    if(NOT CMAKE_C_COMPILER_ID MATCHES "GNU")
+        message(WARNING "Code coverage requires GCC — ENABLE_COVERAGE ignored.")
+    else()
+        add_compile_options(--coverage -fprofile-arcs -ftest-coverage -fno-inline)
+        add_link_options(--coverage)
+        message(STATUS "Code coverage instrumentation: ON")
+    endif()
+endif()
+
+# ---------------------------------------------------------------------------
 # Unity test framework
 # ---------------------------------------------------------------------------
 add_library(unity STATIC
