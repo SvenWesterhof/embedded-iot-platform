@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """
-Format rtos_review_agent.py JSON output as GitHub-flavored markdown.
+Format RTOS review JSON output as GitHub-flavored markdown.
+
+Supports two finding sources (Option C architecture):
+- source="codeql" — structural findings from CodeQL static analysis
+- source="agent"  — semantic findings from Claude agent
 
 Usage:
     python tools/rtos_review_format.py <review_output.json> >> "$GITHUB_STEP_SUMMARY"
 
 Exit codes:
     0   No critical findings
-    1   One or more critical findings (so the workflow step can propagate failure)
+    1   One or more critical findings
     2   Could not read or parse the JSON file
 """
 
@@ -15,18 +19,67 @@ import io
 import json
 import sys
 
-# Force UTF-8 output — needed on Windows when redirecting to a file or pipe.
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-
 SEVERITY_ICON = {"CRITICAL": "🔴", "WARNING": "⚠️", "INFO": "ℹ️"}
-VERIFY_ICON = {"CONFIRMED": "✅", "AGENT_ONLY": "—", "DROPPED": "❌"}
+SOURCE_ICON = {"codeql": "🔬", "agent": "🤖"}
+
+
+def format_finding_table(findings: list[dict], show_source: bool = False) -> list[str]:
+    """Format a list of findings as a markdown table."""
+    if not findings:
+        return ["No findings.\n"]
+
+    lines = []
+    if show_source:
+        lines.append("| Severity | Source | Confidence | Line | Rule | Title |")
+        lines.append("|---|---|---|---|---|---|")
+    else:
+        lines.append("| Severity | Confidence | Line | Rule | Title |")
+        lines.append("|---|---|---|---|---|")
+
+    for f in findings:
+        sev = f.get("severity", "INFO")
+        icon = SEVERITY_ICON.get(sev, "")
+        conf = f.get("confidence", "—")
+        source = f.get("source", "agent")
+        src_icon = SOURCE_ICON.get(source, "")
+        if show_source:
+            lines.append(
+                f"| {icon}&nbsp;{sev} | {src_icon} | {conf} | {f.get('line', '?')} "
+                f"| `{f.get('rule', '?')}` | {f.get('title', '')[:80]} |"
+            )
+        else:
+            lines.append(
+                f"| {icon}&nbsp;{sev} | {conf} | {f.get('line', '?')} "
+                f"| `{f.get('rule', '?')}` | {f.get('title', '')[:80]} |"
+            )
+
+    return lines
+
+
+def format_finding_details(findings: list[dict]) -> list[str]:
+    """Format detailed findings with descriptions and suggestions."""
+    lines = []
+    for f in findings:
+        sev = f.get("severity", "INFO")
+        icon = SEVERITY_ICON.get(sev, "")
+        conf = f.get("confidence", "—")
+        source = f.get("source", "agent")
+        src_icon = SOURCE_ICON.get(source, "")
+        lines.append(
+            f"#### {icon} {f.get('title', '')} "
+            f"<sup>line&nbsp;{f.get('line', '?')} · `{f.get('rule', '?')}` "
+            f"· confidence:&nbsp;{conf} · {src_icon}&nbsp;{source}</sup>"
+        )
+        lines.append(f"{f.get('detail', '')}\n")
+        lines.append(f"> **Suggested fix:** {f.get('suggestion', '')}\n")
+    return lines
 
 
 def format_result(result: dict) -> list[str]:
     filename = result.get("file", "unknown")
     findings = result.get("findings", [])
-    summary = result.get("summary", {})
 
     lines = [f"### `{filename}`"]
 
@@ -35,75 +88,38 @@ def format_result(result: dict) -> list[str]:
         return lines
 
     if not findings:
-        lines.append("No findings.")
+        lines.append("No findings.\n")
         return lines
 
-    # Separate active findings from dropped ones
-    active = [f for f in findings if f.get("verification_status") != "DROPPED"]
-    dropped = [f for f in findings if f.get("verification_status") == "DROPPED"]
+    # Split by source
+    codeql_findings = [f for f in findings if f.get("source") == "codeql"]
+    agent_findings = [f for f in findings if f.get("source") != "codeql"]
 
-    c = sum(1 for f in active if f.get("severity") == "CRITICAL")
-    w = sum(1 for f in active if f.get("severity") == "WARNING")
-    i = sum(1 for f in active if f.get("severity") == "INFO")
+    c = sum(1 for f in findings if f.get("severity") == "CRITICAL")
+    w = sum(1 for f in findings if f.get("severity") == "WARNING")
+    i = sum(1 for f in findings if f.get("severity") == "INFO")
     lines.append(f"**{c} critical &nbsp;·&nbsp; {w} warning &nbsp;·&nbsp; {i} info**\n")
 
-    # Check if any finding has verification data
-    has_verification = any(f.get("verification_status") for f in findings)
+    # If both sources present, show combined table with source column
+    has_both = bool(codeql_findings) and bool(agent_findings)
 
-    # Summary table
-    if has_verification:
-        lines.append("| Severity | Confidence | Verified | Line | Rule | Title |")
-        lines.append("|---|---|---|---|---|---|")
-    else:
-        lines.append("| Severity | Confidence | Line | Rule | Title |")
-        lines.append("|---|---|---|---|---|")
-
-    for f in active:
-        sev = f.get("severity", "INFO")
-        icon = SEVERITY_ICON.get(sev, "")
-        conf = f.get("confidence", "—")
-        vstatus = f.get("verification_status", "")
-        vicon = VERIFY_ICON.get(vstatus, "—")
-        if has_verification:
-            lines.append(
-                f"| {icon}&nbsp;{sev} | {conf} | {vicon} | {f.get('line', '?')} "
-                f"| `{f.get('rule', '?')}` | {f.get('title', '')} |"
-            )
-        else:
-            lines.append(
-                f"| {icon}&nbsp;{sev} | {conf} | {f.get('line', '?')} "
-                f"| `{f.get('rule', '?')}` | {f.get('title', '')} |"
-            )
-
-    # Detailed findings (active only)
-    lines.append("")
-    for f in active:
-        sev = f.get("severity", "INFO")
-        icon = SEVERITY_ICON.get(sev, "")
-        conf = f.get("confidence", "—")
-        vstatus = f.get("verification_status", "")
-        vicon = VERIFY_ICON.get(vstatus, "")
-        vsuffix = f" · {vicon}&nbsp;{vstatus}" if vstatus else ""
-        lines.append(
-            f"#### {icon} {f.get('title', '')} "
-            f"<sup>line&nbsp;{f.get('line', '?')} · `{f.get('rule', '?')}` · confidence:&nbsp;{conf}{vsuffix}</sup>"
-        )
-        lines.append(f"{f.get('detail', '')}\n")
-        lines.append(f"> **Suggested fix:** {f.get('suggestion', '')}\n")
-
-    # Collapsed section for dropped findings (transparency/audit)
-    if dropped:
+    if has_both:
+        lines.extend(format_finding_table(findings, show_source=True))
         lines.append("")
-        lines.append("<details>")
-        lines.append(f"<summary>🔍 {len(dropped)} finding(s) disproved by CodeQL (click to expand)</summary>\n")
-        for f in dropped:
-            sev = f.get("severity", "INFO")
-            source = f.get("verification_source", "CodeQL")
-            lines.append(
-                f"- ~~**{sev}** `{f.get('rule', '?')}` line {f.get('line', '?')}: "
-                f"{f.get('title', '')}~~ — *{source}*"
-            )
-        lines.append("\n</details>")
+
+        # Agent details first (semantic findings are more interesting)
+        if agent_findings:
+            lines.append("#### 🤖 Agent Findings (semantic analysis)\n")
+            lines.extend(format_finding_details(agent_findings))
+
+        if codeql_findings:
+            lines.append("#### 🔬 CodeQL Findings (static analysis)\n")
+            lines.extend(format_finding_details(codeql_findings))
+    else:
+        # Single source — simpler format
+        lines.extend(format_finding_table(findings, show_source=False))
+        lines.append("")
+        lines.extend(format_finding_details(findings))
 
     return lines
 
@@ -124,16 +140,15 @@ def main() -> int:
 
     total = {"critical": 0, "warning": 0, "info": 0}
     output_lines = ["## RTOS Vulnerability Review\n"]
+    output_lines.append("🤖 Agent: semantic concurrency analysis &nbsp;|&nbsp; "
+                        "🔬 CodeQL: structural static analysis\n")
 
     for result in results:
         output_lines.extend(format_result(result))
         output_lines.append("")
-        # Count only active findings (not DROPPED)
-        active = [f for f in result.get("findings", [])
-                  if f.get("verification_status") != "DROPPED"]
-        total["critical"] += sum(1 for f in active if f.get("severity") == "CRITICAL")
-        total["warning"] += sum(1 for f in active if f.get("severity") == "WARNING")
-        total["info"] += sum(1 for f in active if f.get("severity") == "INFO")
+        for f in result.get("findings", []):
+            sev = f.get("severity", "INFO")
+            total[sev.lower()] = total.get(sev.lower(), 0) + 1
 
     c, w, i = total["critical"], total["warning"], total["info"]
     if len(results) > 1:

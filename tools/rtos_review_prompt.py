@@ -97,22 +97,26 @@ Use the `FromISR` / `from_isr` variants instead.
 
 Analyze the code for the following categories. Only report findings you are confident about — do not speculate or report hypothetical issues that require assumptions about code you cannot see.
 
+The following structural rules are handled by CodeQL static analysis and are NOT your responsibility. Do NOT report findings for these rules:
+- `WRAPPER_BYPASS` — Direct FreeRTOS API call detection
+- `ISR_UNSAFE_API` — Non-ISR-safe API in ISR context
+- `BLOCKING_IN_CRITICAL` — Blocking call in critical section
+- `WATCHDOG_STARVATION` — Unbounded loop without yield
+- `CORE_AFFINITY` — Core pinning misuse
+
+Your rules (semantic analysis requiring reasoning about concurrency):
+
 | Rule ID | Severity | Description |
 |---------|----------|-------------|
-| `ISR_UNSAFE_API` | CRITICAL | Non-ISR-safe API called from ISR context |
 | `LOCK_ORDER` | CRITICAL | Inconsistent mutex acquisition order across functions (deadlock risk) |
 | `PRIORITY_INVERSION` | CRITICAL | Low-priority task holds resource needed by high-priority task without priority inheritance |
 | `SHARED_STATE` | CRITICAL | Unprotected read/write of shared variable across tasks or task+ISR |
 | `RACE_CONDITION` | CRITICAL | TOCTOU, non-atomic read-modify-write on shared state, or check-then-act without lock |
-| `BLOCKING_IN_CRITICAL` | CRITICAL | Blocking call (mutex take, queue receive, delay) inside `taskENTER_CRITICAL`/`portENTER_CRITICAL` or with interrupts explicitly disabled. Note: holding a normal mutex is NOT a critical section — see `CALLBACK_UNDER_LOCK` instead. |
 | `CALLBACK_UNDER_LOCK` | WARNING | User-supplied or event callbacks invoked between a `os_mutex_take`/`os_mutex_give` pair **visible in this file** — can cause unbounded lock hold time, priority inversion, or deadlock if the callback re-enters the lock. Do NOT speculate about locks held internally by libraries (lwIP, esp_http_client, etc.). |
 | `UNBOUNDED_WAIT` | WARNING | `OS_WAIT_FOREVER` on a **mutex** (not queue/semaphore signal-wait), or any wait where the return value is unchecked |
 | `STACK_OVERFLOW` | WARNING | Stack allocation appears too small for call depth (deep recursion, large locals, printf/snprintf) |
-| `CORE_AFFINITY` | WARNING | WiFi/BLE operation on wrong core, or missing core pinning for time-critical task (ESP32 only) |
 | `MEMORY_LEAK` | WARNING | Allocated memory (malloc/calloc/pvPortMalloc) not freed on all code paths |
 | `EVENT_BUS_MISUSE` | WARNING | Lower-layer code directly calling higher-layer functions instead of using event bus |
-| `WATCHDOG_STARVATION` | WARNING | Tight loop without yield/delay — will trigger task watchdog or starve lower-priority tasks |
-| `WRAPPER_BYPASS` | WARNING | Direct FreeRTOS API call that should use os_wrapper equivalent |
 
 **Severity is fixed by the rule table. A finding's severity MUST match the table. Any mismatch will be automatically discarded by the CI pipeline.**
 
@@ -163,42 +167,6 @@ Respond with ONLY a JSON object. No markdown fences, no explanation text before 
 - **HIGH** — The bug is fully visible in the provided code. You can point to specific lines that prove the issue.
 - **MEDIUM** — The bug depends on assumptions about external code (e.g., callback behavior, caller context). State the assumption in the detail field.
 - **LOW** — The pattern is commonly acceptable but could be problematic under specific conditions. Only use for informational findings.
-
-## CodeQL Verification Parameters
-
-For certain rules, the CI pipeline will run a CodeQL query to deterministically verify your finding. To enable this, include a `"codeql_params"` object in each finding where applicable. If you are unsure about a parameter, omit the entire `codeql_params` object for that finding.
-
-| Rule | Required codeql_params fields |
-|------|-------------------------------|
-| `MEMORY_LEAK` | `alloc_function` (e.g. "malloc"), `variable_name` (the local holding the pointer) |
-| `SHARED_STATE` | `variable_name`, `accessing_functions` (array of function names that access it) |
-| `RACE_CONDITION` | `variable_name`, `pattern` ("TOCTOU" or "RMW") |
-| `UNBOUNDED_WAIT` | `wait_function` (e.g. "os_mutex_take"), `target_handle` (variable name of mutex/queue) |
-| `EVENT_BUS_MISUSE` | `caller_function`, `callee_function` |
-| `LOCK_ORDER` | `mutex_names` (array of mutex variable names), `conflicting_functions` (array of function names) |
-| `PRIORITY_INVERSION` | `high_priority_task` (entry function name), `low_priority_task` (entry function name), `shared_mutex` (variable name) |
-| `CALLBACK_UNDER_LOCK` | `callback_variable` (function pointer name), `mutex_name` (variable name) |
-| `STACK_OVERFLOW` | `task_entry_function`, `declared_stack_size` (integer) |
-| `CORE_AFFINITY` | `wifi_function` (API name), `calling_task` (entry function name) |
-
-Rules NOT in this table (`WRAPPER_BYPASS`, `ISR_UNSAFE_API`, `BLOCKING_IN_CRITICAL`, `WATCHDOG_STARVATION`) have standalone CodeQL queries that run without parameters — no `codeql_params` needed.
-
-Example finding with codeql_params:
-```json
-{{
-  "severity": "CRITICAL",
-  "confidence": "HIGH",
-  "line": 42,
-  "rule": "SHARED_STATE",
-  "title": "Unprotected access to g_sensor_count",
-  "detail": "...",
-  "suggestion": "...",
-  "codeql_params": {{
-    "variable_name": "g_sensor_count",
-    "accessing_functions": ["sensor_read_task", "mqtt_publish_handler"]
-  }}
-}}
-```
 
 If the file has no findings, return an empty findings array. Do not fabricate issues.
 Only report issues visible in the provided code. If you need to make assumptions about external code, state them in the detail field.

@@ -186,14 +186,14 @@ jobs:
         run: bash scripts/lint.sh stm32
 
   # ---------------------------------------------------------------------------
-  # Job 3: Hybrid RTOS review (Claude AI agent + CodeQL verification)
+  # Job 3: RTOS review (CodeQL structural + Claude agent semantic)
   # Depends on build job for CodeQL database.
-  # Pipeline: agent detects → CodeQL verifies → correlator merges.
-  # Fails the workflow on confirmed CRITICAL or high-confidence AGENT_ONLY.
+  # Architecture: clear rule ownership — CodeQL owns structural rules,
+  # agent owns semantic rules, no correlation between them.
   # Skips gracefully if ANTHROPIC_API_KEY secret is not set (e.g. fork PRs).
   # ---------------------------------------------------------------------------
   hybrid-review:
-    name: Hybrid RTOS Review (STM32)
+    name: RTOS Review (STM32)
     runs-on: ubuntu-latest
     needs: build
 
@@ -281,34 +281,34 @@ jobs:
           python tools/rtos_review_agent.py ${{ steps.prereqs.outputs.files }} \
             > /tmp/rtos_review.json
 
-      # Step 2: Correlate agent findings with CodeQL verification
-      - name: Correlate with CodeQL
+      # Step 2: Merge agent findings with CodeQL static analysis
+      - name: Merge with CodeQL
         if: steps.prereqs.outputs.skip == 'false'
-        id: correlate
+        id: merge
         continue-on-error: true
         run: |
           python tools/rtos_review_correlator.py \
             --agent-results /tmp/rtos_review.json \
             --codeql-db codeql-db \
             --query-dir tools/codeql/queries/rtos/ \
-            --output /tmp/hybrid_review.json
+            --output /tmp/merged_review.json
 
-      # Step 3: Format and report (use hybrid output if available, fallback to agent-only)
+      # Step 3: Format and report (use merged output if available, fallback to agent-only)
       - name: Write job summary
         if: steps.prereqs.outputs.skip == 'false'
         run: |
-          if [ -f /tmp/hybrid_review.json ]; then
-            python tools/rtos_review_format.py /tmp/hybrid_review.json >> "$GITHUB_STEP_SUMMARY" || true
+          if [ -f /tmp/merged_review.json ]; then
+            python tools/rtos_review_format.py /tmp/merged_review.json >> "$GITHUB_STEP_SUMMARY" || true
           elif [ -f /tmp/rtos_review.json ]; then
-            echo "::warning::CodeQL correlation failed — showing agent-only results"
+            echo "::warning::CodeQL merge failed — showing agent-only results"
             python tools/rtos_review_format.py /tmp/rtos_review.json >> "$GITHUB_STEP_SUMMARY" || true
           fi
 
-      # Step 4: Fail on confirmed critical or high-confidence agent-only critical
+      # Step 4: Fail on any CRITICAL finding (from either source)
       - name: Fail on critical findings
         if: steps.prereqs.outputs.skip == 'false'
         run: |
-          REVIEW_FILE="/tmp/hybrid_review.json"
+          REVIEW_FILE="/tmp/merged_review.json"
           [ -f "$REVIEW_FILE" ] || REVIEW_FILE="/tmp/rtos_review.json"
           [ -f "$REVIEW_FILE" ] || exit 0
 
@@ -319,21 +319,11 @@ jobs:
           blockers = []
           for r in results:
               for f in r.get('findings', []):
-                  status = f.get('verification_status', 'AGENT_ONLY')
-                  if status == 'DROPPED':
-                      continue
-                  if f.get('severity') != 'CRITICAL':
-                      continue
-                  # CONFIRMED: fail regardless of confidence
-                  if status == 'CONFIRMED':
-                      blockers.append(f)
-                  # AGENT_ONLY: fail only on HIGH confidence
-                  elif f.get('confidence') == 'HIGH':
+                  if f.get('severity') == 'CRITICAL':
                       blockers.append(f)
           if blockers:
               for b in blockers:
-                  vs = b.get('verification_status', '')
-                  tag = f'[{vs}] ' if vs else ''
-                  print(f\"::error file={b.get('file','?')},line={b.get('line','?')}::{tag}{b.get('rule','?')}: {b.get('title','')}\")
+                  src = b.get('source', 'agent')
+                  print(f\"::error file={b.get('file','?')},line={b.get('line','?')}::[{src}] {b.get('rule','?')}: {b.get('title','')}\")
               sys.exit(1)
           "

@@ -5,8 +5,8 @@ RTOS Vulnerability Review Agent
 Reviews C/H source files for FreeRTOS concurrency bugs, safety violations,
 and os_wrapper bypass issues. Uses Claude API for semantic analysis.
 
-Each finding may include a `codeql_params` object with parameters for
-deterministic CodeQL verification (see rtos_review_correlator.py).
+Handles semantic/reasoning rules (SHARED_STATE, RACE_CONDITION, etc.).
+Structural rules (WRAPPER_BYPASS, ISR_UNSAFE_API, etc.) are handled by CodeQL.
 
 Usage:
     python tools/rtos_review_agent.py <file1.c> [file2.c ...]
@@ -311,10 +311,6 @@ def main():
         "--no-verify", action="store_true", default=False,
         help="Skip the self-verification pass (faster but more false positives)"
     )
-    parser.add_argument(
-        "--strip-codeql-params", action="store_true", default=False,
-        help="Remove codeql_params from output (for backward compatibility)"
-    )
     args = parser.parse_args()
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -338,12 +334,6 @@ def main():
 
         if result.get("summary", {}).get("critical", 0) > 0:
             has_critical = True
-
-    # Optionally strip codeql_params for backward compatibility
-    if args.strip_codeql_params:
-        for result in all_results:
-            for finding in result.get("findings", []):
-                finding.pop("codeql_params", None)
 
     # Always output JSON to stdout for piping/parsing
     if len(all_results) == 1:
