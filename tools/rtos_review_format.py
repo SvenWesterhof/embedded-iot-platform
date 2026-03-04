@@ -143,12 +143,16 @@ def main() -> int:
     output_lines.append("🤖 Agent: semantic concurrency analysis &nbsp;|&nbsp; "
                         "🔬 CodeQL: structural static analysis\n")
 
+    grounded_dropped = []
     for result in results:
         output_lines.extend(format_result(result))
         output_lines.append("")
         for f in result.get("findings", []):
             sev = f.get("severity", "INFO")
             total[sev.lower()] = total.get(sev.lower(), 0) + 1
+        # Collect grounded-dropped findings for audit section
+        for d in result.get("grounded_dropped", []):
+            grounded_dropped.append({**d, "file": result.get("file", "?")})
 
     c, w, i = total["critical"], total["warning"], total["info"]
     if len(results) > 1:
@@ -156,6 +160,24 @@ def main() -> int:
             f"---\n**Total across {len(results)} files: "
             f"{c} critical &nbsp;·&nbsp; {w} warning &nbsp;·&nbsp; {i} info**"
         )
+
+    # Collapsed section for findings dropped by evidence grounding
+    if grounded_dropped:
+        output_lines.append("")
+        output_lines.append("<details>")
+        output_lines.append(f"<summary>🔍 Evidence grounding dropped "
+                            f"{len(grounded_dropped)} finding(s)</summary>\n")
+        output_lines.append("These agent findings were removed because their claimed "
+                            "identifiers could not be found near the reported line number.\n")
+        output_lines.append("| File | Line | Rule | Title | Reason |")
+        output_lines.append("|---|---|---|---|---|")
+        for d in grounded_dropped:
+            output_lines.append(
+                f"| `{d.get('file', '?')}` | {d.get('line', '?')} "
+                f"| `{d.get('rule', '?')}` | {d.get('title', '')[:60]} "
+                f"| {d.get('reason', '')} |"
+            )
+        output_lines.append("\n</details>")
 
     print("\n".join(output_lines))
     return 1 if c > 0 else 0

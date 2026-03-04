@@ -26,6 +26,7 @@ Exit codes:
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -123,11 +124,180 @@ def _recount_summary(findings: list[dict]) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Pass 3: Evidence grounding — deterministic validation (no LLM)
+# ---------------------------------------------------------------------------
+
+# Regex helpers to extract identifiers the model claims are involved.
+_C_IDENT = re.compile(r"\b([a-zA-Z_]\w*)\b")
+
+# Per-rule extractors: pull key identifiers from "detail" + "title" that MUST
+# appear somewhere near the claimed line.
+_RULE_KEYWORDS = {
+    "SHARED_STATE": {
+        # Expect the variable / field name near the line
+        "extract": lambda f: _extract_identifiers(f, ignore={
+            "task", "isr", "mutex", "shared", "state", "variable", "protect",
+            "unprotected", "access", "read", "write", "critical", "section",
+        }),
+        "window": 5,  # lines above/below to search
+    },
+    "RACE_CONDITION": {
+        "extract": lambda f: _extract_identifiers(f, ignore={
+            "race", "condition", "toctou", "atomic", "check", "act", "read",
+            "modify", "write", "lock", "without",
+        }),
+        "window": 5,
+    },
+    "LOCK_ORDER": {
+        "extract": lambda f: _extract_mutex_names(f),
+        "window": 10,
+    },
+    "CALLBACK_UNDER_LOCK": {
+        "extract": lambda f: _extract_identifiers(f, ignore={
+            "callback", "lock", "mutex", "hold", "invoke", "call", "under",
+            "deadlock", "priority", "inversion",
+        }),
+        "window": 5,
+    },
+    "UNBOUNDED_WAIT": {
+        "extract": lambda f: _extract_identifiers(f, ignore={
+            "unbounded", "wait", "forever", "timeout", "blocking", "return",
+            "value", "unchecked",
+        }),
+        "window": 5,
+    },
+    "MEMORY_LEAK": {
+        "extract": lambda f: _extract_alloc_names(f),
+        "window": 10,
+    },
+    "STACK_OVERFLOW": {
+        "extract": lambda f: _extract_identifiers(f, ignore={
+            "stack", "overflow", "size", "depth", "large", "recursive",
+            "allocation", "frame", "bytes",
+        }),
+        "window": 5,
+    },
+    "PRIORITY_INVERSION": {
+        "extract": lambda f: _extract_identifiers(f, ignore={
+            "priority", "inversion", "high", "low", "task", "mutex",
+            "inheritance", "resource",
+        }),
+        "window": 10,
+    },
+    "EVENT_BUS_MISUSE": {
+        "extract": lambda f: _extract_identifiers(f, ignore={
+            "event", "bus", "layer", "direct", "call", "publish", "subscribe",
+        }),
+        "window": 5,
+    },
+}
+
+
+def _extract_identifiers(
+    finding: dict, ignore: set[str]
+) -> list[str]:
+    """Extract C identifiers from title+detail, filtering noise words."""
+    text = f"{finding.get('title', '')} {finding.get('detail', '')}"
+    idents = _C_IDENT.findall(text)
+    # Keep identifiers that look like code (contain underscore, or are mixed case),
+    # skip pure English words and short noise.
+    result = []
+    for ident in idents:
+        low = ident.lower()
+        if low in ignore or len(ident) < 3:
+            continue
+        # Heuristic: real C identifiers have underscores, or are camelCase,
+        # or match os_*/hal_*/xTask*/etc patterns.
+        if "_" in ident or not ident.islower() or ident.startswith(("os_", "hal_", "x", "v")):
+            result.append(ident)
+    return list(dict.fromkeys(result))  # dedupe preserving order
+
+
+def _extract_mutex_names(finding: dict) -> list[str]:
+    """Extract mutex/lock names from a LOCK_ORDER finding."""
+    text = f"{finding.get('title', '')} {finding.get('detail', '')}"
+    # Look for os_mutex_* handles or *_mutex patterns
+    mutex_pat = re.compile(r"\b(\w*mutex\w*)\b", re.IGNORECASE)
+    names = mutex_pat.findall(text)
+    # Also grab any identifier after "lock" or "acquire"
+    names.extend(_extract_identifiers(finding, ignore={
+        "lock", "order", "deadlock", "inconsistent", "acquisition", "mutex",
+        "across", "function", "risk",
+    }))
+    return list(dict.fromkeys(names))
+
+
+def _extract_alloc_names(finding: dict) -> list[str]:
+    """Extract allocation-related names from a MEMORY_LEAK finding."""
+    text = f"{finding.get('title', '')} {finding.get('detail', '')}"
+    # Look for malloc/calloc/pvPortMalloc and variable names
+    alloc_pat = re.compile(r"\b((?:pv)?(?:Port)?[Mm]alloc|calloc|free|pvPortFree)\b")
+    names = alloc_pat.findall(text)
+    names.extend(_extract_identifiers(finding, ignore={
+        "memory", "leak", "allocated", "freed", "path", "all", "code",
+        "malloc", "calloc", "free", "pvPortMalloc", "pvPortFree",
+    }))
+    return list(dict.fromkeys(names))
+
+
+def _ground_findings(
+    findings: list[dict], source_lines: list[str]
+) -> tuple[list[dict], list[dict]]:
+    """Validate findings against actual source. Returns (kept, dropped)."""
+    kept = []
+    dropped = []
+    total_lines = len(source_lines)
+
+    for f in findings:
+        line = f.get("line", 0)
+        rule = f.get("rule", "")
+
+        # Check 1: Line number in range
+        if not isinstance(line, int) or line < 1 or line > total_lines:
+            f["grounding_reason"] = f"line {line} out of range (file has {total_lines} lines)"
+            dropped.append(f)
+            continue
+
+        # Check 2: Rule-specific keyword validation
+        rule_config = _RULE_KEYWORDS.get(rule)
+        if rule_config is None:
+            # Unknown rule — keep (don't drop things we can't validate)
+            kept.append(f)
+            continue
+
+        keywords = rule_config["extract"](f)
+        if not keywords:
+            # No extractable keywords — can't validate, keep it
+            kept.append(f)
+            continue
+
+        window = rule_config["window"]
+        start = max(0, line - 1 - window)
+        end = min(total_lines, line + window)
+        nearby_text = " ".join(source_lines[start:end])
+
+        # At least one keyword must appear in the nearby source
+        matched = [kw for kw in keywords if kw in nearby_text]
+        if not matched:
+            f["grounding_reason"] = (
+                f"none of [{', '.join(keywords[:5])}] found near line {line} "
+                f"(searched lines {start+1}-{end})"
+            )
+            dropped.append(f)
+            continue
+
+        kept.append(f)
+
+    return kept, dropped
+
+
 def review_file(
     client: anthropic.Anthropic,
     model: str,
     file_path: str,
     verify: bool = True,
+    ground: bool = True,
 ) -> dict:
     """Send a file to Claude for RTOS review, optionally verify, return findings."""
     platform = detect_platform(file_path)
@@ -175,6 +345,38 @@ Full path: {file_path}
             True,
         )
         result = _verify_findings(client, model, source, filename, result)
+
+    # --- Pass 3: Evidence grounding (deterministic, no LLM) ---
+    if ground and result.get("findings"):
+        # Get raw source lines (without line number prefixes)
+        raw_lines = Path(file_path).read_text(
+            encoding="utf-8", errors="replace"
+        ).splitlines()
+        kept, dropped = _ground_findings(result["findings"], raw_lines)
+        if dropped:
+            _print_color(
+                f"    Grounding dropped {len(dropped)} finding(s):",
+                "yellow",
+                True,
+            )
+            for d in dropped:
+                _print_color(
+                    f"      - {d.get('rule', '?')} line {d.get('line', '?')}: "
+                    f"{d.get('grounding_reason', 'unknown')}",
+                    "yellow",
+                    True,
+                )
+        result["findings"] = kept
+        if dropped:
+            result["grounded_dropped"] = [
+                {
+                    "rule": d.get("rule"),
+                    "line": d.get("line"),
+                    "title": d.get("title"),
+                    "reason": d.get("grounding_reason"),
+                }
+                for d in dropped
+            ]
 
     # Enforce severity from rule table (hard override, not model-dependent)
     if result.get("findings"):
@@ -311,6 +513,10 @@ def main():
         "--no-verify", action="store_true", default=False,
         help="Skip the self-verification pass (faster but more false positives)"
     )
+    parser.add_argument(
+        "--no-ground", action="store_true", default=False,
+        help="Skip the evidence grounding pass (deterministic keyword validation)"
+    )
     args = parser.parse_args()
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -326,7 +532,11 @@ def main():
 
     for file_path in args.files:
         _print_color(f"\n  Reviewing: {file_path} ...", "cyan", True)
-        result = review_file(client, model, file_path, verify=not args.no_verify)
+        result = review_file(
+            client, model, file_path,
+            verify=not args.no_verify,
+            ground=not args.no_ground,
+        )
         all_results.append(result)
 
         if not args.json:
