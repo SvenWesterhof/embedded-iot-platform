@@ -241,3 +241,4 @@ static void event_dispatch_task(void *pvParameters)
         }
     }
 }
+

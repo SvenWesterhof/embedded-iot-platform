@@ -679,4 +679,3 @@ static void temperature_event_handler(event_t *event)
         state.temp_data_valid = false;
     }
 }
-

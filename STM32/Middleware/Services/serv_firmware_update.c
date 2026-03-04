@@ -260,4 +260,3 @@ void serv_firmware_update_get_status(resp_fw_update_status_t *status)
     status->chunks_received = s_fw.chunks_received;
     status->error_code = s_fw.error_code;
 }
-
