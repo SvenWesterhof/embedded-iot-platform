@@ -135,11 +135,12 @@ jobs:
       - name: Create CodeQL database
         working-directory: STM32
         run: |
-          # Clean build directory so CodeQL traces a full build
-          cmake --build --preset CI --target clean || true
+          # Remove build directory so CodeQL traces a full build from scratch
+          rm -rf build/CI
+          # Re-configure + build under CodeQL tracing
           /opt/codeql/codeql database create ../codeql-db \
             --language=cpp \
-            --command="cmake --build --preset CI --parallel $(nproc)" \
+            --command="bash -c 'cmake --preset CI -DARM_TOOLCHAIN_DIR=\"$ARM_TOOLCHAIN_INSTALL_DIR/bin\" && cmake --build --preset CI --parallel $(nproc)'" \
             --source-root=.. \
             --overwrite
 
