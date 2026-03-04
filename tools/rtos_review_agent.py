@@ -5,8 +5,8 @@ RTOS Vulnerability Review Agent
 Reviews C/H source files for FreeRTOS concurrency bugs, safety violations,
 and os_wrapper bypass issues. Uses Claude API for semantic analysis.
 
-Handles semantic/reasoning rules (SHARED_STATE, RACE_CONDITION, etc.).
-Structural rules (WRAPPER_BYPASS, ISR_UNSAFE_API, etc.) are handled by CodeQL.
+Handles semantic/reasoning rules (SHARED_STATE, RACE_CONDITION, etc.)
+and structural rules (WRAPPER_BYPASS, ISR_UNSAFE_API, etc.).
 
 Usage:
     python tools/rtos_review_agent.py <file1.c> [file2.c ...]

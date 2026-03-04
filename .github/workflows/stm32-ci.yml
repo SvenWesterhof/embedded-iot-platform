@@ -15,7 +15,6 @@ on:
       - "tools/.clang-tidy"
       - "tools/cppcheck-suppressions.xml"
       - "tools/rtos_review_*.py"
-      - "tools/codeql/**"
       - ".github/workflows/stm32-ci.yml"
   pull_request:
     branches:
@@ -28,7 +27,6 @@ on:
       - "tools/.clang-tidy"
       - "tools/cppcheck-suppressions.xml"
       - "tools/rtos_review_*.py"
-      - "tools/codeql/**"
 
 # ARM GCC 14.3 rel1 official tarball (matches local Windows development toolchain).
 # Using the official tarball instead of apt-get ensures identical compiler flags/codegen.
@@ -123,43 +121,6 @@ jobs:
             STM32/build/CI/Bootloader/bootloader.hex
             STM32/build/CI/compile_commands.json
 
-      # CodeQL database creation — wraps the same build for static analysis.
-      # Rebuilds under CodeQL tracing so the database captures all compilation units.
-      - name: Install CodeQL CLI
-        run: |
-          wget -q https://github.com/github/codeql-action/releases/latest/download/codeql-bundle-linux64.tar.gz
-          tar -xzf codeql-bundle-linux64.tar.gz -C /opt
-          echo "/opt/codeql" >> "$GITHUB_PATH"
-          rm codeql-bundle-linux64.tar.gz
-
-      - name: Create CodeQL build script
-        run: |
-          cat > /tmp/codeql-build.sh <<'SCRIPT'
-          #!/usr/bin/env bash
-          set -e
-          cd STM32
-          cmake --preset CI -DARM_TOOLCHAIN_DIR="$ARM_TOOLCHAIN_INSTALL_DIR/bin"
-          cmake --build --preset CI --parallel "$(nproc)"
-          SCRIPT
-          chmod +x /tmp/codeql-build.sh
-
-      - name: Create CodeQL database
-        run: |
-          # Remove build directory so CodeQL traces a full build from scratch
-          rm -rf STM32/build/CI
-          /opt/codeql/codeql database create codeql-db \
-            --language=cpp \
-            --command=/tmp/codeql-build.sh \
-            --source-root=. \
-            --overwrite
-
-      - name: Upload CodeQL database
-        uses: actions/upload-artifact@v4
-        with:
-          name: codeql-db-stm32-${{ steps.meta.outputs.sha_short }}
-          path: codeql-db
-          retention-days: 1
-
   # ---------------------------------------------------------------------------
   # Job 2: Static analysis (cppcheck + clang-tidy)
   # ---------------------------------------------------------------------------
@@ -186,16 +147,13 @@ jobs:
         run: bash scripts/lint.sh stm32
 
   # ---------------------------------------------------------------------------
-  # Job 3: RTOS review (CodeQL structural + Claude agent semantic)
-  # Depends on build job for CodeQL database.
-  # Architecture: clear rule ownership — CodeQL owns structural rules,
-  # agent owns semantic rules, no correlation between them.
+  # Job 3: RTOS vulnerability review (Claude agent)
+  # Uses Claude API for semantic concurrency analysis with evidence grounding.
   # Skips gracefully if ANTHROPIC_API_KEY secret is not set (e.g. fork PRs).
   # ---------------------------------------------------------------------------
-  hybrid-review:
+  rtos-review:
     name: RTOS Review (STM32)
     runs-on: ubuntu-latest
-    needs: build
 
     steps:
       - name: Checkout
@@ -210,19 +168,6 @@ jobs:
 
       - name: Install dependencies
         run: pip install anthropic python-dotenv
-
-      - name: Install CodeQL CLI
-        run: |
-          wget -q https://github.com/github/codeql-action/releases/latest/download/codeql-bundle-linux64.tar.gz
-          tar -xzf codeql-bundle-linux64.tar.gz -C /opt
-          echo "/opt/codeql" >> "$GITHUB_PATH"
-          rm codeql-bundle-linux64.tar.gz
-
-      - name: Download CodeQL database
-        uses: actions/download-artifact@v4
-        with:
-          name: codeql-db-stm32-${{ needs.build.outputs.sha-short }}
-          path: codeql-db
 
       # Determine which C/H files changed and whether we have an API key.
       # Outputs: skip (reason string or 'false'), files (space-separated paths)
@@ -265,13 +210,13 @@ jobs:
         if: steps.prereqs.outputs.skip != 'false'
         run: |
           if [ "${{ steps.prereqs.outputs.skip }}" = "no_api_key" ]; then
-            echo "::notice::ANTHROPIC_API_KEY secret not configured — skipping hybrid review. Add it to repository secrets to enable."
+            echo "::notice::ANTHROPIC_API_KEY secret not configured — skipping RTOS review. Add it to repository secrets to enable."
           else
-            echo "No C/H files changed in STM32/ or common/ — skipping hybrid review."
+            echo "No C/H files changed in STM32/ or common/ — skipping RTOS review."
           fi
 
-      # Step 1: Run Claude agent (detect + self-verify)
-      - name: Run RTOS vulnerability review (agent)
+      # Run Claude agent (detect + self-verify + evidence grounding)
+      - name: Run RTOS vulnerability review
         if: steps.prereqs.outputs.skip == 'false'
         id: agent
         continue-on-error: true
@@ -281,35 +226,17 @@ jobs:
           python tools/rtos_review_agent.py ${{ steps.prereqs.outputs.files }} \
             > /tmp/rtos_review.json
 
-      # Step 2: Merge agent findings with CodeQL static analysis
-      - name: Merge with CodeQL
-        if: steps.prereqs.outputs.skip == 'false'
-        id: merge
-        continue-on-error: true
-        run: |
-          python tools/rtos_review_correlator.py \
-            --agent-results /tmp/rtos_review.json \
-            --codeql-db codeql-db \
-            --query-dir tools/codeql/queries/rtos/ \
-            --output /tmp/merged_review.json
-
-      # Step 3: Format and report (use merged output if available, fallback to agent-only)
       - name: Write job summary
         if: steps.prereqs.outputs.skip == 'false'
         run: |
-          if [ -f /tmp/merged_review.json ]; then
-            python tools/rtos_review_format.py /tmp/merged_review.json >> "$GITHUB_STEP_SUMMARY" || true
-          elif [ -f /tmp/rtos_review.json ]; then
-            echo "::warning::CodeQL merge failed — showing agent-only results"
+          if [ -f /tmp/rtos_review.json ]; then
             python tools/rtos_review_format.py /tmp/rtos_review.json >> "$GITHUB_STEP_SUMMARY" || true
           fi
 
-      # Step 4: Fail on any CRITICAL finding (from either source)
       - name: Fail on critical findings
         if: steps.prereqs.outputs.skip == 'false'
         run: |
-          REVIEW_FILE="/tmp/merged_review.json"
-          [ -f "$REVIEW_FILE" ] || REVIEW_FILE="/tmp/rtos_review.json"
+          REVIEW_FILE="/tmp/rtos_review.json"
           [ -f "$REVIEW_FILE" ] || exit 0
 
           python -c "
@@ -323,7 +250,6 @@ jobs:
                       blockers.append(f)
           if blockers:
               for b in blockers:
-                  src = b.get('source', 'agent')
-                  print(f\"::error file={b.get('file','?')},line={b.get('line','?')}::[{src}] {b.get('rule','?')}: {b.get('title','')}\")
+                  print(f\"::error file={b.get('file','?')},line={b.get('line','?')}::{b.get('rule','?')}: {b.get('title','')}\")
               sys.exit(1)
           "

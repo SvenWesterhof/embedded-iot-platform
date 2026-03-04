@@ -97,17 +97,13 @@ Use the `FromISR` / `from_isr` variants instead.
 
 Analyze the code for the following categories. Only report findings you are confident about — do not speculate or report hypothetical issues that require assumptions about code you cannot see.
 
-The following structural rules are handled by CodeQL static analysis and are NOT your responsibility. Do NOT report findings for these rules:
-- `WRAPPER_BYPASS` — Direct FreeRTOS API call detection
-- `ISR_UNSAFE_API` — Non-ISR-safe API in ISR context
-- `BLOCKING_IN_CRITICAL` — Blocking call in critical section
-- `WATCHDOG_STARVATION` — Unbounded loop without yield
-- `CORE_AFFINITY` — Core pinning misuse
-
-Your rules (semantic analysis requiring reasoning about concurrency):
-
 | Rule ID | Severity | Description |
 |---------|----------|-------------|
+| `WRAPPER_BYPASS` | WARNING | Direct FreeRTOS API call instead of os_wrapper equivalent |
+| `ISR_UNSAFE_API` | CRITICAL | Non-ISR-safe API called from ISR context |
+| `BLOCKING_IN_CRITICAL` | CRITICAL | Blocking call between taskENTER_CRITICAL / taskEXIT_CRITICAL |
+| `WATCHDOG_STARVATION` | WARNING | Unbounded loop without yield or delay |
+| `CORE_AFFINITY` | WARNING | Task using WiFi/network APIs not pinned to correct core |
 | `LOCK_ORDER` | CRITICAL | Inconsistent mutex acquisition order across functions (deadlock risk) |
 | `PRIORITY_INVERSION` | CRITICAL | Low-priority task holds resource needed by high-priority task without priority inheritance |
 | `SHARED_STATE` | CRITICAL | Unprotected read/write of shared variable across tasks or task+ISR |
