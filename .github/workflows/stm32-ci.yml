@@ -107,6 +107,12 @@ jobs:
           echo "=== Bootloader ==="
           arm-none-eabi-size build/CI/Bootloader/bootloader.elf || true
 
+      - name: Validate firmware flash sizes
+        run: |
+          python3 scripts/check_flash_sizes.py stm32 \
+            STM32/build/CI/sensor_node.bin \
+            --boot-binary STM32/build/CI/Bootloader/bootloader.bin
+
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -153,6 +159,7 @@ jobs:
   # ---------------------------------------------------------------------------
   rtos-review:
     name: RTOS Review (STM32)
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop'))
     runs-on: ubuntu-latest
 
     steps:

@@ -76,6 +76,12 @@ jobs:
         id: meta
         run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
+      - name: Validate firmware flash size
+        run: |
+          python3 scripts/check_flash_sizes.py esp32 \
+            ESP32/build/iot_gateway.bin \
+            --partition-csv ESP32/partitions_ota.csv
+
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -122,6 +128,7 @@ jobs:
   # ---------------------------------------------------------------------------
   rtos-review:
     name: RTOS Vulnerability Review (ESP32)
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop'))
     runs-on: ubuntu-latest
 
     steps:
