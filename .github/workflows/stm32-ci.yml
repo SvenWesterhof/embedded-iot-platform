@@ -132,16 +132,25 @@ jobs:
           echo "/opt/codeql" >> "$GITHUB_PATH"
           rm codeql-bundle-linux64.tar.gz
 
+      - name: Create CodeQL build script
+        run: |
+          cat > /tmp/codeql-build.sh <<'SCRIPT'
+          #!/usr/bin/env bash
+          set -e
+          cd STM32
+          cmake --preset CI -DARM_TOOLCHAIN_DIR="$ARM_TOOLCHAIN_INSTALL_DIR/bin"
+          cmake --build --preset CI --parallel "$(nproc)"
+          SCRIPT
+          chmod +x /tmp/codeql-build.sh
+
       - name: Create CodeQL database
-        working-directory: STM32
         run: |
           # Remove build directory so CodeQL traces a full build from scratch
-          rm -rf build/CI
-          # Re-configure + build under CodeQL tracing
-          /opt/codeql/codeql database create ../codeql-db \
+          rm -rf STM32/build/CI
+          /opt/codeql/codeql database create codeql-db \
             --language=cpp \
-            --command="bash -c 'cmake --preset CI -DARM_TOOLCHAIN_DIR=\"$ARM_TOOLCHAIN_INSTALL_DIR/bin\" && cmake --build --preset CI --parallel $(nproc)'" \
-            --source-root=.. \
+            --command=/tmp/codeql-build.sh \
+            --source-root=. \
             --overwrite
 
       - name: Upload CodeQL database
