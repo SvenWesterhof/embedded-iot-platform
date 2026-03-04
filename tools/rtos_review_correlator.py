@@ -37,11 +37,13 @@ STANDALONE_RULES = {
     "ISR_UNSAFE_API": "IsrUnsafeApi.ql",
     "BLOCKING_IN_CRITICAL": "BlockingInCritical.ql",
     "WATCHDOG_STARVATION": "WatchdogStarvation.ql",
+    "CORE_AFFINITY": "CoreAffinity.ql",
 }
 
 # Rules that have parameterized queries (need codeql_params from agent).
 PARAMETERIZED_RULES = {
     "MEMORY_LEAK": "MemoryLeakPath.ql",
+    "SHARED_STATE": "SharedStateUnprotected.ql",
     "RACE_CONDITION": "RaceConditionToctou.ql",
     "UNBOUNDED_WAIT": "UnboundedWait.ql",
     "EVENT_BUS_MISUSE": "EventBusMisuse.ql",
@@ -50,14 +52,6 @@ PARAMETERIZED_RULES = {
     "CALLBACK_UNDER_LOCK": "CallbackUnderLock.ql",
     "STACK_OVERFLOW": "StackOverflowEstimate.ql",
 }
-
-# Rules where CodeQL queries exist but can't reliably verify agent findings.
-# Agent findings for these rules stay AGENT_ONLY (never DROPPED).
-# - SHARED_STATE: query tracks top-level globals but not struct member access
-#   (most real shared state is via struct fields like state.tx_in_progress)
-# - CORE_AFFINITY: query covers ESP32 WiFi APIs but not STM32 single-core
-#   misuse of os_task_create_pinned()
-NO_VERIFY_RULES = {"SHARED_STATE", "CORE_AFFINITY"}
 
 # All rules with CodeQL coverage (used for matching CodeQL-only findings).
 ALL_CODEQL_RULES = {**STANDALONE_RULES, **PARAMETERIZED_RULES}
@@ -203,12 +197,10 @@ def correlate(
         for finding in result.get("findings", []):
             rule = finding.get("rule", "")
 
-            if rule not in ALL_CODEQL_RULES or rule in NO_VERIFY_RULES:
-                # No CodeQL query for this rule, or query can't reliably verify
+            if rule not in ALL_CODEQL_RULES:
+                # No CodeQL query for this rule
                 finding["verification_status"] = "AGENT_ONLY"
-                reason = "query limitations" if rule in NO_VERIFY_RULES \
-                    else f"No CodeQL query for {rule}"
-                finding["verification_source"] = reason
+                finding["verification_source"] = f"No CodeQL query for {rule}"
                 continue
 
             match = match_finding_to_codeql(finding, codeql_results, filename)
