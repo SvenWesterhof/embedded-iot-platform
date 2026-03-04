@@ -57,6 +57,8 @@ run_cppcheck() {
         --error-exitcode=1 \
         --inline-suppr \
         --suppress=normalCheckLevelMaxBranches \
+        --suppressions-list="${TOOLS_DIR}/cppcheck-suppressions.xml" \
+        --std=c11 \
         -I "${REPO_ROOT}/common/include" \
         "${extra_args[@]}" \
         --quiet \
@@ -101,25 +103,27 @@ run_clang_tidy() {
         return 0
     fi
 
-    # Run in parallel (4 threads) for speed
+    # Run in parallel (4 threads).
+    # Output is captured to a temp file so xargs exit code is not swallowed
+    # by a grep pipe. TIDY_EXIT is non-zero if any file had a WarningsAsErrors hit.
+    local TIDY_OUT
+    TIDY_OUT="$(mktemp)"
+    local TIDY_EXIT=0
+
     printf '%s\n' "${SRC_FILES[@]}" | \
     xargs -P4 -I{} "$CLANG_TIDY" \
         -p "${compile_commands_dir}" \
         --config-file="${TOOLS_DIR}/.clang-tidy" \
-        {} -- 2>&1 \
-    | grep -E "(error|warning):" || true
+        {} -- \
+    > "$TIDY_OUT" 2>&1 || TIDY_EXIT=$?
 
-    # clang-tidy exits 0 even with WarningsAsErrors when piped; re-check by running again
-    # on a single file to capture exit code (lightweight)
-    # NOTE: Disabled for local runs - clang-diagnostic-error (missing ESP-IDF headers) is expected locally
-    # In CI, the full build+analysis will catch real errors
-    # if [ ${#SRC_FILES[@]} -gt 0 ]; then
-    #     "$CLANG_TIDY" \
-    #         -p "${compile_commands_dir}" \
-    #         --config-file="${TOOLS_DIR}/.clang-tidy" \
-    #         --warnings-as-errors="bugprone-*,clang-analyzer-security.*" \
-    #         "${SRC_FILES[0]}" -- &>/dev/null || ERRORS=$((ERRORS + 1))
-    # fi
+    grep -E "(error|warning):" "$TIDY_OUT" || true
+    rm -f "$TIDY_OUT"
+
+    if [ "$TIDY_EXIT" -ne 0 ]; then
+        echo "  [clang-tidy] Errors found — see output above (exit code ${TIDY_EXIT})"
+        ERRORS=$((ERRORS + 1))
+    fi
 }
 
 # ---------------------------------------------------------------------------

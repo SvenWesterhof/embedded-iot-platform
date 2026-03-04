@@ -22,14 +22,16 @@ Checks: >
   -readability-function-cognitive-complexity,
   -readability-identifier-length
 
-# Only bugprone critical checks block the build; everything else is informational.
-# Update WarningsAsErrors to add more checks as the codebase matures.
+# Checks that block the build (exit 1). All are valid C issues — no C++-only checks.
+# bugprone-use-after-move and bugprone-dangling-handle removed: C++ only, never fire on C.
 WarningsAsErrors: >
-  bugprone-use-after-move,
-  bugprone-dangling-handle,
   bugprone-integer-division,
   bugprone-suspicious-memset-usage,
-  clang-analyzer-security.insecureAPI.*
+  bugprone-sizeof-expression,
+  bugprone-unsafe-functions,
+  clang-analyzer-security.insecureAPI.*,
+  clang-analyzer-core.NullDereference,
+  clang-analyzer-deadcode.DeadStores
 
 CheckOptions:
   # Enforce lower_case naming for functions and variables (project convention)
