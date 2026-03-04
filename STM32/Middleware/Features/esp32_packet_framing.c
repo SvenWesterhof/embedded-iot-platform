@@ -624,4 +624,3 @@ uart_driver_status_t stm32_uart_flush_rx(void)
     
     return UART_DRV_OK;
 }
-
