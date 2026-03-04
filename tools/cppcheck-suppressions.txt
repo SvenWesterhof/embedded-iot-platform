@@ -1,0 +1,22 @@
+# cppcheck-suppressions.txt
+# Plain-text format required by: cppcheck --suppressions-list=<file>
+# Each line: errorId:file/glob  or just  errorId
+#
+# Directory-level exclusions are handled via -i flags in scripts/lint.sh.
+# This file only suppresses specific IDs where -i cannot be used
+# (headers pulled in indirectly, generated init code, etc.).
+
+# ---------------------------------------------------------------------------
+# ESP32: ESP-IDF headers are not available during standalone cppcheck analysis.
+# The build uses Docker + ESP-IDF; cppcheck cannot resolve IDF includes.
+# ---------------------------------------------------------------------------
+missingInclude:*/ESP32/main/*
+missingInclude:*/ESP32/Application/*
+
+# ---------------------------------------------------------------------------
+# STM32 Core/: CubeMX-generated init files (SystemClock_Config etc.)
+# These are not fully excluded by -i because Core/ contains both generated
+# and hand-written files in some projects.
+# ---------------------------------------------------------------------------
+unusedFunction:*/STM32/Core/*
+missingInclude:*/STM32/Core/*

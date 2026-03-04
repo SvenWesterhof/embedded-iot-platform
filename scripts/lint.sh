@@ -57,7 +57,7 @@ run_cppcheck() {
         --error-exitcode=1 \
         --inline-suppr \
         --suppress=normalCheckLevelMaxBranches \
-        --suppressions-list="${TOOLS_DIR}/cppcheck-suppressions.xml" \
+        --suppressions-list="${TOOLS_DIR}/cppcheck-suppressions.txt" \
         --std=c11 \
         -I "${REPO_ROOT}/common/include" \
         "${extra_args[@]}" \
@@ -87,15 +87,35 @@ run_clang_tidy() {
     echo ""
     echo "  [clang-tidy] ${src_root} (using ${compile_commands_dir}/compile_commands.json)"
 
-    # Collect source files, excluding generated/vendor code
+    # Derive the file list from compile_commands.json so that every file
+    # analysed has the correct -I flags from the actual build.
+    # Using 'find' instead would pick up test files, docs, and other .c files
+    # that were never compiled and therefore have no include paths, causing
+    # spurious "file not found" errors that mask real findings.
     mapfile -t SRC_FILES < <(
-        find "${src_root}" -name "*.c" \
-            ! -path "*/build/*" \
-            ! -path "*/Drivers/*" \
-            ! -path "*/Middlewares/*" \
-            ! -path "*/Core/*" \
-            ! -path "*/SEGGER/*" \
-            2>/dev/null
+        python3 -c "
+import json, sys
+
+db_path  = '${compile_commands_dir}/compile_commands.json'
+src_root = '${src_root}'
+excluded = ['/build/', '/Drivers/', '/Middlewares/', '/Core/', '/SEGGER/']
+
+try:
+    db = json.load(open(db_path))
+except Exception:
+    sys.exit(0)
+
+seen = set()
+for entry in db:
+    f = entry.get('file', '')
+    if not f.endswith('.c') or not f.startswith(src_root):
+        continue
+    if any(ex in f for ex in excluded):
+        continue
+    if f not in seen:
+        seen.add(f)
+        print(f)
+" 2>/dev/null
     )
 
     if [ ${#SRC_FILES[@]} -eq 0 ]; then
