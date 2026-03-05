@@ -19,9 +19,9 @@ title = "embedded-iot-platform gitleaks configuration"
   # gitleaks detection end-to-end. The secrets were never real; the commits
   # were immediately reverted. Allowlisted by SHA so scans stay clean.
   commits = [
-    "88a8687",  # smoke test 1 — intentional fake secret
-    "a3d4ec7",  # smoke test 2 — fake AWS key with rules now active
-    "0eec223",  # smoke test 3 — fake key without EXAMPLE suffix
+    "88a8687b6c74566e1cea308e24d2b8b0477d6e7c",  # smoke test 1 — intentional fake secret
+    "a3d4ec7a2a1827aeb6ab1bc7c484228e7e3e1d6f",  # smoke test 2 — fake AWS key with rules now active
+    "0eec223fec89f3efea05b0246d091102baf4b245",  # smoke test 3 — fake key without EXAMPLE suffix
   ]
 
   # Files that legitimately contain key-like content.
