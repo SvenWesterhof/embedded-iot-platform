@@ -131,7 +131,7 @@ bool current_monitor_start_measurement(const measurement_config_t *config) {
     // Update stats
     stats.status = MEASUREMENT_RUNNING;
     stats.sample_period = config->sample_period;
-    stats.actual_sample_rate_hz = 1000.0f / config->sample_period;
+    stats.actual_sample_rate_hz = 1000.0f / (float)config->sample_period;
     stats.measurement_progress_percent = 0;
     
     return true;

@@ -65,8 +65,8 @@ ips_display_status_t ips_display_write_temp_data(float temperature, float humidi
     char hum_val[16];
 
     // Format the numeric values using floats
-    snprintf(temp_val, sizeof(temp_val), "%.2f C", temperature);
-    snprintf(hum_val, sizeof(hum_val), "%.2f %%", humidity);
+    (void)snprintf(temp_val, sizeof(temp_val), "%.2f C", temperature);
+    (void)snprintf(hum_val, sizeof(hum_val), "%.2f %%", humidity);
 
     // Overwrite only the numeric values on the display
     ST7735_WriteString(80, 10, temp_val, Font_11x18, ST7735_WHITE, ST7735_BLACK);

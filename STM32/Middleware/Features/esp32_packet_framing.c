@@ -454,8 +454,8 @@ uart_driver_status_t stm32_uart_send_packet(const uint8_t *data, size_t length, 
     tx_buffer[tx_index++] = STM32_PACKET_END_MARKER;
     
     // Send packet
-    int sent = hal_uart_write((hal_uart_port_t)STM32_UART_PORT, 
-                               tx_buffer, tx_index, timeout_ms);
+    int sent = hal_uart_write((hal_uart_port_t)STM32_UART_PORT,
+                               tx_buffer, tx_index, (int)timeout_ms);
     
     os_mutex_give(state.tx_mutex);
     
@@ -586,7 +586,7 @@ int stm32_uart_send_raw(const uint8_t *data, size_t length, uint32_t timeout_ms)
         return -1;
     }
     
-    int sent = hal_uart_write((hal_uart_port_t)STM32_UART_PORT, data, length, timeout_ms);
+    int sent = hal_uart_write((hal_uart_port_t)STM32_UART_PORT, data, length, (int)timeout_ms);
     
     os_mutex_give(state.tx_mutex);
     

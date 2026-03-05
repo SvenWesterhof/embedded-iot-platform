@@ -7,6 +7,10 @@ Checks: >
   clang-diagnostic-*,
   clang-analyzer-*,
   -clang-diagnostic-unused-command-line-argument,
+  # DeprecatedOrUnsafeBufferHandling flags memset/memcpy/strcpy as insecure and
+  # demands _s variants (C11 Annex K). newlib-nano on STM32/ESP32 does not
+  # implement Annex K — memset is correct and necessary on these targets.
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
   bugprone-*,
   -bugprone-easily-swappable-parameters,
   -bugprone-macro-parentheses,
@@ -19,6 +23,9 @@ Checks: >
   -cert-dcl37-c,
   -cert-dcl51-cpp,
   performance-*,
+  # Integer-to-pointer casts for hardware memory-mapped addresses are normal
+  # and unavoidable in embedded C (e.g. casting 0x08100000 to uint8_t*).
+  -performance-no-int-to-ptr,
   portability-*,
   readability-identifier-naming,
   -readability-magic-numbers,
@@ -47,6 +54,9 @@ CheckOptions:
   # Types and typedefs use lower_case with _t suffix (HAL convention)
   - key: readability-identifier-naming.TypedefCase
     value: lower_case
+  # Exemptions for vendor driver typedefs (INA226 sensor, ST7735 display)
+  - key: readability-identifier-naming.TypedefIgnoredRegexp
+    value: "^(INA226_|ST7735_).*"
   # Constants and enum values use UPPER_CASE
   - key: readability-identifier-naming.EnumConstantCase
     value: UPPER_CASE
