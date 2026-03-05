@@ -221,10 +221,25 @@ if [[ "$TARGET" == "esp32" || "$TARGET" == "all" ]]; then
     if [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${GITHUB_WORKSPACE:-}" ]; then
         ESP32_REMAP_ARGS=("--remap" "/app/${GITHUB_REPOSITORY}:${GITHUB_WORKSPACE}")
     fi
+    # Inject project include dirs so clang-tidy can resolve our own headers
+    # even when the IDF component system didn't propagate them to every
+    # translation unit. IDF SDK headers (esp_err.h, driver/*.h, etc.) cannot
+    # be resolved on the host and will still produce clang-diagnostic-error,
+    # but those are already filtered as infrastructure noise.
     run_clang_tidy \
         "${REPO_ROOT}/ESP32/build" \
         "${REPO_ROOT}/ESP32" \
-        "${ESP32_REMAP_ARGS[@]}"
+        "${ESP32_REMAP_ARGS[@]}" \
+        "--extra-arg=-I${REPO_ROOT}/common/include" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/Application" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/OS" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/HAL_Wrapper" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/Middleware/Control" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/Middleware/Features" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/Middleware/Services" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/Drivers_BSP/BSP" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/Drivers_BSP/Custom" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/Shared"
 fi
 
 # ---- STM32 ----
