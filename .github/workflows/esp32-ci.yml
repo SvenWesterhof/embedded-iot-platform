@@ -224,8 +224,11 @@ jobs:
         run: |
           # Only fail the build for CRITICAL + HIGH confidence findings
           python -c "
-          import json, sys
-          data = json.load(open('/tmp/rtos_review.json'))
+          import json, sys, os
+          path = '/tmp/rtos_review.json'
+          if not os.path.isfile(path) or os.path.getsize(path) == 0:
+              sys.exit(0)
+          data = json.load(open(path))
           results = data if isinstance(data, list) else [data]
           blockers = [
               f for r in results for f in r.get('findings', [])

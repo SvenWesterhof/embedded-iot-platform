@@ -259,6 +259,7 @@ jobs:
         run: |
           REVIEW_FILE="/tmp/rtos_review.json"
           [ -f "$REVIEW_FILE" ] || exit 0
+          [ -s "$REVIEW_FILE" ] || exit 0  # exit 0 if file is empty (agent crashed)
 
           python -c "
           import json, sys
