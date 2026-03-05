@@ -15,6 +15,15 @@ title = "embedded-iot-platform gitleaks configuration"
 [allowlist]
   description = "Project-specific false positive suppressions"
 
+  # Smoke-test commits that intentionally contained fake secrets to verify
+  # gitleaks detection end-to-end. The secrets were never real; the commits
+  # were immediately reverted. Allowlisted by SHA so scans stay clean.
+  commits = [
+    "88a8687",  # smoke test 1 — intentional fake secret
+    "a3d4ec7",  # smoke test 2 — fake AWS key with rules now active
+    "0eec223",  # smoke test 3 — fake key without EXAMPLE suffix
+  ]
+
   # Files that legitimately contain key-like content.
   paths = [
     # RSA public key embedded as a C string literal — public by design.
