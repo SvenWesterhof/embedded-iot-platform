@@ -1,0 +1,29 @@
+name: Release Please
+
+# Watches master for conventional commits (feat/fix/BREAKING CHANGE) and
+# automatically creates a "Release PR" that bumps version.txt and CHANGELOG.md.
+# Merging the Release PR triggers the Firmware Release workflow via the new tag.
+
+on:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Create Release PR
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: google-github-actions/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
