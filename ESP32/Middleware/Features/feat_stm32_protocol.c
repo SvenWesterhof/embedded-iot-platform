@@ -145,7 +145,7 @@ static proto_err_t send_command_packet(stm32_command_id_t cmd_id,
                                         size_t length)
 {
     if (length > STM32_PROTOCOL_MAX_PAYLOAD_SIZE) {
-        LOG_E(TAG, "Payload too large: %u bytes", length);
+        LOG_E(TAG, "Payload too large: %zu bytes", length);
         return PROTO_ERR_INVALID_SIZE;
     }
 
@@ -170,7 +170,7 @@ static proto_err_t send_command_packet(stm32_command_id_t cmd_id,
 
     if (uart_result == STM32_FRAMING_OK) {
         state.commands_sent++;
-        LOG_D(TAG, "Sent CMD 0x%02X (seq=%u, len=%u)", cmd_id, seq, length);
+        LOG_D(TAG, "Sent CMD 0x%02X (seq=%u, len=%zu)", cmd_id, seq, length);
         return PROTO_OK;
     }
 
@@ -184,7 +184,7 @@ static proto_err_t send_command_packet(stm32_command_id_t cmd_id,
 static void handle_received_packet(const uint8_t *data, size_t length)
 {
     if (length < PROTOCOL_HEADER_SIZE) {
-        LOG_W(TAG, "Packet too short: %u bytes", length);
+        LOG_W(TAG, "Packet too short: %zu bytes", length);
         return;
     }
 
@@ -196,7 +196,7 @@ static void handle_received_packet(const uint8_t *data, size_t length)
 
     // Verify length consistency
     if (PROTOCOL_HEADER_SIZE + packet->length != length) {
-        LOG_W(TAG, "Length mismatch: header says %u, received %u",
+        LOG_W(TAG, "Length mismatch: header says %u, received %zu",
                  packet->length, length - PROTOCOL_HEADER_SIZE);
         return;
     }

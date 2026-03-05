@@ -192,7 +192,7 @@ bool event_bus_publish_copy(event_type_t type, const void *data, size_t data_siz
     if (data != NULL && data_size > 0) {
         data_copy = malloc(data_size);
         if (data_copy == NULL) {
-            LOG_E(TAG, "Failed to allocate %u bytes for event %d data", data_size, type);
+            LOG_E(TAG, "Failed to allocate %zu bytes for event %d data", data_size, type);
             return false;
         }
         memcpy(data_copy, data, data_size);
