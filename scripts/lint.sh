@@ -67,12 +67,18 @@ run_cppcheck() {
 
 # ---------------------------------------------------------------------------
 # clang-tidy runner
-# Args: <compile_commands_dir> <source_glob_root>
+# Args: <compile_commands_dir> <source_glob_root> [extra_clang_tidy_args...]
 # Skips gracefully if compile_commands.json does not exist yet.
+# Extra args (e.g. --extra-arg=-I/path) supplement the compile_commands.json
+# include paths. Use this for cross-compiled targets where the compile DB
+# paths are correct for the target toolchain but clang needs project headers
+# to be resolvable on the host.
 # ---------------------------------------------------------------------------
 run_clang_tidy() {
     local compile_commands_dir="$1"
     local src_root="$2"
+    shift 2
+    local extra_clang_args=("$@")
 
     if [ -z "$CLANG_TIDY" ]; then
         return 0
@@ -145,6 +151,7 @@ for entry in db:
     xargs -P4 -I{} "$CLANG_TIDY" \
         -p "${FIXED_DB_DIR}" \
         --config-file="${TOOLS_DIR}/.clang-tidy" \
+        "${extra_clang_args[@]}" \
         {} -- \
     > "$TIDY_OUT" 2>&1 || true   # exit code checked by content below
 
@@ -213,7 +220,21 @@ if [[ "$TARGET" == "stm32" || "$TARGET" == "all" ]]; then
             break
         fi
     done
-    run_clang_tidy "${STM32_BUILD:-}" "${REPO_ROOT}/STM32"
+    # Explicitly inject project include dirs so clang-tidy can resolve them
+    # when running on the host against cross-compiled (ARM GCC) compile commands.
+    run_clang_tidy "${STM32_BUILD:-}" "${REPO_ROOT}/STM32" \
+        "--extra-arg=-I${REPO_ROOT}/common/include" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Application" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Middleware" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Middleware/Control" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Middleware/Services" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Middleware/Features" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/HAL" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Drivers_BSP" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Drivers_BSP/Custom" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Drivers_BSP/BSP" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/OS" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Utils"
 fi
 
 # ---- Common ----
