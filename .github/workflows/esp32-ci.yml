@@ -14,7 +14,8 @@ on:
       - "common/**"
       - "scripts/lint.sh"
       - "tools/.clang-tidy"
-      - "tools/cppcheck-suppressions.xml"
+      - "tools/cppcheck-suppressions.txt"
+      - "tools/fix_compile_commands.py"
       - ".github/workflows/esp32-ci.yml"
   pull_request:
     branches:
@@ -25,7 +26,8 @@ on:
       - "common/**"
       - "scripts/lint.sh"
       - "tools/.clang-tidy"
-      - "tools/cppcheck-suppressions.xml"
+      - "tools/cppcheck-suppressions.txt"
+      - "tools/fix_compile_commands.py"
 
 jobs:
   # ---------------------------------------------------------------------------

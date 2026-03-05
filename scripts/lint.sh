@@ -87,6 +87,16 @@ run_clang_tidy() {
     echo ""
     echo "  [clang-tidy] ${src_root} (using ${compile_commands_dir}/compile_commands.json)"
 
+    # Normalise ARM GCC include paths for host clang-tidy.
+    # compile_commands.json from CMake/STM32CubeMX contains non-canonical paths
+    # like -I../../cmake/stm32cubemx/../../Drivers/... that clang-tidy cannot
+    # resolve. fix_compile_commands.py also strips GCC-only flags (--specs=*).
+    local FIXED_DB_DIR
+    FIXED_DB_DIR="$(mktemp -d)"
+    python3 "${TOOLS_DIR}/fix_compile_commands.py" \
+        "${compile_commands_dir}/compile_commands.json" \
+        "${FIXED_DB_DIR}/compile_commands.json"
+
     # Derive the file list from compile_commands.json so that every file
     # analysed has the correct -I flags from the actual build.
     # Using 'find' instead would pick up test files, docs, and other .c files
@@ -96,7 +106,7 @@ run_clang_tidy() {
         python3 -c "
 import json, sys
 
-db_path  = '${compile_commands_dir}/compile_commands.json'
+db_path  = '${FIXED_DB_DIR}/compile_commands.json'
 src_root = '${src_root}'
 excluded = ['/build/', '/Drivers/', '/Middlewares/', '/Core/', '/SEGGER/',
             '/Drivers_BSP/External/']  # vendored third-party display/sensor drivers
@@ -133,7 +143,7 @@ for entry in db:
 
     printf '%s\n' "${SRC_FILES[@]}" | \
     xargs -P4 -I{} "$CLANG_TIDY" \
-        -p "${compile_commands_dir}" \
+        -p "${FIXED_DB_DIR}" \
         --config-file="${TOOLS_DIR}/.clang-tidy" \
         {} -- \
     > "$TIDY_OUT" 2>&1 || true   # exit code checked by content below
@@ -148,6 +158,7 @@ for entry in db:
     SEMANTIC_ERRORS=$(grep ": error:" "$TIDY_OUT" \
         | grep -cv "\[clang-diagnostic-" || true)
     rm -f "$TIDY_OUT"
+    rm -rf "$FIXED_DB_DIR"
 
     if [ "${SEMANTIC_ERRORS}" -gt 0 ]; then
         echo "  [clang-tidy] ${SEMANTIC_ERRORS} semantic error(s) — see output above"
