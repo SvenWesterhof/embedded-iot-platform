@@ -213,13 +213,18 @@ if [[ "$TARGET" == "esp32" || "$TARGET" == "all" ]]; then
         "-DESP32=1" \
         "-DCONFIG_IDF_TARGET_ESP32S3=1" \
         "-DCONFIG_LWIP_LOCAL_HOSTNAME=\"esp32\""
-    # The build runs inside Docker (espressif/esp-idf-ci-action), which mounts
-    # the ESP32/ directory as /project. Remap /project/ → the real host path
-    # so that file and -I paths in compile_commands.json resolve on the runner.
+    # espressif/esp-idf-ci-action mounts ${GITHUB_WORKSPACE} at
+    # /app/${GITHUB_REPOSITORY} inside the Docker container, so file and -I
+    # paths in compile_commands.json use that container prefix. Remap them
+    # back to the host workspace path so the src_root filter finds them.
+    ESP32_REMAP_ARGS=()
+    if [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${GITHUB_WORKSPACE:-}" ]; then
+        ESP32_REMAP_ARGS=("--remap" "/app/${GITHUB_REPOSITORY}:${GITHUB_WORKSPACE}")
+    fi
     run_clang_tidy \
         "${REPO_ROOT}/ESP32/build" \
         "${REPO_ROOT}/ESP32" \
-        --remap "/project/:${REPO_ROOT}/ESP32/"
+        "${ESP32_REMAP_ARGS[@]}"
 fi
 
 # ---- STM32 ----
