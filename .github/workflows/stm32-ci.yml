@@ -243,6 +243,7 @@ jobs:
         continue-on-error: true
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RTOS_REVIEW_MODEL: claude-haiku-4-5-20251001
         run: |
           python tools/rtos_review_agent.py ${{ steps.prereqs.outputs.files }} \
             > /tmp/rtos_review.json
