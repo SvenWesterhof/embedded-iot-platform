@@ -73,12 +73,29 @@ run_cppcheck() {
 # include paths. Use this for cross-compiled targets where the compile DB
 # paths are correct for the target toolchain but clang needs project headers
 # to be resolvable on the host.
+#
+# Special args consumed by this function (not forwarded to clang-tidy):
+#   --remap OLD:NEW   Passed to fix_compile_commands.py to translate paths
+#                     that were recorded inside a Docker container to their
+#                     equivalent host paths (may be repeated).
 # ---------------------------------------------------------------------------
 run_clang_tidy() {
     local compile_commands_dir="$1"
     local src_root="$2"
     shift 2
-    local extra_clang_args=("$@")
+
+    # Split args: --remap flags go to fix_compile_commands.py; the rest to clang-tidy.
+    local extra_clang_args=()
+    local remap_args=()
+    while [[ $# -gt 0 ]]; do
+        if [[ "$1" == "--remap" && $# -gt 1 ]]; then
+            remap_args+=("--remap" "$2")
+            shift 2
+        else
+            extra_clang_args+=("$1")
+            shift
+        fi
+    done
 
     if [ -z "$CLANG_TIDY" ]; then
         return 0
@@ -97,11 +114,15 @@ run_clang_tidy() {
     # compile_commands.json from CMake/STM32CubeMX contains non-canonical paths
     # like -I../../cmake/stm32cubemx/../../Drivers/... that clang-tidy cannot
     # resolve. fix_compile_commands.py also strips GCC-only flags (--specs=*).
+    # When the build ran inside Docker (e.g. espressif/esp-idf-ci-action mounts
+    # the project at /project), file and -I paths use the container prefix.
+    # Pass --remap /project/:<src_root>/ to translate them to host paths.
     local FIXED_DB_DIR
     FIXED_DB_DIR="$(mktemp -d)"
     python3 "${TOOLS_DIR}/fix_compile_commands.py" \
         "${compile_commands_dir}/compile_commands.json" \
-        "${FIXED_DB_DIR}/compile_commands.json"
+        "${FIXED_DB_DIR}/compile_commands.json" \
+        "${remap_args[@]}"
 
     # Derive the file list from compile_commands.json so that every file
     # analysed has the correct -I flags from the actual build.
@@ -192,9 +213,13 @@ if [[ "$TARGET" == "esp32" || "$TARGET" == "all" ]]; then
         "-DESP32=1" \
         "-DCONFIG_IDF_TARGET_ESP32S3=1" \
         "-DCONFIG_LWIP_LOCAL_HOSTNAME=\"esp32\""
+    # The build runs inside Docker (espressif/esp-idf-ci-action), which mounts
+    # the ESP32/ directory as /project. Remap /project/ → the real host path
+    # so that file and -I paths in compile_commands.json resolve on the runner.
     run_clang_tidy \
         "${REPO_ROOT}/ESP32/build" \
-        "${REPO_ROOT}/ESP32"
+        "${REPO_ROOT}/ESP32" \
+        --remap "/project/:${REPO_ROOT}/ESP32/"
 fi
 
 # ---- STM32 ----
