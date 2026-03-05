@@ -203,7 +203,7 @@ bool hal_uart_init(hal_uart_port_t port, const hal_uart_config_t *config)
 
     // Create event processing task
     char task_name[16];
-    snprintf(task_name, sizeof(task_name), "uart%d_evt", port);
+    (void)snprintf(task_name, sizeof(task_name), "uart%d_evt", port);
     
     os_result_t ret = os_task_create_pinned(uart_event_task, task_name, 
                                   UART_EVENT_TASK_STACK, (void *)(uintptr_t)port,

@@ -87,9 +87,9 @@ static void update_connection_info(void)
     // Get MAC address
     uint8_t mac[6];
     if (esp_wifi_get_mac(WIFI_IF_STA, mac) == ESP_OK) {
-        snprintf(state.info.mac_addr, sizeof(state.info.mac_addr),
-                 "%02X:%02X:%02X:%02X:%02X:%02X",
-                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        (void)snprintf(state.info.mac_addr, sizeof(state.info.mac_addr),
+                       "%02X:%02X:%02X:%02X:%02X:%02X",
+                       mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     }
 }
 

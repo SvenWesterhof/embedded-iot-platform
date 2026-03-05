@@ -57,6 +57,8 @@ run_cppcheck() {
         --error-exitcode=1 \
         --inline-suppr \
         --suppress=normalCheckLevelMaxBranches \
+        --suppressions-list="${TOOLS_DIR}/cppcheck-suppressions.txt" \
+        --std=c11 \
         -I "${REPO_ROOT}/common/include" \
         "${extra_args[@]}" \
         --quiet \
@@ -65,12 +67,35 @@ run_cppcheck() {
 
 # ---------------------------------------------------------------------------
 # clang-tidy runner
-# Args: <compile_commands_dir> <source_glob_root>
+# Args: <compile_commands_dir> <source_glob_root> [extra_clang_tidy_args...]
 # Skips gracefully if compile_commands.json does not exist yet.
+# Extra args (e.g. --extra-arg=-I/path) supplement the compile_commands.json
+# include paths. Use this for cross-compiled targets where the compile DB
+# paths are correct for the target toolchain but clang needs project headers
+# to be resolvable on the host.
+#
+# Special args consumed by this function (not forwarded to clang-tidy):
+#   --remap OLD:NEW   Passed to fix_compile_commands.py to translate paths
+#                     that were recorded inside a Docker container to their
+#                     equivalent host paths (may be repeated).
 # ---------------------------------------------------------------------------
 run_clang_tidy() {
     local compile_commands_dir="$1"
     local src_root="$2"
+    shift 2
+
+    # Split args: --remap flags go to fix_compile_commands.py; the rest to clang-tidy.
+    local extra_clang_args=()
+    local remap_args=()
+    while [[ $# -gt 0 ]]; do
+        if [[ "$1" == "--remap" && $# -gt 1 ]]; then
+            remap_args+=("--remap" "$2")
+            shift 2
+        else
+            extra_clang_args+=("$1")
+            shift
+        fi
+    done
 
     if [ -z "$CLANG_TIDY" ]; then
         return 0
@@ -85,15 +110,50 @@ run_clang_tidy() {
     echo ""
     echo "  [clang-tidy] ${src_root} (using ${compile_commands_dir}/compile_commands.json)"
 
-    # Collect source files, excluding generated/vendor code
+    # Normalise ARM GCC include paths for host clang-tidy.
+    # compile_commands.json from CMake/STM32CubeMX contains non-canonical paths
+    # like -I../../cmake/stm32cubemx/../../Drivers/... that clang-tidy cannot
+    # resolve. fix_compile_commands.py also strips GCC-only flags (--specs=*).
+    # When the build ran inside Docker (e.g. espressif/esp-idf-ci-action mounts
+    # the project at /project), file and -I paths use the container prefix.
+    # Pass --remap /project/:<src_root>/ to translate them to host paths.
+    local FIXED_DB_DIR
+    FIXED_DB_DIR="$(mktemp -d)"
+    python3 "${TOOLS_DIR}/fix_compile_commands.py" \
+        "${compile_commands_dir}/compile_commands.json" \
+        "${FIXED_DB_DIR}/compile_commands.json" \
+        "${remap_args[@]}"
+
+    # Derive the file list from compile_commands.json so that every file
+    # analysed has the correct -I flags from the actual build.
+    # Using 'find' instead would pick up test files, docs, and other .c files
+    # that were never compiled and therefore have no include paths, causing
+    # spurious "file not found" errors that mask real findings.
     mapfile -t SRC_FILES < <(
-        find "${src_root}" -name "*.c" \
-            ! -path "*/build/*" \
-            ! -path "*/Drivers/*" \
-            ! -path "*/Middlewares/*" \
-            ! -path "*/Core/*" \
-            ! -path "*/SEGGER/*" \
-            2>/dev/null
+        python3 -c "
+import json, sys
+
+db_path  = '${FIXED_DB_DIR}/compile_commands.json'
+src_root = '${src_root}'
+excluded = ['/build/', '/Drivers/', '/Middlewares/', '/Core/', '/SEGGER/',
+            '/Drivers_BSP/External/']  # vendored third-party display/sensor drivers
+
+try:
+    db = json.load(open(db_path))
+except Exception:
+    sys.exit(0)
+
+seen = set()
+for entry in db:
+    f = entry.get('file', '')
+    if not f.endswith('.c') or not f.startswith(src_root):
+        continue
+    if any(ex in f for ex in excluded):
+        continue
+    if f not in seen:
+        seen.add(f)
+        print(f)
+" 2>/dev/null
     )
 
     if [ ${#SRC_FILES[@]} -eq 0 ]; then
@@ -101,25 +161,37 @@ run_clang_tidy() {
         return 0
     fi
 
-    # Run in parallel (4 threads) for speed
+    # Run in parallel (4 threads).
+    # Output is captured to a temp file so xargs exit code is not swallowed
+    # by a grep pipe. TIDY_EXIT is non-zero if any file had a WarningsAsErrors hit.
+    local TIDY_OUT
+    TIDY_OUT="$(mktemp)"
+    local TIDY_EXIT=0
+
     printf '%s\n' "${SRC_FILES[@]}" | \
     xargs -P4 -I{} "$CLANG_TIDY" \
-        -p "${compile_commands_dir}" \
+        -p "${FIXED_DB_DIR}" \
         --config-file="${TOOLS_DIR}/.clang-tidy" \
-        {} -- 2>&1 \
-    | grep -E "(error|warning):" || true
+        "${extra_clang_args[@]}" \
+        {} -- \
+    > "$TIDY_OUT" 2>&1 || true   # exit code checked by content below
 
-    # clang-tidy exits 0 even with WarningsAsErrors when piped; re-check by running again
-    # on a single file to capture exit code (lightweight)
-    # NOTE: Disabled for local runs - clang-diagnostic-error (missing ESP-IDF headers) is expected locally
-    # In CI, the full build+analysis will catch real errors
-    # if [ ${#SRC_FILES[@]} -gt 0 ]; then
-    #     "$CLANG_TIDY" \
-    #         -p "${compile_commands_dir}" \
-    #         --config-file="${TOOLS_DIR}/.clang-tidy" \
-    #         --warnings-as-errors="bugprone-*,clang-analyzer-security.*" \
-    #         "${SRC_FILES[0]}" -- &>/dev/null || ERRORS=$((ERRORS + 1))
-    # fi
+    grep -E "(error|warning):" "$TIDY_OUT" || true
+
+    # clang-diagnostic-error means clang couldn't parse the file due to
+    # cross-compilation include path issues (ARM GCC sysroot vs host clang).
+    # These are infrastructure noise — the file still gets partial analysis.
+    # Only count semantic findings (bugprone-*, clang-analyzer-*, cert-*, etc.)
+    # as build-breaking errors.
+    SEMANTIC_ERRORS=$(grep ": error:" "$TIDY_OUT" \
+        | grep -cv "\[clang-diagnostic-" || true)
+    rm -f "$TIDY_OUT"
+    rm -rf "$FIXED_DB_DIR"
+
+    if [ "${SEMANTIC_ERRORS}" -gt 0 ]; then
+        echo "  [clang-tidy] ${SEMANTIC_ERRORS} semantic error(s) — see output above"
+        ERRORS=$((ERRORS + 1))
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -141,9 +213,33 @@ if [[ "$TARGET" == "esp32" || "$TARGET" == "all" ]]; then
         "-DESP32=1" \
         "-DCONFIG_IDF_TARGET_ESP32S3=1" \
         "-DCONFIG_LWIP_LOCAL_HOSTNAME=\"esp32\""
+    # espressif/esp-idf-ci-action mounts ${GITHUB_WORKSPACE} at
+    # /app/${GITHUB_REPOSITORY} inside the Docker container, so file and -I
+    # paths in compile_commands.json use that container prefix. Remap them
+    # back to the host workspace path so the src_root filter finds them.
+    ESP32_REMAP_ARGS=()
+    if [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${GITHUB_WORKSPACE:-}" ]; then
+        ESP32_REMAP_ARGS=("--remap" "/app/${GITHUB_REPOSITORY}:${GITHUB_WORKSPACE}")
+    fi
+    # Inject project include dirs so clang-tidy can resolve our own headers
+    # even when the IDF component system didn't propagate them to every
+    # translation unit. IDF SDK headers (esp_err.h, driver/*.h, etc.) cannot
+    # be resolved on the host and will still produce clang-diagnostic-error,
+    # but those are already filtered as infrastructure noise.
     run_clang_tidy \
         "${REPO_ROOT}/ESP32/build" \
-        "${REPO_ROOT}/ESP32"
+        "${REPO_ROOT}/ESP32" \
+        "${ESP32_REMAP_ARGS[@]}" \
+        "--extra-arg=-I${REPO_ROOT}/common/include" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/Application" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/OS" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/HAL_Wrapper" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/Middleware/Control" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/Middleware/Features" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/Middleware/Services" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/Drivers_BSP/BSP" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/Drivers_BSP/Custom" \
+        "--extra-arg=-I${REPO_ROOT}/ESP32/Shared"
 fi
 
 # ---- STM32 ----
@@ -169,7 +265,21 @@ if [[ "$TARGET" == "stm32" || "$TARGET" == "all" ]]; then
             break
         fi
     done
-    run_clang_tidy "${STM32_BUILD:-}" "${REPO_ROOT}/STM32"
+    # Explicitly inject project include dirs so clang-tidy can resolve them
+    # when running on the host against cross-compiled (ARM GCC) compile commands.
+    run_clang_tidy "${STM32_BUILD:-}" "${REPO_ROOT}/STM32" \
+        "--extra-arg=-I${REPO_ROOT}/common/include" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Application" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Middleware" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Middleware/Control" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Middleware/Services" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Middleware/Features" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/HAL" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Drivers_BSP" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Drivers_BSP/Custom" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Drivers_BSP/BSP" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/OS" \
+        "--extra-arg=-I${REPO_ROOT}/STM32/Utils"
 fi
 
 # ---- Common ----

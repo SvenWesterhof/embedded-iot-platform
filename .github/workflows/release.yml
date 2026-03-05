@@ -25,6 +25,11 @@ env:
   ARM_TOOLCHAIN_INSTALL_DIR: "/opt/arm-toolchain"
   ARM_TOOLCHAIN_URL: "https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi.tar.xz"
 
+# Do not cancel in-progress releases — completing a release is always preferable.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   # ---------------------------------------------------------------------------
   # Job 1: Build ESP32 release firmware

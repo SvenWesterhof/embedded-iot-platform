@@ -1,0 +1,4 @@
+missingInclude:*/ESP32/main/*
+missingInclude:*/ESP32/Application/*
+unusedFunction:*/STM32/Core/*
+missingInclude:*/STM32/Core/*

@@ -2,8 +2,8 @@
 """Validate firmware binary sizes against flash partition limits.
 
 Usage:
-  python3 scripts/check_flash_sizes.py esp32 <binary> [--partition-csv <csv>]
-  python3 scripts/check_flash_sizes.py stm32 <app_binary> [--boot-binary <bin>]
+  python3 scripts/check_flash_sizes.py esp32 <binary> [--partition-csv <csv>] [--json-output <path>]
+  python3 scripts/check_flash_sizes.py stm32 <app_binary> [--boot-binary <bin>] [--json-output <path>]
 
 Exit codes:
   0  All binaries fit within their flash limits
@@ -11,8 +11,10 @@ Exit codes:
   2  Script error (missing file, bad arguments)
 
 Prints GitHub Actions warning/error annotations when run in CI.
+When --json-output is given, writes a size-metrics JSON for trend tracking.
 """
 
+import json
 import sys
 import os
 import argparse
@@ -51,7 +53,41 @@ def _print_row(label: str, size: int, limit: int, status: str) -> None:
     print(f"  [{status}] {label:<16} {size:>9,} / {limit:>9,} bytes  {bar}")
 
 
-def check_esp32(binary_path: str, partition_csv: str) -> list[str]:
+def _write_json(path: str, platform: str, metrics: list[dict]) -> None:
+    data = {
+        "platform": platform,
+        "commit": os.environ.get("GITHUB_SHA", "")[:7],
+        "binaries": metrics,
+    }
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+    print(f"  Size metrics written to {path}")
+
+
+def _write_summary(platform: str, metrics: list[dict]) -> None:
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary_path:
+        return
+    with open(summary_path, "a") as f:
+        f.write(f"## Flash Size — {platform.upper()}\n\n")
+        f.write("| Binary | Size | Limit | Used |\n")
+        f.write("|--------|------|-------|------|\n")
+        for m in metrics:
+            if m["size_bytes"] > m["limit_bytes"]:
+                icon = "🔴"
+            elif m["pct_used"] >= WARN_THRESHOLD_PCT:
+                icon = "🟡"
+            else:
+                icon = "🟢"
+            f.write(
+                f"| {m['name']} | {m['size_bytes']:,} B"
+                f" | {m['limit_bytes']:,} B"
+                f" | {m['pct_used']:.1f}% {icon} |\n"
+            )
+        f.write("\n")
+
+
+def check_esp32(binary_path: str, partition_csv: str) -> tuple[list[str], list[dict]]:
     """Parse partition table CSV and verify the binary fits in every app partition."""
     for path, label in [(binary_path, "binary"), (partition_csv, "partition CSV")]:
         if not os.path.isfile(path):
@@ -62,6 +98,7 @@ def check_esp32(binary_path: str, partition_csv: str) -> list[str]:
 
     binary_size = os.path.getsize(binary_path)
     errors: list[str] = []
+    metrics: list[dict] = []
 
     with open(partition_csv) as f:
         for raw in f:
@@ -97,11 +134,17 @@ def check_esp32(binary_path: str, partition_csv: str) -> list[str]:
                 status = " OK "
 
             _print_row(f"esp32/{name}", binary_size, limit, status)
+            metrics.append({
+                "name": name,
+                "size_bytes": binary_size,
+                "limit_bytes": limit,
+                "pct_used": round(pct, 2),
+            })
 
-    return errors
+    return errors, metrics
 
 
-def check_stm32(app_binary: str, boot_binary: str) -> list[str]:
+def check_stm32(app_binary: str, boot_binary: str) -> tuple[list[str], list[dict]]:
     """Verify STM32 app and bootloader binaries fit within known flash regions."""
     targets = []
     if app_binary:
@@ -110,6 +153,7 @@ def check_stm32(app_binary: str, boot_binary: str) -> list[str]:
         targets.append(("bootloader", boot_binary, STM32_LIMITS["bootloader"]))
 
     errors: list[str] = []
+    metrics: list[dict] = []
 
     for region, path, limit in targets:
         if not os.path.isfile(path):
@@ -137,8 +181,14 @@ def check_stm32(app_binary: str, boot_binary: str) -> list[str]:
             status = " OK "
 
         _print_row(f"stm32/{region}", size, limit, status)
+        metrics.append({
+            "name": region,
+            "size_bytes": size,
+            "limit_bytes": limit,
+            "pct_used": round(pct, 2),
+        })
 
-    return errors
+    return errors, metrics
 
 
 def main() -> None:
@@ -154,6 +204,12 @@ def main() -> None:
         default="ESP32/partitions_ota.csv",
         help="Partition table CSV (default: ESP32/partitions_ota.csv)",
     )
+    esp.add_argument(
+        "--json-output",
+        metavar="PATH",
+        default="",
+        help="Write size metrics JSON to this path (for CI trend tracking)",
+    )
 
     stm = sub.add_parser("stm32", help="Check STM32 firmware")
     stm.add_argument("app_binary", help="Path to sensor_node.bin")
@@ -162,6 +218,12 @@ def main() -> None:
         default="",
         help="Path to bootloader.bin (optional but recommended)",
     )
+    stm.add_argument(
+        "--json-output",
+        metavar="PATH",
+        default="",
+        help="Write size metrics JSON to this path (for CI trend tracking)",
+    )
 
     args = parser.parse_args()
 
@@ -169,11 +231,16 @@ def main() -> None:
     print("─" * 72)
 
     if args.platform == "esp32":
-        errors = check_esp32(args.binary, args.partition_csv)
+        errors, metrics = check_esp32(args.binary, args.partition_csv)
     else:
-        errors = check_stm32(args.app_binary, args.boot_binary)
+        errors, metrics = check_stm32(args.app_binary, args.boot_binary)
 
     print("─" * 72)
+
+    _write_summary(args.platform, metrics)
+
+    if args.json_output and metrics:
+        _write_json(args.json_output, args.platform, metrics)
 
     if errors:
         print(f"\n✗ {len(errors)} flash overflow error(s) detected:")

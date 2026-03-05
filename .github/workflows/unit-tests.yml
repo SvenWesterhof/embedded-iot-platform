@@ -21,6 +21,10 @@ on:
       - "common/**"
       - "tests/**"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   unit-tests:
     name: Run Unity + CMock Tests

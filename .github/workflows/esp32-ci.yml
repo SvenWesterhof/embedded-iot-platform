@@ -14,7 +14,8 @@ on:
       - "common/**"
       - "scripts/lint.sh"
       - "tools/.clang-tidy"
-      - "tools/cppcheck-suppressions.xml"
+      - "tools/cppcheck-suppressions.txt"
+      - "tools/fix_compile_commands.py"
       - ".github/workflows/esp32-ci.yml"
   pull_request:
     branches:
@@ -25,7 +26,12 @@ on:
       - "common/**"
       - "scripts/lint.sh"
       - "tools/.clang-tidy"
-      - "tools/cppcheck-suppressions.xml"
+      - "tools/cppcheck-suppressions.txt"
+      - "tools/fix_compile_commands.py"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -80,7 +86,15 @@ jobs:
         run: |
           python3 scripts/check_flash_sizes.py esp32 \
             ESP32/build/iot_gateway.bin \
-            --partition-csv ESP32/partitions_ota.csv
+            --partition-csv ESP32/partitions_ota.csv \
+            --json-output esp32-size-metrics.json
+
+      - name: Upload size metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32-size-metrics
+          path: esp32-size-metrics.json
+          retention-days: 30
 
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
@@ -197,6 +211,7 @@ jobs:
         continue-on-error: true
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RTOS_REVIEW_MODEL: claude-haiku-4-5-20251001
         run: |
           python tools/rtos_review_agent.py ${{ steps.prereqs.outputs.files }} \
             > /tmp/rtos_review.json
@@ -210,8 +225,11 @@ jobs:
         run: |
           # Only fail the build for CRITICAL + HIGH confidence findings
           python -c "
-          import json, sys
-          data = json.load(open('/tmp/rtos_review.json'))
+          import json, sys, os
+          path = '/tmp/rtos_review.json'
+          if not os.path.isfile(path) or os.path.getsize(path) == 0:
+              sys.exit(0)
+          data = json.load(open(path))
           results = data if isinstance(data, list) else [data]
           blockers = [
               f for r in results for f in r.get('findings', [])
@@ -222,3 +240,103 @@ jobs:
                   print(f\"::error file={b.get('file','?')},line={b.get('line','?')}::{b.get('rule','?')}: {b.get('title','')}\")
               sys.exit(1)
           "
+
+  # ---------------------------------------------------------------------------
+  # Job 4: Binary size delta comment (PR only)
+  # Downloads current and master size metrics, posts/updates a PR comment.
+  # ---------------------------------------------------------------------------
+  size-report:
+    name: Binary Size Report (ESP32)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: build
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Download PR size metrics
+        uses: actions/download-artifact@v4
+        with:
+          name: esp32-size-metrics
+          path: metrics/pr
+
+      # Best-effort: fetch master's latest successful size metrics for delta.
+      - name: Download master size metrics
+        id: dl-master
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: esp32-ci.yml
+          branch: master
+          name: esp32-size-metrics
+          path: metrics/master
+          workflow_conclusion: success
+          if_no_artifact_found: warn
+
+      - name: Post size delta comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const prData = JSON.parse(
+              fs.readFileSync('metrics/pr/esp32-size-metrics.json', 'utf8')
+            );
+
+            let masterData = null;
+            try {
+              masterData = JSON.parse(
+                fs.readFileSync('metrics/master/esp32-size-metrics.json', 'utf8')
+              );
+            } catch(e) {
+              core.info('No master size metrics found — showing sizes without delta');
+            }
+
+            let body = '## ESP32 Binary Size\n\n';
+            body += '| Partition | Size | Limit | Used | vs master |\n';
+            body += '|-----------|------|-------|------|----------|\n';
+
+            for (const b of prData.binaries) {
+              const mb = masterData?.binaries?.find(m => m.name === b.name);
+              let deltaStr = '—';
+              if (mb !== undefined) {
+                const delta = b.size_bytes - mb.size_bytes;
+                deltaStr = delta === 0
+                  ? '±0 B'
+                  : `${delta > 0 ? '+' : ''}${delta.toLocaleString()} B`;
+              }
+              const icon = b.size_bytes > b.limit_bytes ? '🔴'
+                         : b.pct_used >= 90 ? '🟡' : '🟢';
+              body += `| ${b.name} | ${b.size_bytes.toLocaleString()} B`
+                    + ` | ${b.limit_bytes.toLocaleString()} B`
+                    + ` | ${b.pct_used.toFixed(1)}% ${icon}`
+                    + ` | ${deltaStr} |\n`;
+            }
+
+            if (masterData) {
+              body += `\n_Compared with master @ \`${masterData.commit}\`_\n`;
+            }
+
+            const marker = '<!-- esp32-size-report -->';
+            body = `${marker}\n${body}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

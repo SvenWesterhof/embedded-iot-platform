@@ -291,9 +291,9 @@ ntp_sync_status_t serv_ntp_set_timezone(int8_t offset_hours)
     // Update timezone environment variable
     char tz[16];
     if (offset_hours >= 0) {
-        snprintf(tz, sizeof(tz), "UTC-%d", offset_hours);
+        (void)snprintf(tz, sizeof(tz), "UTC-%d", offset_hours);
     } else {
-        snprintf(tz, sizeof(tz), "UTC+%d", -offset_hours);
+        (void)snprintf(tz, sizeof(tz), "UTC+%d", -offset_hours);
     }
     setenv("TZ", tz, 1);
     tzset();

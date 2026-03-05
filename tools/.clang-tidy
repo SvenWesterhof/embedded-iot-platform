@@ -2,11 +2,32 @@
 # tools/.clang-tidy — shared configuration for ESP32 and STM32 targets
 # Referenced explicitly via: clang-tidy --config-file=tools/.clang-tidy
 # Run via: scripts/lint.sh [esp32|stm32|common|all]
+#
+# NOTE: '#' inside a YAML '>' block scalar is LITERAL content, not a comment.
+# All explanatory comments must live OUTSIDE (before) the scalar values.
 
+# Disabled checks rationale:
+#   clang-diagnostic-unused-command-line-argument  — cross-compilation noise
+#   clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling
+#       — demands memset_s / memcpy_s (C11 Annex K). newlib-nano on STM32/ESP32
+#         does not implement Annex K; memset/memcpy are correct on these targets.
+#   bugprone-easily-swappable-parameters     — too many false positives in HAL APIs
+#   bugprone-macro-parentheses               — macro style is project convention
+#   bugprone-branch-clone                    — intentional in state machines
+#   bugprone-switch-missing-default-case     — exhaustive enums don't need default
+#   bugprone-reserved-identifier             — HAL requires __prefixed names
+#   cert-err10-c / cert-err34-c              — not applicable to embedded targets
+#   cert-dcl37-c / cert-dcl51-cpp            — HAL-mandated reserved identifiers
+#   performance-no-int-to-ptr                — unavoidable for HW memory-mapped
+#         addresses (e.g. casting 0x08100000 to uint8_t* for flash access)
+#   readability-magic-numbers                — embedded code is full of HW constants
+#   readability-function-cognitive-complexity — not appropriate for ISR/HAL code
+#   readability-identifier-length            — single-letter loop vars are fine
 Checks: >
   clang-diagnostic-*,
   clang-analyzer-*,
   -clang-diagnostic-unused-command-line-argument,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
   bugprone-*,
   -bugprone-easily-swappable-parameters,
   -bugprone-macro-parentheses,
@@ -15,21 +36,28 @@ Checks: >
   cert-*,
   -cert-err10-c,
   -cert-err34-c,
+  -bugprone-reserved-identifier,
+  -cert-dcl37-c,
+  -cert-dcl51-cpp,
   performance-*,
+  -performance-no-int-to-ptr,
   portability-*,
   readability-identifier-naming,
   -readability-magic-numbers,
   -readability-function-cognitive-complexity,
   -readability-identifier-length
 
-# Only bugprone critical checks block the build; everything else is informational.
-# Update WarningsAsErrors to add more checks as the codebase matures.
+# Checks that block the build (exit 1). All are valid C issues — no C++-only checks.
+# bugprone-use-after-move and bugprone-dangling-handle removed: C++ only, never fire on C.
+# clang-analyzer-security.insecureAPI.* excludes DeprecatedOrUnsafeBufferHandling above.
 WarningsAsErrors: >
-  bugprone-use-after-move,
-  bugprone-dangling-handle,
   bugprone-integer-division,
   bugprone-suspicious-memset-usage,
-  clang-analyzer-security.insecureAPI.*
+  bugprone-sizeof-expression,
+  bugprone-unsafe-functions,
+  clang-analyzer-security.insecureAPI.*,
+  clang-analyzer-core.NullDereference,
+  clang-analyzer-deadcode.DeadStores
 
 CheckOptions:
   # Enforce lower_case naming for functions and variables (project convention)
@@ -42,6 +70,9 @@ CheckOptions:
   # Types and typedefs use lower_case with _t suffix (HAL convention)
   - key: readability-identifier-naming.TypedefCase
     value: lower_case
+  # Exemptions for vendor driver typedefs (INA226 sensor, ST7735 display)
+  - key: readability-identifier-naming.TypedefIgnoredRegexp
+    value: "^(INA226_|ST7735_).*"
   # Constants and enum values use UPPER_CASE
   - key: readability-identifier-naming.EnumConstantCase
     value: UPPER_CASE
