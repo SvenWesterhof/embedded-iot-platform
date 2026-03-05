@@ -1,6 +1,14 @@
 title = "embedded-iot-platform gitleaks configuration"
 
 # ---------------------------------------------------------------------------
+# Extend the built-in gitleaks ruleset so all default secret patterns
+# (AWS keys, GCP credentials, GitHub tokens, etc.) are active.
+# Without this, a custom --config file replaces all built-in rules with nothing.
+# ---------------------------------------------------------------------------
+[extend]
+  useDefault = true
+
+# ---------------------------------------------------------------------------
 # Global allowlist: paths and patterns that are intentionally safe.
 # All regexes use Go RE2 syntax.
 # ---------------------------------------------------------------------------
