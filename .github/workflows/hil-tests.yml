@@ -172,9 +172,13 @@ jobs:
         if: ${{ !inputs.skip_flash }}
         run: |
           chmod +x hil/scripts/flash_stm32.sh
+          BOOTLOADER=""
+          if [ -f hil-artifacts/stm32/STM32/build/CI/Bootloader/bootloader.bin ]; then
+            BOOTLOADER="hil-artifacts/stm32/STM32/build/CI/Bootloader/bootloader.bin"
+          fi
           hil/scripts/flash_stm32.sh \
-            hil-artifacts/stm32/sensor_node.bin \
-            hil-artifacts/stm32/bootloader.bin
+            hil-artifacts/stm32/STM32/build/CI/sensor_node.bin \
+            $BOOTLOADER
 
       - name: Flash ESP32
         if: ${{ !inputs.skip_flash }}
@@ -183,7 +187,7 @@ jobs:
         run: |
           chmod +x hil/scripts/flash_esp32.sh
           hil/scripts/flash_esp32.sh \
-            hil-artifacts/esp32/iot_gateway.bin \
+            hil-artifacts/esp32/ESP32/build/iot_gateway.bin \
             "$ESP32_PORT"
 
       - name: Run HIL tests
@@ -194,11 +198,11 @@ jobs:
           HIL_SERVER_IP: ${{ secrets.HIL_SERVER_IP }}
           HIL_MQTT_BROKER: localhost
           HIL_SKIP_FLASH: "1"  # Already flashed in previous steps
-          HIL_ESP32_FIRMWARE: ${{ github.workspace }}/hil-artifacts/esp32/iot_gateway.bin
-          HIL_STM32_FIRMWARE: ${{ github.workspace }}/hil-artifacts/stm32/sensor_node.bin
-          HIL_STM32_BOOTLOADER: ${{ github.workspace }}/hil-artifacts/stm32/bootloader.bin
+          HIL_ESP32_FIRMWARE: ${{ github.workspace }}/hil-artifacts/esp32/ESP32/build/iot_gateway.bin
+          HIL_STM32_FIRMWARE: ${{ github.workspace }}/hil-artifacts/stm32/STM32/build/CI/sensor_node.bin
+          HIL_STM32_BOOTLOADER: ${{ github.workspace }}/hil-artifacts/stm32/STM32/build/CI/Bootloader/bootloader.bin
           # OTA tests (optional — only run if keys are available)
-          HIL_STM32_OTA_BIN: ${{ github.workspace }}/hil-artifacts/stm32/sensor_node.bin
+          HIL_STM32_OTA_BIN: ${{ github.workspace }}/hil-artifacts/stm32/STM32/build/CI/sensor_node.bin
           HIL_STM32_KEY: ${{ secrets.HIL_STM32_SIGNING_KEY_PATH }}
         run: |
           pip install -q -r requirements.txt
