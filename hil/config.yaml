@@ -1,0 +1,46 @@
+# HIL Test Configuration
+# Override individual values via environment variables prefixed with HIL_
+# e.g. HIL_ESP32_PORT=/dev/ttyUSB1
+
+devices:
+  esp32:
+    port: /dev/ttyACM0    # ESP32-S3 built-in USB JTAG/CDC (Espressif 303a:1001)
+    baud: 115200          # Serial monitor baud rate
+    flash_baud: 921600
+    chip: esp32s3
+  stm32:
+    port: /dev/ttyACM1    # ST-Link VCP debug UART (STMicroelectronics 0483:374b)
+    baud: 115200
+    openocd_interface: interface/stlink.cfg
+    openocd_target: target/stm32f7x.cfg
+
+network:
+  esp32_ip: ""            # Populated at runtime from boot log (or set manually)
+  server_ip: ""           # Ubuntu server LAN IP (set via HIL_SERVER_IP env var)
+  dashboard_port: 80
+  dashboard_path: /ws
+  fw_server_port: 8080
+  mqtt_broker_host: localhost
+  mqtt_broker_port: 1883
+
+timeouts:
+  boot_s: 40              # Max seconds to wait for ESP32 to boot + connect WiFi
+  command_s: 5            # Max seconds for UART command response
+  measurement_s: 5        # Max seconds to receive first sensor notification
+  ota_esp32_s: 120        # Max seconds for ESP32 OTA (download + flash + reboot)
+  ota_stm32_s: 180        # Max seconds for STM32 OTA (includes bank erase ~7s)
+  websocket_s: 10         # Max seconds to establish WebSocket connection
+
+mqtt:
+  ota_topic: gateway/ota/notify
+  status_topic: gateway/status
+
+signing:
+  stm32_key: keys/ota_signing_key_stm32.pem    # RSA-2048 test key
+  esp32_key: keys/ota_signing_key_esp32.pem    # RSA-3072 test key
+
+sensor_bounds:
+  temperature_min_c: 5.0
+  temperature_max_c: 50.0
+  humidity_min_pct: 0.0
+  humidity_max_pct: 100.0

@@ -36,6 +36,9 @@ compile_commands.json
 # Signing keys and IoT certificates - never commit private keys
 ESP32/keys/*.pem
 ESP32/keys/iot/
+# HIL test signing keys - private keys stay on server only, public keys are committed
+keys/*.pem
+!keys/*.pub.pem
 
 # NVS provisioning binary (contains device private key)
 nvs_iot_creds.bin
