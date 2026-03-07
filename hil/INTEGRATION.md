@@ -138,9 +138,34 @@ git push
 
 ### 4.3 Embed the public key in firmware
 
-The STM32 firmware (`serv_signature_verify.c`) needs the public key at compile time.
-Point the build to `keys/ota_signing_key_stm32.pub.pem` — the exact mechanism depends
-on how the firmware reads its verification key (hardcoded array or file include).
+The ESP32 firmware reads the STM32 OTA public key from
+`ESP32/Middleware/Services/stm32_public_key.h` — a C header with the PEM string
+hardcoded as a `static const char[]`. Replace the placeholder with your generated key.
+
+Print the key on the server:
+
+```bash
+cat keys/ota_signing_key_stm32.pub.pem
+```
+
+Open `ESP32/Middleware/Services/stm32_public_key.h` and replace the placeholder
+PEM body with your key content. Keep each line as a quoted C string ending with `\n`:
+
+```c
+static const char stm32_public_key_pem[] =
+"-----BEGIN PUBLIC KEY-----\n"
+"MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...\n"
+"...\n"
+"-----END PUBLIC KEY-----\n";
+```
+
+Commit the updated header (the public key is safe to commit):
+
+```bash
+git add ESP32/Middleware/Services/stm32_public_key.h
+git commit -m "feat(hil): embed HIL OTA signing public key in firmware"
+git push
+```
 
 ### 4.4 Set the GitHub Secret
 

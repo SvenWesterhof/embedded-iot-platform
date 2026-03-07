@@ -28,6 +28,15 @@ echo "  Firmware: $FIRMWARE"
 echo "  Port:     $PORT"
 echo "  Baud:     $BAUD"
 
+# Erase NVS partition (0x9000, 24KB) so the device falls back to credentials.h
+# rather than using a previously provisioned AWS IoT Core broker URI from NVS.
+echo "Erasing NVS partition..."
+esptool.py \
+    --chip esp32s3 \
+    --port "$PORT" \
+    --baud "$BAUD" \
+    erase_region 0x9000 0x6000
+
 # Use esptool - supports merged binary or component binaries
 # Check if this is a merged binary (single file) or if we need flash_args
 if [[ "$FIRMWARE" == *.bin ]]; then
