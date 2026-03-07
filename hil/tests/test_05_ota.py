@@ -34,6 +34,7 @@ import paho.mqtt.client as mqtt
 OTA_TOPIC = "gateway/ota/notify"
 MQTT_HOST = os.environ.get("HIL_MQTT_BROKER", "localhost")
 MQTT_PORT = int(os.environ.get("HIL_MQTT_PORT", "1883"))
+FW_SERVER_DIR = os.environ.get("HIL_FW_SERVER_DIR", "/firmware")
 
 
 def _compute_crc32(data: bytes) -> int:
@@ -77,8 +78,8 @@ def test_esp32_ota_success(esp32_monitor, server_ip):
     fw_size = len(fw_data)
     fw_url = f"http://{server_ip}:8080/{os.path.basename(ota_bin)}"
 
-    # Copy to fw-server directory (already mounted at /firmware in container)
-    fw_dest = f"/firmware/{os.path.basename(ota_bin)}"
+    # Copy to fw-server directory
+    fw_dest = os.path.join(FW_SERVER_DIR, os.path.basename(ota_bin))
     shutil.copy2(ota_bin, fw_dest)
 
     payload = {
@@ -124,7 +125,7 @@ def test_stm32_ota_success(esp32_monitor, server_ip):
     fw_url = f"http://{server_ip}:8080/{os.path.basename(stm32_bin)}"
 
     # Copy to fw-server directory
-    shutil.copy2(stm32_bin, f"/firmware/{os.path.basename(stm32_bin)}")
+    shutil.copy2(stm32_bin, os.path.join(FW_SERVER_DIR, os.path.basename(stm32_bin)))
 
     payload = {
         "target": "stm32",
@@ -162,7 +163,7 @@ def test_stm32_ota_invalid_signature_rejected(esp32_monitor, server_ip):
         pytest.skip("HIL_STM32_OTA_BIN not set — skipping signature rejection test")
 
     fw_data = open(stm32_bin, "rb").read()
-    shutil.copy2(stm32_bin, f"/firmware/{os.path.basename(stm32_bin)}")
+    shutil.copy2(stm32_bin, os.path.join(FW_SERVER_DIR, os.path.basename(stm32_bin)))
 
     payload = {
         "target": "stm32",

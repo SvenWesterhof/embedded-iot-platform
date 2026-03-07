@@ -167,7 +167,12 @@ jobs:
       - name: Start supporting services (MQTT + firmware HTTP server)
         working-directory: hil
         run: |
-          FW_DIR=${{ github.workspace }}/hil-artifacts docker compose up -d mosquitto fw-server
+          # Flat directory so the HTTP server can serve all firmware at root
+          mkdir -p ${{ github.workspace }}/hil-firmware
+          cp hil-artifacts/esp32/iot_gateway-merged.bin ${{ github.workspace }}/hil-firmware/
+          cp hil-artifacts/stm32/sensor_node.bin ${{ github.workspace }}/hil-firmware/
+          cp hil-artifacts/stm32/Bootloader/bootloader.bin ${{ github.workspace }}/hil-firmware/
+          FW_DIR=${{ github.workspace }}/hil-firmware docker compose up -d mosquitto fw-server
           # Give services a moment to start
           sleep 3
 
@@ -207,6 +212,7 @@ jobs:
           # OTA tests (optional — only run if keys are available)
           HIL_STM32_OTA_BIN: ${{ github.workspace }}/hil-artifacts/stm32/sensor_node.bin
           HIL_STM32_KEY: ${{ secrets.HIL_STM32_SIGNING_KEY_PATH }}
+          HIL_FW_SERVER_DIR: ${{ github.workspace }}/hil-firmware
         run: |
           python3 -m pip install -q -r requirements.txt
           python3 -m pytest tests/ -v --tb=short \
