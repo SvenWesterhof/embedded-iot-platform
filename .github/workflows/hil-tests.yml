@@ -169,9 +169,9 @@ jobs:
         run: |
           # Flat directory so the HTTP server can serve all firmware at root
           mkdir -p ${{ github.workspace }}/hil-firmware
-          cp hil-artifacts/esp32/iot_gateway-merged.bin ${{ github.workspace }}/hil-firmware/
-          cp hil-artifacts/stm32/sensor_node.bin ${{ github.workspace }}/hil-firmware/
-          cp hil-artifacts/stm32/Bootloader/bootloader.bin ${{ github.workspace }}/hil-firmware/
+          cp ${{ github.workspace }}/hil-artifacts/esp32/iot_gateway-merged.bin ${{ github.workspace }}/hil-firmware/
+          cp ${{ github.workspace }}/hil-artifacts/stm32/sensor_node.bin ${{ github.workspace }}/hil-firmware/
+          cp ${{ github.workspace }}/hil-artifacts/stm32/Bootloader/bootloader.bin ${{ github.workspace }}/hil-firmware/
           FW_DIR=${{ github.workspace }}/hil-firmware docker compose up -d mosquitto fw-server
           # Give services a moment to start
           sleep 3
