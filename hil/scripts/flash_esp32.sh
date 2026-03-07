@@ -37,6 +37,16 @@ esptool.py \
     --baud "$BAUD" \
     erase_region 0x9000 0x6000
 
+# Erase OTA data partition (0xF000, 8KB) so the bootloader resets to factory slot.
+# Without this, the bootloader tries to boot the previously OTA-updated slot which
+# has a different SHA-256 than the newly flashed firmware → boot loop.
+echo "Erasing OTA data partition..."
+esptool.py \
+    --chip esp32s3 \
+    --port "$PORT" \
+    --baud "$BAUD" \
+    erase_region 0xF000 0x2000
+
 # Use esptool - supports merged binary or component binaries
 # Check if this is a merged binary (single file) or if we need flash_args
 if [[ "$FIRMWARE" == *.bin ]]; then
