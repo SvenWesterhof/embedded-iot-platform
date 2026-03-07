@@ -205,8 +205,8 @@ jobs:
           HIL_STM32_OTA_BIN: ${{ github.workspace }}/hil-artifacts/stm32/sensor_node.bin
           HIL_STM32_KEY: ${{ secrets.HIL_STM32_SIGNING_KEY_PATH }}
         run: |
-          pip install -q -r requirements.txt
-          pytest tests/ -v --tb=short \
+          python3 -m pip install -q -r requirements.txt
+          python3 -m pytest tests/ -v --tb=short \
             --timeout=60 \
             --junitxml=logs/hil-results.xml \
             2>&1 | tee logs/hil-output.log
