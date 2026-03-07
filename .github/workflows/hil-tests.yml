@@ -80,6 +80,10 @@ jobs:
           command: |
             ccache --set-config=cache_dir=../.ccache
             idf.py build
+            esptool.py --chip esp32s3 merge_bin \
+              -o build/iot_gateway-merged.bin \
+              --flash_mode dio --flash_size 8MB \
+              @build/flash_args
 
       - name: Upload ESP32 firmware
         uses: actions/upload-artifact@v4
@@ -87,7 +91,7 @@ jobs:
           name: hil-esp32-firmware
           retention-days: 1
           path: |
-            ESP32/build/iot_gateway.bin
+            ESP32/build/iot_gateway-merged.bin
             ESP32/build/iot_gateway.elf
 
   # ---------------------------------------------------------------------------
@@ -187,7 +191,7 @@ jobs:
         run: |
           chmod +x hil/scripts/flash_esp32.sh
           hil/scripts/flash_esp32.sh \
-            hil-artifacts/esp32/iot_gateway.bin \
+            hil-artifacts/esp32/iot_gateway-merged.bin \
             "$ESP32_PORT"
 
       - name: Run HIL tests
@@ -198,7 +202,7 @@ jobs:
           HIL_SERVER_IP: ${{ secrets.HIL_SERVER_IP }}
           HIL_MQTT_BROKER: localhost
           HIL_SKIP_FLASH: "1"  # Already flashed in previous steps
-          HIL_ESP32_FIRMWARE: ${{ github.workspace }}/hil-artifacts/esp32/iot_gateway.bin
+          HIL_ESP32_FIRMWARE: ${{ github.workspace }}/hil-artifacts/esp32/iot_gateway-merged.bin
           HIL_STM32_FIRMWARE: ${{ github.workspace }}/hil-artifacts/stm32/sensor_node.bin
           HIL_STM32_BOOTLOADER: ${{ github.workspace }}/hil-artifacts/stm32/Bootloader/bootloader.bin
           # OTA tests (optional — only run if keys are available)
