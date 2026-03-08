@@ -687,8 +687,11 @@ proto_err_t stm32_cmd_start_measurement(uint32_t interval_ms,
                                          stm32_response_callback_t callback,
                                          void *user_data)
 {
-    uint32_t payload = interval_ms;
-    
+    cmd_start_stream_t payload = {
+        .sensor_type = SENSOR_TEMPERATURE,
+        .interval_ms = interval_ms,
+    };
+
     return stm32_protocol_send_command_async(CMD_START_MEASUREMENT,
                                              &payload, sizeof(payload),
                                              callback, user_data);

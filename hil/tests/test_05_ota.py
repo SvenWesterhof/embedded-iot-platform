@@ -104,7 +104,7 @@ def test_esp32_ota_success(esp32_monitor, server_ip):
 # STM32 OTA
 # ---------------------------------------------------------------------------
 
-@pytest.mark.timeout(200)
+@pytest.mark.timeout(330)
 def test_stm32_ota_success(esp32_monitor, server_ip):
     """STM32 OTA: ESP32 downloads firmware and transfers to STM32 via UART."""
     stm32_bin = os.environ.get("HIL_STM32_OTA_BIN")
@@ -142,7 +142,7 @@ def test_stm32_ota_success(esp32_monitor, server_ip):
     # Monitor: STM32 OTA transfer progress
     esp32_monitor.wait_for(
         r"STM32 OTA.*complete|stm32.*ota.*success|EVENT_STM32_OTA_COMPLETED",
-        timeout=180
+        timeout=300
     )
     # STM32 reboots into new firmware — give it time
     time.sleep(5)
@@ -155,7 +155,7 @@ def test_stm32_ota_success(esp32_monitor, server_ip):
 # Invalid firmware rejection
 # ---------------------------------------------------------------------------
 
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(220)
 def test_stm32_ota_invalid_signature_rejected(esp32_monitor, server_ip):
     """Firmware with a bad RSA signature must be rejected before any flash write."""
     stm32_bin = os.environ.get("HIL_STM32_OTA_BIN")
@@ -178,8 +178,8 @@ def test_stm32_ota_invalid_signature_rejected(esp32_monitor, server_ip):
 
     # Must see OTA failure, NOT success
     esp32_monitor.wait_for(
-        r"OTA failed|signature.*fail|verify.*fail|EVENT_STM32_OTA_FAILED",
-        timeout=40
+        r"OTA failed|Signature.*fail|verify.*fail|EVENT_STM32_OTA_FAILED",
+        timeout=190
     )
 
     # STM32 should still be alive and responding

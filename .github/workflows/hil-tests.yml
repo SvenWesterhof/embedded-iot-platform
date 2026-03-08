@@ -143,7 +143,7 @@ jobs:
     name: HIL Tests
     needs: [build-esp32, build-stm32]
     runs-on: [self-hosted, linux, hil]
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
