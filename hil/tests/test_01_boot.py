@@ -23,7 +23,7 @@ def test_esp32_mqtt_connected(esp32_monitor):
 @pytest.mark.timeout(60)
 def test_stm32_protocol_ready(esp32_monitor):
     """ESP32 must establish communication with STM32 before other tests run."""
-    esp32_monitor.wait_for(r"STM32 protocol ready|stm32.*ready|feat_stm32.*start", timeout=40)
+    esp32_monitor.wait_for(r"STM32 protocol feature started|Protocol task started", timeout=40)
 
 
 @pytest.mark.timeout(30)

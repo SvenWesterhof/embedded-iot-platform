@@ -139,7 +139,7 @@ def booted_esp32(esp32_monitor):
     logger.info("ESP32 booted with IP: %s", ip)
 
     # Wait for STM32 protocol to be ready (logged by ESP32)
-    esp32_monitor.wait_for(r"STM32 protocol ready|stm32.*ready|feat_stm32.*start", timeout=20)
+    esp32_monitor.wait_for(r"STM32 protocol feature started|Protocol task started", timeout=20)
 
     return ip
 
