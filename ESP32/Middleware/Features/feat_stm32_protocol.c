@@ -16,10 +16,11 @@ static const char *TAG = "STM32_PROTO";
 // Internal Constants
 // ============================================================================
 
-#define PROTOCOL_TASK_STACK_SIZE    4096
-#define PROTOCOL_TASK_PRIORITY      8
-#define PENDING_CMD_QUEUE_SIZE      10
-#define MAX_PENDING_COMMANDS        10
+#define PROTOCOL_TASK_STACK_SIZE        4096
+#define PROTOCOL_TASK_PRIORITY          8
+#define PENDING_CMD_QUEUE_SIZE          10
+#define MAX_PENDING_COMMANDS            10
+#define PROTOCOL_HEARTBEAT_INTERVAL_MS  10000
 
 // ============================================================================
 // Internal Data Structures
@@ -318,10 +319,22 @@ static void uart_event_callback(stm32_framing_event_t *event, void *user_data)
 static void protocol_task(void *arg)
 {
     LOG_I(TAG, "Protocol task started");
-    
+
+    uint32_t last_heartbeat_ms = 0;
+
     while (state.running) {
         uint32_t now = os_get_time_ms();
-        
+
+        // Periodic heartbeat — confirms task is alive and shows communication health.
+        // Fires every PROTOCOL_HEARTBEAT_INTERVAL_MS so the HIL serial monitor can
+        // detect protocol readiness even when boot messages are missed.
+        if ((now - last_heartbeat_ms) >= PROTOCOL_HEARTBEAT_INTERVAL_MS) {
+            LOG_I(TAG, "Heartbeat: cmds=%u resp=%u timeouts=%u retries=%u",
+                  state.commands_sent, state.responses_received,
+                  state.timeouts, state.retries);
+            last_heartbeat_ms = now;
+        }
+
         os_mutex_take(state.pending_mutex, OS_WAIT_FOREVER);
         
         // Check for timeouts
