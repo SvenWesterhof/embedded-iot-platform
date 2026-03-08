@@ -175,6 +175,10 @@ jobs:
           FW_DIR=${{ github.workspace }}/hil-firmware docker compose up -d mosquitto fw-server
           # Give services a moment to start
           sleep 3
+          # Verify broker is reachable from this runner on the LAN IP the firmware uses
+          echo "Checking MQTT broker at ${{ secrets.HIL_SERVER_IP }}:1883..."
+          nc -zv ${{ secrets.HIL_SERVER_IP }} 1883 && echo "MQTT reachable" || echo "MQTT NOT reachable - check HIL_SERVER_IP secret"
+          docker ps | grep mosquitto
 
       - name: Flash STM32
         if: ${{ !inputs.skip_flash }}
