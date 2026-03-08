@@ -103,18 +103,16 @@ def test_unknown_command_rejected(dashboard):
 @pytest.mark.timeout(30)
 def test_sequence_numbers_match(dashboard):
     """Send 5 consecutive GET_STATUS commands and verify no response is lost."""
-    # Collect responses for 5 rapid commands
     for _ in range(5):
         dashboard.stm32_cmd(CMD_GET_STATUS)
 
-    received = 0
+    # Poll received() without draining so buffered responses are not discarded
     deadline = time.monotonic() + 10
-    while time.monotonic() < deadline and received < 5:
-        try:
-            dashboard.wait_for(DashResp.STM32, timeout=2)
-            received += 1
-            dashboard.drain()  # clear so next wait_for sees fresh packet
-        except TimeoutError:
+    while time.monotonic() < deadline:
+        pkts = [p for p in dashboard.received() if p.resp_type == DashResp.STM32]
+        if len(pkts) >= 5:
             break
+        time.sleep(0.2)
 
-    assert received == 5, f"Expected 5 responses, got {received}"
+    pkts = [p for p in dashboard.received() if p.resp_type == DashResp.STM32]
+    assert len(pkts) >= 5, f"Expected 5 responses, got {len(pkts)}"
