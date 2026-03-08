@@ -202,6 +202,18 @@ jobs:
             hil-artifacts/esp32/iot_gateway-merged.bin \
             "$ESP32_PORT"
 
+      - name: Reset STM32 after ESP32 flash
+        if: ${{ !inputs.skip_flash }}
+        run: |
+          # ESP32 reset during flashing leaves STM32 UART DMA in a stale state.
+          # Reset STM32 so it re-initializes its UART while ESP32 is already running.
+          # TODO: replace with STM32_WAKEUP_PIN GPIO handshake once STM32 implements it.
+          openocd \
+            -f interface/stlink.cfg \
+            -f target/stm32f7x.cfg \
+            -c "init; reset run; shutdown"
+          sleep 3
+
       - name: Run HIL tests
         working-directory: hil
         env:
