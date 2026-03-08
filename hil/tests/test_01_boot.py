@@ -10,14 +10,14 @@ import pytest
 @pytest.mark.timeout(60)
 def test_esp32_wifi_connected(esp32_monitor):
     """ESP32 must connect to WiFi within boot timeout."""
-    esp32_monitor.wait_for(r"WiFi connected|wifi.*connect.*success|IP address", timeout=40)
+    esp32_monitor.wait_for(r"WiFi connected|wifi.*connect.*success|IP address|WiFi: Connected", timeout=40)
 
 
 @pytest.mark.timeout(60)
 def test_esp32_mqtt_connected(esp32_monitor):
     """ESP32 must connect to MQTT broker."""
     # Look for MQTT connected message in boot log
-    esp32_monitor.wait_for(r"MQTT connected|mqtt.*connect|serv_mqtt.*connect", timeout=40)
+    esp32_monitor.wait_for(r"MQTT connected|mqtt.*connect|serv_mqtt.*connect|MQTT: Connected", timeout=40)
 
 
 @pytest.mark.timeout(60)

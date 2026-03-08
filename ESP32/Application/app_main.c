@@ -260,13 +260,17 @@ void app_run(void)
         // Broadcast to all WebSocket clients
         dashboard_broadcast_json(status_json);
         
-        // Log every 30 seconds
+        // Log every 30 seconds (includes IP so HIL serial monitor can detect it
+        // even when the early boot "Got IP" message was missed due to timing)
         if (uptime % 30 == 0) {
             char partition_info[64];
             cont_ota_get_partition_info(partition_info, sizeof(partition_info));
-            LOG_I(TAG, "Uptime: %u seconds | WiFi: %s | MQTT: %s | Partition: %s",
+            wifi_info_t wifi_info = {0};
+            wifi_manager_get_info(&wifi_info);
+            LOG_I(TAG, "Uptime: %u seconds | WiFi: %s | IP: %s | MQTT: %s | Partition: %s",
                      uptime,
                      wifi_manager_is_connected() ? "Connected" : "Disconnected",
+                     wifi_info.ip_addr[0] ? wifi_info.ip_addr : "0.0.0.0",
                      serv_mqtt_is_connected() ? "Connected" : "Disconnected",
                      partition_info);
         }

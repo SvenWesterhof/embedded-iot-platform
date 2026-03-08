@@ -127,7 +127,7 @@ def booted_esp32(esp32_monitor):
     timeout = CFG["timeouts"]["boot_s"]
     logger.info("Waiting for ESP32 boot (timeout=%ds)...", timeout)
 
-    esp32_monitor.wait_for(r"WiFi connected|wifi_connect.*success|IP address", timeout=timeout)
+    esp32_monitor.wait_for(r"WiFi connected|wifi_connect.*success|IP address|WiFi: Connected", timeout=timeout)
     ip = esp32_monitor.extract_ip()
 
     # Allow override via environment variable
