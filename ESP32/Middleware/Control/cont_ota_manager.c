@@ -258,6 +258,20 @@ ota_mgr_status_t cont_ota_manager_init(void)
         return OTA_MGR_ERR_INTERNAL;
     }
 
+    // Subscribe to event bus here, from app_init() task context (NOT from inside an
+    // event dispatch callback).  event_dispatch_task holds subscriber_mutex while
+    // calling callbacks; calling event_bus_subscribe() from within a callback would
+    // deadlock on that mutex, time out after 1 s per call, and silently drop every
+    // subscription — leaving on_mqtt_ota_notify unregistered.
+    event_bus_subscribe(EVENT_MQTT_DATA_RECEIVED, on_mqtt_ota_notify);
+    event_bus_subscribe(EVENT_OTA_STARTED,         on_esp32_ota_started);
+    event_bus_subscribe(EVENT_OTA_PROGRESS,        on_esp32_ota_progress);
+    event_bus_subscribe(EVENT_OTA_COMPLETED,       on_esp32_ota_completed);
+    event_bus_subscribe(EVENT_OTA_FAILED,          on_esp32_ota_failed);
+    event_bus_subscribe(EVENT_STM32_OTA_STARTED,   on_stm32_ota_started);
+    event_bus_subscribe(EVENT_STM32_OTA_COMPLETED, on_stm32_ota_completed);
+    event_bus_subscribe(EVENT_STM32_OTA_FAILED,    on_stm32_ota_failed);
+
     s_mgr.initialized = true;
     LOG_I(TAG, "Unified OTA manager initialized (ESP32 + STM32)");
 
@@ -272,15 +286,6 @@ ota_mgr_status_t cont_ota_manager_start(void)
     }
 
     if (!s_mgr.started) {
-        // First start only: subscribe to event bus (survives across MQTT reconnects)
-        event_bus_subscribe(EVENT_MQTT_DATA_RECEIVED, on_mqtt_ota_notify);
-        event_bus_subscribe(EVENT_OTA_STARTED, on_esp32_ota_started);
-        event_bus_subscribe(EVENT_OTA_PROGRESS, on_esp32_ota_progress);
-        event_bus_subscribe(EVENT_OTA_COMPLETED, on_esp32_ota_completed);
-        event_bus_subscribe(EVENT_OTA_FAILED, on_esp32_ota_failed);
-        event_bus_subscribe(EVENT_STM32_OTA_STARTED, on_stm32_ota_started);
-        event_bus_subscribe(EVENT_STM32_OTA_COMPLETED, on_stm32_ota_completed);
-        event_bus_subscribe(EVENT_STM32_OTA_FAILED, on_stm32_ota_failed);
         s_mgr.started = true;
         LOG_I(TAG, "OTA manager started - listening for ESP32 and STM32 update notifications");
     }
