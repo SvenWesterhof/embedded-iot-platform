@@ -178,7 +178,12 @@ bool app_init(void)
         }
     }
 
-    // Initialize MQTT client with credentials
+    // Initialize MQTT client with credentials.
+    // TLS is only enabled when the device has been provisioned with an AWS IoT
+    // client key (stored in NVS). Without a key the broker URI uses plain MQTT
+    // (e.g. mqtt:// in HIL) and TLS certs must not be set — otherwise the
+    // esp_mqtt_client tries a TLS handshake against a plain broker and silently
+    // fails to connect.
     mqtt_client_config_t mqtt_config = {
         .broker_uri = broker_uri,
         .device_id = MQTT_TOPIC_PREFIX,
@@ -188,9 +193,9 @@ bool app_init(void)
         .keepalive_sec = 120,
         .qos = 1,
         .clean_session = true,
-        .tls_ca_cert     = (const char *)amazon_root_ca_pem_start,
-        .tls_client_cert = (const char *)device_cert_pem_start,
-        .tls_client_key  = device_key,   // NULL if not provisioned → mTLS disabled
+        .tls_ca_cert     = device_key ? (const char *)amazon_root_ca_pem_start : NULL,
+        .tls_client_cert = device_key ? (const char *)device_cert_pem_start    : NULL,
+        .tls_client_key  = device_key,
     };
     if (serv_mqtt_init(&mqtt_config) == MQTT_OK) {
         LOG_I(TAG, "[OK] MQTT client initialized%s",
