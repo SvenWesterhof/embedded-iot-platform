@@ -141,6 +141,9 @@ def booted_esp32(esp32_monitor):
     # Wait for STM32 protocol to be ready (logged by ESP32)
     esp32_monitor.wait_for(r"STM32 protocol feature started|Protocol task started|STM32_PROTO.*Heartbeat", timeout=30)
 
+    # Wait for MQTT to connect so OTA manager is subscribed before tests start
+    esp32_monitor.wait_for(r"MQTT connected|MQTT_SVC.*connected|OTA manager started", timeout=30)
+
     return ip
 
 

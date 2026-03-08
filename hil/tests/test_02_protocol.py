@@ -93,6 +93,9 @@ def test_get_buffer_data(dashboard):
 @pytest.mark.timeout(10)
 def test_unknown_command_rejected(dashboard):
     """An unknown STM32 command ID must return RESP_INVALID_CMD."""
+    # Drain any stale deferred responses (e.g. from a previous test's async
+    # callbacks landing on a reused socket fd) before sending our command.
+    dashboard.drain()
     dashboard.stm32_cmd(0xFF)  # 0xFF is not a valid command
     pkt = dashboard.wait_for(DashResp.STM32, timeout=5)
     assert stm32_resp_status(pkt) == RESP_INVALID_CMD, (

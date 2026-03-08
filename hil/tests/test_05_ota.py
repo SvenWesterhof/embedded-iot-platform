@@ -57,7 +57,11 @@ def _sign_firmware(bin_path: str, key_path: str) -> str:
 def _publish_ota(payload: dict):
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.connect(MQTT_HOST, MQTT_PORT, keepalive=10)
-    client.publish(OTA_TOPIC, json.dumps(payload), qos=1)
+    client.loop_start()
+    time.sleep(0.5)  # Allow CONNACK to be received before publishing
+    info = client.publish(OTA_TOPIC, json.dumps(payload), qos=1)
+    info.wait_for_publish(timeout=5)
+    client.loop_stop()
     client.disconnect()
 
 
