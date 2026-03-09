@@ -55,14 +55,21 @@ class SerialMonitor:
         with self._lock:
             return list(self._lines)
 
-    def wait_for(self, pattern: str, timeout: float = 30.0) -> str:
+    def current_line_count(self) -> int:
+        """Return the current number of lines captured, useful as a baseline for wait_for."""
+        with self._lock:
+            return len(self._lines)
+
+    def wait_for(self, pattern: str, timeout: float = 30.0, since: int = 0) -> str:
         """
         Block until a line matching the regex pattern is seen in the serial output.
+        ``since`` sets the starting line index (use ``current_line_count()`` before an
+        event to restrict matching to lines produced after that point).
         Returns the matching line. Raises TimeoutError on timeout.
         """
         rx = re.compile(pattern)
         deadline = time.monotonic() + timeout
-        seen_up_to = 0
+        seen_up_to = since
         while time.monotonic() < deadline:
             with self._lock:
                 new_lines = self._lines[seen_up_to:]

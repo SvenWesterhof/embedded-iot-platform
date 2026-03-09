@@ -48,12 +48,23 @@ def test_get_status(dashboard):
 
 @pytest.mark.timeout(15)
 def test_set_rtc(dashboard):
-    """CMD_SET_RTC must sync the STM32 RTC and return RESP_OK."""
-    unix_time = int(time.time())
-    payload = struct.pack("<I", unix_time)
-    dashboard.stm32_cmd(CMD_SET_RTC, payload)
-    pkt = dashboard.wait_for(DashResp.STM32, timeout=5)
-    assert stm32_resp_status(pkt) == RESP_OK
+    """CMD_SET_RTC must sync the STM32 RTC and return RESP_OK.
+
+    The dashboard uses NTP time for this command.  NTP may finish syncing within
+    a second or two after boot, so retry until we get a STM32 response.
+    """
+    deadline = time.monotonic() + 12
+    while True:
+        dashboard.drain()
+        dashboard.stm32_cmd(CMD_SET_RTC, struct.pack("<I", int(time.time())))
+        try:
+            pkt = dashboard.wait_for(DashResp.STM32, timeout=3)
+            assert stm32_resp_status(pkt) == RESP_OK
+            return
+        except TimeoutError:
+            if time.monotonic() >= deadline:
+                pytest.fail("CMD_SET_RTC never succeeded — NTP may not have synced")
+            time.sleep(1)
 
 
 @pytest.mark.timeout(20)

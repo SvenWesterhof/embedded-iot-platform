@@ -141,6 +141,10 @@ def test_stm32_ota_success(esp32_monitor, server_ip):
         "crc32": fw_crc32,
         "auto_apply": True,
     }
+    # Capture log position before triggering OTA so the post-reboot check only
+    # looks at lines produced after this point.
+    baseline = esp32_monitor.current_line_count()
+
     _publish_ota(payload)
 
     # Monitor: STM32 OTA transfer progress
@@ -151,8 +155,9 @@ def test_stm32_ota_success(esp32_monitor, server_ip):
     # STM32 reboots into new firmware — give it time
     time.sleep(5)
 
-    # Verify STM32 is still responding after reboot (ESP32 re-establishes protocol)
-    esp32_monitor.wait_for(r"STM32 protocol ready|stm32.*ready", timeout=30)
+    # Verify STM32 is still responding after reboot: wait for the first heartbeat
+    # logged by the ESP32 protocol layer after the OTA was triggered.
+    esp32_monitor.wait_for(r"STM32_PROTO.*Heartbeat", timeout=30, since=baseline)
 
 
 # ---------------------------------------------------------------------------
@@ -178,6 +183,10 @@ def test_stm32_ota_invalid_signature_rejected(esp32_monitor, server_ip):
         "crc32": _compute_crc32(fw_data),
         "auto_apply": True,
     }
+    # Capture log position before triggering OTA so the liveness check only
+    # looks at lines produced after this point.
+    baseline = esp32_monitor.current_line_count()
+
     _publish_ota(payload)
 
     # Must see OTA failure, NOT success
@@ -186,6 +195,7 @@ def test_stm32_ota_invalid_signature_rejected(esp32_monitor, server_ip):
         timeout=190
     )
 
-    # STM32 should still be alive and responding
+    # STM32 should still be alive and responding (no reboot on rejected firmware).
+    # A fresh heartbeat from the ESP32 protocol layer confirms this.
     time.sleep(3)
-    esp32_monitor.wait_for(r"STM32 protocol ready|stm32.*ready", timeout=20)
+    esp32_monitor.wait_for(r"STM32_PROTO.*Heartbeat", timeout=20, since=baseline)
