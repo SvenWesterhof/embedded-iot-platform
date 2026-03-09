@@ -27,7 +27,7 @@ class SerialMonitor:
         self._baud = baud
         self._ser: Optional[serial.Serial] = None
         self._lines: list[str] = []
-        self._lock = threading.Lock()
+        self._lock = threading.Condition()
         self._thread: Optional[threading.Thread] = None
         self._running = False
 
@@ -70,15 +70,18 @@ class SerialMonitor:
         rx = re.compile(pattern)
         deadline = time.monotonic() + timeout
         seen_up_to = since
-        while time.monotonic() < deadline:
-            with self._lock:
+        with self._lock:
+            while True:
                 new_lines = self._lines[seen_up_to:]
                 seen_up_to = len(self._lines)
-            for line in new_lines:
-                if rx.search(line):
-                    logger.debug("Pattern '%s' matched: %s", pattern, line.strip())
-                    return line
-            time.sleep(0.1)
+                for line in new_lines:
+                    if rx.search(line):
+                        logger.debug("Pattern '%s' matched: %s", pattern, line.strip())
+                        return line
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self._lock.wait(timeout=remaining)
         raise TimeoutError(f"Pattern '{pattern}' not seen within {timeout}s")
 
     def extract_ip(self) -> Optional[str]:
@@ -90,7 +93,10 @@ class SerialMonitor:
         for line in self.lines():
             m = ip_re.search(line)
             if m:
-                return m.group(1)
+                octets = m.group(1).split(".")
+                if all(0 <= int(o) <= 255 for o in octets):
+                    return m.group(1)
+                logger.warning("Ignoring invalid IP in log: %s", m.group(1))
         return None
 
     def _read_loop(self):
@@ -111,6 +117,7 @@ class SerialMonitor:
                 logger.debug("[UART] %s", decoded)
                 with self._lock:
                     self._lines.append(decoded)
+                    self._lock.notify_all()
 
 
 def flash_esp32(firmware: str, port: str = "/dev/ttyUSB0",

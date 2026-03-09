@@ -64,7 +64,8 @@ class DashboardClient:
         self._rx_thread: Optional[threading.Thread] = None
         self._running = False
         self._received: list[DashPacket] = []
-        self._recv_lock = threading.Lock()
+        self._recv_lock = threading.Condition()
+        self._disconnected = threading.Event()
         self._connected = threading.Event()
 
     def connect(self):
@@ -132,28 +133,39 @@ class DashboardClient:
         """
         Wait until a packet of the given response type is received.
         Returns the packet or raises TimeoutError.
+        Raises ConnectionError if the WebSocket disconnects while waiting.
         """
         deadline = time.monotonic() + timeout
         seen_up_to = 0
-        while time.monotonic() < deadline:
-            with self._recv_lock:
+        with self._recv_lock:
+            while True:
+                if self._disconnected.is_set():
+                    raise ConnectionError("WebSocket disconnected while waiting for response")
                 new = self._received[seen_up_to:]
                 seen_up_to = len(self._received)
-            for pkt in new:
-                if pkt.resp_type == resp_type:
-                    return pkt
-            time.sleep(0.05)
+                for pkt in new:
+                    if pkt.resp_type == resp_type:
+                        return pkt
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self._recv_lock.wait(timeout=remaining)
         raise TimeoutError(f"No {resp_type.name} response within {timeout}s")
 
     def wait_for_any(self, timeout: float = 5.0) -> DashPacket:
         """Wait for any packet to arrive."""
         deadline = time.monotonic() + timeout
         start_len = len(self._received)
-        while time.monotonic() < deadline:
-            with self._recv_lock:
+        with self._recv_lock:
+            while True:
+                if self._disconnected.is_set():
+                    raise ConnectionError("WebSocket disconnected while waiting for response")
                 if len(self._received) > start_len:
                     return self._received[-1]
-            time.sleep(0.05)
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self._recv_lock.wait(timeout=remaining)
         raise TimeoutError(f"No packet received within {timeout}s")
 
     def drain(self) -> list[DashPacket]:
@@ -179,6 +191,9 @@ class DashboardClient:
             except Exception as e:
                 if self._running:
                     logger.warning("WebSocket recv error: %s", e)
+                self._disconnected.set()
+                with self._recv_lock:
+                    self._recv_lock.notify_all()
                 break
 
             if not data:
@@ -203,3 +218,4 @@ class DashboardClient:
             logger.debug("Received %s", pkt)
             with self._recv_lock:
                 self._received.append(pkt)
+                self._recv_lock.notify_all()

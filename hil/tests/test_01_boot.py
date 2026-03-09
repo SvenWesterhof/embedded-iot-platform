@@ -35,13 +35,12 @@ def test_stm32_sensors_initialized(stm32_monitor):
 
 
 @pytest.mark.timeout(20)
-def test_dashboard_server_reachable(dashboard):
-    """Dashboard WebSocket must accept connections."""
-    # If the fixture connected without exception, the server is reachable.
-    # Send a heartbeat and verify it is acknowledged.
+def test_dashboard_server_responds(dashboard):
+    """Dashboard WebSocket must accept connections and respond to commands."""
     from fixtures.dashboard_client import DashResp
-    dashboard.heartbeat()
-    # Any response (including no error) means the connection is alive.
-    # Heartbeat does not send an explicit ACK in the current implementation,
-    # so we just confirm the connection is open with no error raised.
-    assert dashboard._ws is not None and dashboard._ws.connected
+    # GET_STATUS triggers a real response from the firmware, unlike HEARTBEAT
+    # which has no ACK. This verifies the server processes commands, not just
+    # that the TCP connection is open.
+    dashboard.get_status()
+    pkt = dashboard.wait_for(DashResp.STATUS, timeout=5)
+    assert len(pkt.payload) > 0, "STATUS response payload should not be empty"

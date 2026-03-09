@@ -78,7 +78,8 @@ def test_esp32_ota_success(esp32_monitor, server_ip):
     if not os.path.exists(ota_bin):
         pytest.fail(f"ESP32 OTA binary not found: {ota_bin}")
 
-    fw_data = open(ota_bin, "rb").read()
+    from pathlib import Path
+    fw_data = Path(ota_bin).read_bytes()
     fw_size = len(fw_data)
     fw_url = f"http://{server_ip}:8080/{os.path.basename(ota_bin)}"
 
@@ -121,7 +122,8 @@ def test_stm32_ota_success(esp32_monitor, server_ip):
     if not os.path.exists(stm32_bin):
         pytest.fail(f"STM32 OTA binary not found: {stm32_bin}")
 
-    fw_data = open(stm32_bin, "rb").read()
+    from pathlib import Path
+    fw_data = Path(stm32_bin).read_bytes()
     fw_size = len(fw_data)
     fw_crc32 = _compute_crc32(fw_data)
     fw_sha256 = hashlib.sha256(fw_data).hexdigest()
@@ -171,7 +173,8 @@ def test_stm32_ota_invalid_signature_rejected(esp32_monitor, server_ip):
     if not stm32_bin or not os.path.exists(stm32_bin):
         pytest.skip("HIL_STM32_OTA_BIN not set — skipping signature rejection test")
 
-    fw_data = open(stm32_bin, "rb").read()
+    from pathlib import Path
+    fw_data = Path(stm32_bin).read_bytes()
     shutil.copy2(stm32_bin, os.path.join(FW_SERVER_DIR, os.path.basename(stm32_bin)))
 
     payload = {
@@ -180,6 +183,7 @@ def test_stm32_ota_invalid_signature_rejected(esp32_monitor, server_ip):
         "url": f"http://{server_ip}:8080/{os.path.basename(stm32_bin)}",
         "size": len(fw_data),
         "signature_rsa": base64.b64encode(b"this_is_not_a_valid_signature").decode(),
+        "sha256": hashlib.sha256(fw_data).hexdigest(),
         "crc32": _compute_crc32(fw_data),
         "auto_apply": True,
     }

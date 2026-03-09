@@ -73,19 +73,22 @@ def test_start_and_stop_measurement(dashboard):
     # Start measurement (1-second interval)
     dashboard.start_measurement(interval_ms=1000)
 
-    # Expect at least one MEASUREMENT response within 5 seconds
-    pkt = dashboard.wait_for(DashResp.MEASUREMENT, timeout=5)
-    assert len(pkt.payload) > 0, "Measurement payload should not be empty"
+    try:
+        # Expect at least one MEASUREMENT response within 5 seconds
+        pkt = dashboard.wait_for(DashResp.MEASUREMENT, timeout=5)
+        assert len(pkt.payload) > 0, "Measurement payload should not be empty"
 
-    # Stop measurement
-    dashboard.stop_measurement()
-    time.sleep(2)
+        # Stop measurement
+        dashboard.stop_measurement()
+        time.sleep(2)
 
-    # After stopping, no more measurements should arrive
-    dashboard.drain()
-    time.sleep(2)
-    pkts = [p for p in dashboard.received() if p.resp_type == DashResp.MEASUREMENT]
-    assert len(pkts) == 0, "Measurements continued after STOP_MEASUREMENT"
+        # After stopping, no more measurements should arrive
+        dashboard.drain()
+        time.sleep(2)
+        pkts = [p for p in dashboard.received() if p.resp_type == DashResp.MEASUREMENT]
+        assert len(pkts) == 0, "Measurements continued after STOP_MEASUREMENT"
+    finally:
+        dashboard.stop_measurement()
 
 
 @pytest.mark.timeout(15)
@@ -116,11 +119,13 @@ def test_unknown_command_rejected(dashboard):
 
 @pytest.mark.timeout(30)
 def test_sequence_numbers_match(dashboard):
-    """Send 5 consecutive GET_STATUS commands and verify no response is lost."""
+    """Send 5 consecutive GET_STATUS commands and verify responses arrive in order
+    with strictly increasing sequence numbers."""
+    dashboard.drain()
     for _ in range(5):
         dashboard.stm32_cmd(CMD_GET_STATUS)
 
-    # Poll received() without draining so buffered responses are not discarded
+    # Collect all 5 responses
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline:
         pkts = [p for p in dashboard.received() if p.resp_type == DashResp.STM32]
@@ -130,3 +135,16 @@ def test_sequence_numbers_match(dashboard):
 
     pkts = [p for p in dashboard.received() if p.resp_type == DashResp.STM32]
     assert len(pkts) >= 5, f"Expected 5 responses, got {len(pkts)}"
+
+    # Extract sequence numbers: byte at offset 2 in each response payload
+    # Layout: CMD(1) SEQ_ECHO(1) SEQ(1) STATUS(1) LEN(2) PAYLOAD
+    seq_numbers = []
+    for pkt in pkts[:5]:
+        assert len(pkt.payload) >= 4, "STM32 response payload too short to contain sequence number"
+        seq_numbers.append(pkt.payload[2])
+
+    # Verify sequence numbers are strictly increasing
+    for i in range(1, len(seq_numbers)):
+        assert seq_numbers[i] > seq_numbers[i - 1], (
+            f"Sequence numbers not increasing: {seq_numbers}"
+        )

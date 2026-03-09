@@ -12,7 +12,8 @@ import pytest
 
 from fixtures.dashboard_client import DashResp
 
-CFG = yaml.safe_load(open(os.path.join(os.path.dirname(__file__), "..", "config.yaml")))
+from pathlib import Path
+CFG = yaml.safe_load(Path(__file__).resolve().parent.parent.joinpath("config.yaml").read_text())
 BOUNDS = CFG["sensor_bounds"]
 
 SENSOR_TEMPERATURE = 0x01
@@ -87,7 +88,7 @@ def test_timestamps_monotonic(dashboard):
 
 @pytest.mark.timeout(30)
 def test_measurement_rate(dashboard):
-    """Live measurements must arrive at approximately the requested interval (±30%)."""
+    """Live measurements must arrive at approximately the requested interval (±25%)."""
     interval_ms = 1000
     dashboard.start_measurement(interval_ms=interval_ms)
 
@@ -107,7 +108,7 @@ def test_measurement_rate(dashboard):
     avg_interval = sum(intervals) / len(intervals)
 
     expected_s = interval_ms / 1000.0
-    tolerance = expected_s * 0.5  # 50% tolerance (network + processing jitter)
+    tolerance = expected_s * 0.25  # 25% tolerance (network + processing jitter)
 
     assert abs(avg_interval - expected_s) <= tolerance, (
         f"Average interval {avg_interval:.2f}s deviates too much from expected {expected_s}s"
@@ -117,25 +118,27 @@ def test_measurement_rate(dashboard):
 @pytest.mark.timeout(20)
 def test_buffer_data_returns_samples(dashboard):
     """Historical buffer must contain at least one sample after boot."""
-    # STM32 buffers a sample every 10 seconds — wait a bit if needed
-    import struct
     CMD_GET_BUFFER_DATA = 0x01
     RESP_OK = 0x00
-    RESP_NO_DATA = 0x06
+
+    def _get_status_byte(pkt) -> int:
+        assert len(pkt.payload) >= 4, "STM32 response payload too short"
+        return pkt.payload[3]
 
     # Try up to 3 times with 5s between attempts (in case buffer just started)
+    last_status = None
     for attempt in range(3):
         payload = struct.pack("<II", 0, 5)  # start=0, count=5
         dashboard.stm32_cmd(CMD_GET_BUFFER_DATA, payload)
         try:
-            from fixtures.dashboard_client import DashResp
             pkt = dashboard.wait_for(DashResp.STM32, timeout=5)
-            status = pkt.payload[3]  # status byte in header
-            if status == RESP_OK:
+            last_status = _get_status_byte(pkt)
+            if last_status == RESP_OK:
                 return  # Buffer has data — test passes
         except TimeoutError:
             pass
         if attempt < 2:
             time.sleep(5)
 
-    pytest.fail("Buffer returned no data after 3 attempts")
+    status_msg = f" (last status: 0x{last_status:02X})" if last_status is not None else ""
+    pytest.fail(f"Buffer returned no data after 3 attempts{status_msg}")
