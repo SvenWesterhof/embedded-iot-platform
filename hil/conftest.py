@@ -127,13 +127,15 @@ def booted_esp32(esp32_monitor):
     timeout = CFG["timeouts"]["boot_s"]
     logger.info("Waiting for ESP32 boot (timeout=%ds)...", timeout)
 
-    # Record baseline so we only match lines produced after the monitor started,
-    # preventing false matches from stale log lines of a previous boot cycle.
-    baseline = esp32_monitor.current_line_count()
-
+    # This fixture is session-scoped and may run after boot tests have already
+    # consumed the WiFi/MQTT log lines via esp32_monitor.wait_for(). Since the
+    # monitor buffer retains all lines (wait_for scans but doesn't remove), we
+    # search from the beginning (since=0) to find boot messages that were
+    # already captured. The monitor starts fresh each session after flashing,
+    # so there are no stale lines from a previous boot cycle.
     esp32_monitor.wait_for(
         r"WiFi connected|wifi_connect.*success|IP address|WiFi: Connected",
-        timeout=timeout, since=baseline,
+        timeout=timeout,
     )
     ip = esp32_monitor.extract_ip()
 
@@ -148,7 +150,7 @@ def booted_esp32(esp32_monitor):
     # Wait for STM32 protocol to be ready (logged by ESP32)
     esp32_monitor.wait_for(
         r"STM32 protocol feature started|Protocol task started|STM32_PROTO.*Heartbeat",
-        timeout=30, since=baseline,
+        timeout=30,
     )
 
     # Wait for MQTT to connect so OTA manager is subscribed before tests start.
@@ -157,7 +159,7 @@ def booted_esp32(esp32_monitor):
     # In that case the periodic uptime log ("MQTT: Connected") is the fallback.
     esp32_monitor.wait_for(
         r"MQTT connected|MQTT_SVC.*connected|OTA manager started|MQTT: Connected",
-        timeout=30, since=baseline,
+        timeout=30,
     )
 
     return ip
