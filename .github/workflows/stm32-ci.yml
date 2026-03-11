@@ -296,16 +296,16 @@ jobs:
           name: stm32-size-metrics
           path: metrics/pr
 
-      # Best-effort: fetch master's latest successful size metrics for delta.
-      - name: Download master size metrics
+      # Best-effort: fetch develop's latest successful size metrics for delta.
+      - name: Download develop size metrics
         id: dl-master
         continue-on-error: true
         uses: dawidd6/action-download-artifact@v3
         with:
           workflow: stm32-ci.yml
-          branch: master
+          branch: develop
           name: stm32-size-metrics
-          path: metrics/master
+          path: metrics/develop
           workflow_conclusion: success
           if_no_artifact_found: warn
 
@@ -318,21 +318,21 @@ jobs:
               fs.readFileSync('metrics/pr/stm32-size-metrics.json', 'utf8')
             );
 
-            let masterData = null;
+            let developData = null;
             try {
-              masterData = JSON.parse(
-                fs.readFileSync('metrics/master/stm32-size-metrics.json', 'utf8')
+              developData = JSON.parse(
+                fs.readFileSync('metrics/develop/stm32-size-metrics.json', 'utf8')
               );
             } catch(e) {
-              core.info('No master size metrics found — showing sizes without delta');
+              core.info('No develop size metrics found — showing sizes without delta');
             }
 
             let body = '## STM32 Binary Size\n\n';
-            body += '| Region | Size | Limit | Used | vs master |\n';
+            body += '| Region | Size | Limit | Used | vs develop |\n';
             body += '|--------|------|-------|------|----------|\n';
 
             for (const b of prData.binaries) {
-              const mb = masterData?.binaries?.find(m => m.name === b.name);
+              const mb = developData?.binaries?.find(m => m.name === b.name);
               let deltaStr = '—';
               if (mb !== undefined) {
                 const delta = b.size_bytes - mb.size_bytes;
@@ -348,8 +348,8 @@ jobs:
                     + ` | ${deltaStr} |\n`;
             }
 
-            if (masterData) {
-              body += `\n_Compared with master @ \`${masterData.commit}\`_\n`;
+            if (developData) {
+              body += `\n_Compared with develop @ \`${developData.commit}\`_\n`;
             }
 
             const marker = '<!-- stm32-size-report -->';
