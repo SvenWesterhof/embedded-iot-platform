@@ -10,10 +10,18 @@
 #include "os_wrapper.h"
 #include "portable_log.h"
 #include "../Services/serv_ntp_sync.h"
+#include "../Services/serv_mqtt_client.h"
 #include <esp_http_server.h>
 #include <string.h>
 
 static const char *TAG = "DASHBOARD";
+
+// Pack a (fd, generation) pair into a void* for use as async callback user_data.
+// fd fits in the low 16 bits (ESP-IDF httpd socket fds are small positive ints).
+// generation fits in the high 16 bits (wraps harmlessly after 65535 reconnects).
+#define MAKE_FD_GEN(fd, gen)  ((void *)(uintptr_t)(((uintptr_t)(gen) << 16) | ((uintptr_t)(fd) & 0xFFFFu)))
+#define FD_GEN_FD(cookie)     ((int)((uintptr_t)(cookie) & 0xFFFFu))
+#define FD_GEN_GEN(cookie)    ((uint32_t)((uintptr_t)(cookie) >> 16))
 
 // ============================================================================
 // Internal State
@@ -64,6 +72,7 @@ static dashboard_client_t* add_client(int fd)
             state.clients[i].fd = fd;
             state.clients[i].active = true;
             state.clients[i].last_heartbeat = os_get_time_ms();
+            state.clients[i].generation++;      // Invalidates any callbacks from the previous occupant of this fd
             state.stats.clients_connected++;
             state.stats.total_connections++;
             
@@ -113,7 +122,21 @@ static void stm32_response_callback(stm32_command_id_t cmd_id,
                                      size_t length,
                                      void *user_data)
 {
-    int client_fd = (int)(intptr_t)user_data;
+    int client_fd = FD_GEN_FD(user_data);
+    uint32_t gen  = FD_GEN_GEN(user_data);
+
+    // Guard against fd reuse: if the client that sent this command has already
+    // disconnected and the fd was reassigned to a new client, drop the response.
+    os_mutex_take(state.clients_mutex, OS_WAIT_FOREVER);
+    dashboard_client_t *client = find_client(client_fd);
+    bool valid = (client != NULL && client->generation == gen);
+    os_mutex_give(state.clients_mutex);
+
+    if (!valid) {
+        LOG_D(TAG, "Dropping stale STM32 response for cmd=0x%02X: client fd=%d no longer active",
+              cmd_id, client_fd);
+        return;
+    }
 
     LOG_I(TAG, "STM32 response: cmd=0x%02X seq=%u status=0x%02X len=%u -> client %d",
           cmd_id, seq, status, length, client_fd);
@@ -172,6 +195,11 @@ static void handle_stm32_command(int client_fd, const uint8_t *payload, size_t l
 
     LOG_I(TAG, "Processing STM32 cmd=0x%02X from client %d", cmd_id, client_fd);
 
+    // Capture (fd, generation) now so the async callback can detect if this
+    // client disconnects before the STM32 response arrives.
+    dashboard_client_t *cb_client = find_client(client_fd);
+    void *cb_cookie = MAKE_FD_GEN(client_fd, cb_client ? cb_client->generation : 0u);
+
     proto_err_t err = PROTO_ERR_INVALID_ARG;
 
     // Decode command and call appropriate helper with response callback
@@ -184,61 +212,60 @@ static void handle_stm32_command(int client_fd, const uint8_t *payload, size_t l
                 err = PROTO_ERR_INVALID_STATE;
             } else {
                 LOG_I(TAG, "Syncing RTC with NTP time: %lu", (unsigned long)now);
-                err = stm32_cmd_set_rtc((uint32_t)now, stm32_response_callback, (void *)(intptr_t)client_fd);
+                err = stm32_cmd_set_rtc((uint32_t)now, stm32_response_callback, cb_cookie);
             }
             break;
         }
 
         case CMD_GET_STATUS:
-            err = stm32_cmd_get_status(stm32_response_callback, (void *)(intptr_t)client_fd);
+            err = stm32_cmd_get_status(stm32_response_callback, cb_cookie);
             break;
 
         case CMD_START_MEASUREMENT: {
             // Extract parameters: sensor_type(1) + interval_ms(4) [optional, default to 1000ms]
             uint8_t sensor_type = (params_len >= 1) ? params[0] : SENSOR_TEMPERATURE;
             uint32_t interval_ms = 1000;  // Default
-            
+
             if (params_len >= 5) {
-                interval_ms = params[1] | (params[2] << 8) | 
+                interval_ms = params[1] | (params[2] << 8) |
                              (params[3] << 16) | (params[4] << 24);
             }
-            
+
             LOG_I(TAG, "Start measurement: type=%u interval=%lu ms", sensor_type, (unsigned long)interval_ms);
-            err = stm32_cmd_start_measurement(interval_ms, stm32_response_callback, (void *)(intptr_t)client_fd);
+            err = stm32_cmd_start_measurement(interval_ms, stm32_response_callback, cb_cookie);
             break;
         }
 
         case CMD_STOP_MEASUREMENT:
-            err = stm32_cmd_stop_measurement(stm32_response_callback, (void *)(intptr_t)client_fd);
+            err = stm32_cmd_stop_measurement(stm32_response_callback, cb_cookie);
             break;
 
         case CMD_GET_BUFFER_DATA: {
             // Extract parameters: start_index(4) + count(4) [optional, default to 0 and 10]
             uint32_t start_index = 0;
             uint32_t count = 10;
-            
+
             if (params_len >= 4) {
-                start_index = params[0] | (params[1] << 8) | 
+                start_index = params[0] | (params[1] << 8) |
                              (params[2] << 16) | (params[3] << 24);
             }
             if (params_len >= 8) {
-                count = params[4] | (params[5] << 8) | 
+                count = params[4] | (params[5] << 8) |
                        (params[6] << 16) | (params[7] << 24);
             }
-            
+
             LOG_I(TAG, "Get buffer data: start=%lu count=%lu", (unsigned long)start_index, (unsigned long)count);
-            err = stm32_cmd_get_buffer_data(start_index, count, 
-                                           stm32_response_callback, 
-                                           (void *)(intptr_t)client_fd);
+            err = stm32_cmd_get_buffer_data(start_index, count,
+                                           stm32_response_callback,
+                                           cb_cookie);
             break;
         }
 
         case CMD_CLEAR_BUFFER:
-            // Use generic async command with callback
             err = stm32_protocol_send_command_async(
                 CMD_CLEAR_BUFFER, NULL, 0,
                 stm32_response_callback,
-                (void *)(intptr_t)client_fd
+                cb_cookie
             );
             break;
 
@@ -246,22 +273,25 @@ static void handle_stm32_command(int client_fd, const uint8_t *payload, size_t l
             err = stm32_protocol_send_command_async(
                 CMD_GET_CONFIG, NULL, 0,
                 stm32_response_callback,
-                (void *)(intptr_t)client_fd
+                cb_cookie
             );
             break;
 
         case CMD_SET_CONFIG:
-            // Config payload should be in params
             err = stm32_protocol_send_command_async(
                 CMD_SET_CONFIG, params, params_len,
                 stm32_response_callback,
-                (void *)(intptr_t)client_fd
+                cb_cookie
             );
             break;
 
         default:
-            LOG_W(TAG, "Unknown STM32 command: 0x%02X", cmd_id);
-            err = PROTO_ERR_INVALID_ARG;
+            LOG_W(TAG, "Unknown STM32 command 0x%02X, forwarding to STM32", cmd_id);
+            err = stm32_protocol_send_command_async(
+                (stm32_command_id_t)cmd_id, params, params_len,
+                stm32_response_callback,
+                cb_cookie
+            );
             break;
     }
 
@@ -270,6 +300,50 @@ static void handle_stm32_command(int client_fd, const uint8_t *payload, size_t l
         uint8_t resp_err = RESP_ERROR;
         dashboard_send_to_client(client_fd, DASH_RESP_ERROR, &resp_err, 1);
     }
+}
+
+/**
+ * @brief Measurement notify callback - broadcasts live sensor data to all dashboard clients
+ */
+static void measurement_notify_callback(stm32_command_id_t cmd_id,
+                                         const uint8_t *payload,
+                                         size_t length,
+                                         void *user_data)
+{
+    (void)cmd_id;
+    (void)user_data;
+    LOG_D(TAG, "Measurement notification: len=%u", length);
+    dashboard_broadcast(DASH_RESP_MEASUREMENT, payload, length);
+}
+
+/**
+ * @brief History response callback - sends buffer data as DASH_RESP_HISTORY to requesting client
+ */
+static void history_response_callback(stm32_command_id_t cmd_id,
+                                       uint8_t seq,
+                                       stm32_response_status_t status,
+                                       const uint8_t *payload,
+                                       size_t length,
+                                       void *user_data)
+{
+    (void)cmd_id;
+    (void)seq;
+    (void)status;
+    int client_fd = FD_GEN_FD(user_data);
+    uint32_t gen  = FD_GEN_GEN(user_data);
+
+    os_mutex_take(state.clients_mutex, OS_WAIT_FOREVER);
+    dashboard_client_t *client = find_client(client_fd);
+    bool valid = (client != NULL && client->generation == gen);
+    os_mutex_give(state.clients_mutex);
+
+    if (!valid) {
+        LOG_D(TAG, "Dropping stale history response: client fd=%d no longer active", client_fd);
+        return;
+    }
+
+    LOG_I(TAG, "History response: status=0x%02X len=%u -> client %d", status, length, client_fd);
+    dashboard_send_to_client(client_fd, DASH_RESP_HISTORY, payload, length);
 }
 
 /**
@@ -305,24 +379,63 @@ static void process_message(int client_fd, const uint8_t *data, size_t len)
             break;
             
         case DASH_MSG_REQUEST_HISTORY:
-            LOG_I(TAG, "History request from client");
-            event_bus_publish(EVENT_DASHBOARD_REQUEST_HISTORY, (void*)(intptr_t)client_fd);
+            LOG_I(TAG, "History request from client %d", client_fd);
+            if (stm32_protocol_is_ready()) {
+                stm32_cmd_get_buffer_data(0, 10, history_response_callback,
+                                          MAKE_FD_GEN(client_fd, client ? client->generation : 0u));
+            } else {
+                uint8_t err = RESP_BUSY;
+                dashboard_send_to_client(client_fd, DASH_RESP_ERROR, &err, 1);
+            }
             break;
-            
-        case DASH_MSG_START_MEASUREMENT:
-            LOG_I(TAG, "Start measurement request");
-            event_bus_publish_copy(EVENT_DASHBOARD_START_MEASUREMENT, payload, payload_len);
+
+        case DASH_MSG_START_MEASUREMENT: {
+            uint32_t interval_ms = 1000;
+            if (payload_len >= 4) {
+                interval_ms = (uint32_t)payload[0]
+                            | ((uint32_t)payload[1] << 8)
+                            | ((uint32_t)payload[2] << 16)
+                            | ((uint32_t)payload[3] << 24);
+            }
+            LOG_I(TAG, "Start measurement from client %d: interval=%lu ms",
+                  client_fd, (unsigned long)interval_ms);
+            if (stm32_protocol_is_ready()) {
+                stm32_protocol_register_notify_callback(measurement_notify_callback, NULL);
+                stm32_cmd_start_measurement(interval_ms, stm32_response_callback,
+                                            MAKE_FD_GEN(client_fd, client ? client->generation : 0u));
+            } else {
+                uint8_t err = RESP_BUSY;
+                dashboard_send_to_client(client_fd, DASH_RESP_ERROR, &err, 1);
+            }
             break;
-            
+        }
+
         case DASH_MSG_STOP_MEASUREMENT:
-            LOG_I(TAG, "Stop measurement request");
-            event_bus_publish(EVENT_DASHBOARD_STOP_MEASUREMENT, NULL);
+            LOG_I(TAG, "Stop measurement from client %d", client_fd);
+            if (stm32_protocol_is_ready()) {
+                stm32_cmd_stop_measurement(stm32_response_callback,
+                                           MAKE_FD_GEN(client_fd, client ? client->generation : 0u));
+                stm32_protocol_register_notify_callback(NULL, NULL);
+            }
             break;
-            
-        case DASH_MSG_GET_STATUS:
-            LOG_D(TAG, "Status request from client");
-            // Status request handled by application layer
+
+        case DASH_MSG_GET_STATUS: {
+            LOG_D(TAG, "Status request from client %d", client_fd);
+            struct {
+                uint8_t clients_connected;
+                uint8_t ntp_synced;
+                uint8_t mqtt_connected;
+                uint8_t stm32_ready;
+            } __attribute__((packed)) status_resp = {
+                .clients_connected = dashboard_get_client_count(),
+                .ntp_synced        = serv_ntp_is_valid() ? 1 : 0,
+                .mqtt_connected    = serv_mqtt_is_connected() ? 1 : 0,
+                .stm32_ready       = stm32_protocol_is_ready() ? 1 : 0,
+            };
+            dashboard_send_to_client(client_fd, DASH_RESP_STATUS,
+                                     &status_resp, sizeof(status_resp));
             break;
+        }
 
         case DASH_MSG_STM32_CMD:
             handle_stm32_command(client_fd, payload, payload_len);

@@ -93,6 +93,7 @@ typedef struct {
     uint32_t last_heartbeat;            /**< Last heartbeat timestamp (ms) */
     bool active;                        /**< Client is active */
     char ip_addr[16];                   /**< Client IP address */
+    uint32_t generation;                /**< Incremented on every new connection to this slot */
 } dashboard_client_t;
 
 /**

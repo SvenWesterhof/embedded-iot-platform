@@ -178,7 +178,12 @@ bool app_init(void)
         }
     }
 
-    // Initialize MQTT client with credentials
+    // Initialize MQTT client with credentials.
+    // TLS is only enabled when the device has been provisioned with an AWS IoT
+    // client key (stored in NVS). Without a key the broker URI uses plain MQTT
+    // (e.g. mqtt:// in HIL) and TLS certs must not be set — otherwise the
+    // esp_mqtt_client tries a TLS handshake against a plain broker and silently
+    // fails to connect.
     mqtt_client_config_t mqtt_config = {
         .broker_uri = broker_uri,
         .device_id = MQTT_TOPIC_PREFIX,
@@ -188,9 +193,9 @@ bool app_init(void)
         .keepalive_sec = 120,
         .qos = 1,
         .clean_session = true,
-        .tls_ca_cert     = (const char *)amazon_root_ca_pem_start,
-        .tls_client_cert = (const char *)device_cert_pem_start,
-        .tls_client_key  = device_key,   // NULL if not provisioned → mTLS disabled
+        .tls_ca_cert     = device_key ? (const char *)amazon_root_ca_pem_start : NULL,
+        .tls_client_cert = device_key ? (const char *)device_cert_pem_start    : NULL,
+        .tls_client_key  = device_key,
     };
     if (serv_mqtt_init(&mqtt_config) == MQTT_OK) {
         LOG_I(TAG, "[OK] MQTT client initialized%s",
@@ -255,13 +260,17 @@ void app_run(void)
         // Broadcast to all WebSocket clients
         dashboard_broadcast_json(status_json);
         
-        // Log every 30 seconds
+        // Log every 30 seconds (includes IP so HIL serial monitor can detect it
+        // even when the early boot "Got IP" message was missed due to timing)
         if (uptime % 30 == 0) {
             char partition_info[64];
             cont_ota_get_partition_info(partition_info, sizeof(partition_info));
-            LOG_I(TAG, "Uptime: %u seconds | WiFi: %s | MQTT: %s | Partition: %s",
+            wifi_info_t wifi_info = {0};
+            wifi_manager_get_info(&wifi_info);
+            LOG_I(TAG, "Uptime: %u seconds | WiFi: %s | IP: %s | MQTT: %s | Partition: %s",
                      uptime,
                      wifi_manager_is_connected() ? "Connected" : "Disconnected",
+                     wifi_info.ip_addr[0] ? wifi_info.ip_addr : "0.0.0.0",
                      serv_mqtt_is_connected() ? "Connected" : "Disconnected",
                      partition_info);
         }

@@ -1,0 +1,43 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    ports:
+      - "1883:1883"
+    restart: unless-stopped
+
+  fw-server:
+    image: python:3.12-slim
+    working_dir: /firmware
+    volumes:
+      - ${FW_DIR:-../build}:/firmware
+    command: python -m http.server 8080
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  hil-runner:
+    build: .
+    depends_on:
+      - mosquitto
+      - fw-server
+    environment:
+      # localhost resolves via host network (ports exposed above)
+      - HIL_MQTT_BROKER=localhost
+      - HIL_FW_SERVER_PORT=8080
+      - HIL_SERVER_IP=${HIL_SERVER_IP}
+      - HIL_ESP32_IP=${HIL_ESP32_IP:-}
+    volumes:
+      - ./tests:/hil/tests:ro
+      - ./fixtures:/hil/fixtures:ro
+      - ./scripts:/hil/scripts:ro
+      - ./config.yaml:/hil/config.yaml:ro
+      - ${FW_DIR:-../build}:/firmware:ro
+      - ./logs:/hil/logs
+    devices:
+      - /dev/ttyACM0:/dev/ttyACM0   # ESP32-S3 USB JTAG/CDC
+      - /dev/ttyACM1:/dev/ttyACM1   # STM32 ST-Link VCP
+    privileged: true     # Required for OpenOCD USB access to ST-Link
+    network_mode: host   # Shares host network so ESP32 on LAN is reachable
+                         # and ports from mosquitto/fw-server are on localhost

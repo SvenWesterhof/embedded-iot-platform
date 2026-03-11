@@ -1,0 +1,6 @@
+pytest>=8.0.0
+pytest-timeout>=2.3.0
+pyserial>=3.5
+websocket-client>=1.8.0
+paho-mqtt>=2.0.0
+requests>=2.31.0
